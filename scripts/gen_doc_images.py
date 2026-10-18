@@ -4,13 +4,15 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 #
 # Draws the pictures of the docs that are made of fields and boxes - the
-# packet layouts of Hacking.md and Crypto.md, the lab of netns_testing.md -
-# as SVG into docs/images/, in the colours of docs/images/overview.svg, for
-# light and dark themes alike.  The layouts are written down below as
+# packet layouts of Hacking.md and Crypto.md, the lab of netns_testing.md,
+# the diagrams of the configuration and the advanced topics - as SVG into
+# docs/images/, in the colours of docs/images/overview.svg, for light and
+# dark themes alike.  The layouts are written down below as
 # fields at byte offsets, so a field that changes is changed in one place.
 #
 # usage: scripts/gen_doc_images.py [docs/images]
 
+import math
 import os
 import sys
 
@@ -32,6 +34,15 @@ STYLE = """
     .title {{ font: 600 14px {font}; fill: #1e1e24; }}
     .small {{ font: 11px {font}; fill: #5c5c69; }}
     .xor   {{ font: 600 16px {font}; fill: #c2185b; }}
+    .mono  {{ font: 11px ui-monospace, Menlo, Consolas, monospace;
+             fill: #1e1e24; }}
+    .p2p   {{ stroke: #c2185b; stroke-width: 3; fill: none; }}
+    .relay {{ stroke: #7b7b88; stroke-width: 2; stroke-dasharray: 7 5;
+             fill: none; }}
+    .dot   {{ fill: #c2185b; }}
+    .head  {{ fill: #5c5c69; }}
+    .phead {{ fill: #c2185b; }}
+    .drop  {{ stroke: #c2185b; stroke-width: 2.5; }}
     @media (prefers-color-scheme: dark) {{
       .box   {{ fill: #23232b; stroke: #a3a3ae; }}
       .hi    {{ fill: #3a1f2c; stroke: #f06ba4; }}
@@ -44,6 +55,13 @@ STYLE = """
       .title {{ fill: #ececf1; }}
       .small {{ fill: #a9a9b4; }}
       .xor   {{ fill: #f06ba4; }}
+      .mono  {{ fill: #ececf1; }}
+      .p2p   {{ stroke: #f06ba4; }}
+      .relay {{ stroke: #9c9ca8; }}
+      .dot   {{ fill: #f06ba4; }}
+      .head  {{ fill: #a3a3ae; }}
+      .phead {{ fill: #f06ba4; }}
+      .drop  {{ stroke: #f06ba4; }}
     }}
   </style>
 """.format(font=FONT)
@@ -311,6 +329,246 @@ def netns_lab():
 
 
 PICTURES["netns-lab.svg"] = netns_lab()
+
+
+# --- diagrams: boxes, wires and arrows ------------------------------------
+
+def path(d, cls="wire"):
+    return '  <path class="{}" d="{}"/>'.format(cls, d)
+
+
+def arrowhead(x, y, fx, fy, cls="head"):
+    """A head with its tip at x, y, pointing away from fx, fy"""
+    dx, dy = x - fx, y - fy
+    n = math.hypot(dx, dy)
+    dx, dy = dx / n, dy / n
+    bx, by = x - dx * 9, y - dy * 9
+    points = [(x, y), (bx - dy * 4.5, by + dx * 4.5),
+              (bx + dy * 4.5, by - dx * 4.5)]
+    return '  <polygon class="{}" points="{}"/>'.format(
+        cls, " ".join("{:.1f},{:.1f}".format(*pt) for pt in points))
+
+
+def arrow(x0, y0, x1, y1, cls="wire", head="head", both=False):
+    """A line from x0, y0 to x1, y1 with a head at its end (and at its
+    start too, with both)"""
+    dx, dy = x1 - x0, y1 - y0
+    n = math.hypot(dx, dy)
+    dx, dy = dx / n * 6, dy / n * 6
+    a = (x0 + dx, y0 + dy) if both else (x0, y0)
+    out = [path("M {:g} {:g} L {:g} {:g}".format(a[0], a[1], x1 - dx,
+                                                 y1 - dy), cls),
+           arrowhead(x1, y1, x0, y0, head)]
+    if both:
+        out.append(arrowhead(x0, y0, x1, y1, head))
+    return "\n".join(out)
+
+
+def node(body, cx, y, w, h, title, sub=(), cls="box"):
+    """A box centred at cx, with a title and lines under it"""
+    if isinstance(sub, str):
+        sub = (sub,)
+    body.append(rect(cx - w / 2, y, w, h, cls, 8))
+    y0 = y + h / 2 - len(sub) * 7 + 5
+    body.append(text(cx, y0, title, "title"))
+    for k, line in enumerate(sub):
+        body.append(text(cx, y0 + 17 + 14 * k, line, "small"))
+
+
+def tun_tap():
+    """What a TAP and a TUN device carry, and what the edge does"""
+    w, h = 720, 352
+    body = []
+    for cx, kind, dev, carried, edge in (
+            (190, "TAP: the default", "TAP device: n3n0",
+             ("Ethernet frames: IPv4, IPv6,", "ARP, any other protocol"),
+             ("encrypts the frames and sends them",)),
+            (530, "TUN: tuntap.type = tun", "TUN device: utun3, tun0",
+             ("IP packets: IPv4, IPv6",),
+             ("puts the Ethernet header on and off,",
+              "does ARP and neighbour discovery"))):
+        body.append(text(cx, 22, kind, "title"))
+        node(body, cx, 36, 280, 40, "the system", "applications, IP stack")
+        body.append(arrow(cx - 90, 76, cx - 90, 120, both=True))
+        for k, line in enumerate(carried):
+            body.append(text(cx - 76, 96 + 14 * k, line, "small", "start"))
+        node(body, cx, 120, 280, 40, dev)
+        body.append(arrow(cx - 90, 160, cx - 90, 204, both=True))
+        body.append(text(cx - 76, 186, "the same", "small", "start"))
+        node(body, cx, 204, 280, 58, "edge", edge, "hi")
+        body.append(arrow(cx, 262, cx, 298, both=True))
+    body.append(rect(30, 298, 660, 34, "bar", 8))
+    body.append(text(360, 320, "the community: Ethernet frames, encrypted - "
+                     "TAP and TUN edges together", "label"))
+    return svg(w, h, "TAP and TUN devices",
+               "A TAP device carries Ethernet frames between the system and "
+               "the edge; a TUN device carries IP packets, and the edge adds "
+               "the Ethernet header and answers ARP itself.  On the wire both "
+               "are the same.", body)
+
+
+PICTURES["tun-tap.svg"] = tun_tap()
+
+
+def federation():
+    """Three federated supernodes, edges at different ones"""
+    w, h = 720, 330
+    body = []
+    body.append(path("M 140 64 Q 360 -6 580 64", "relay"))
+    body.append(path("M 210 89 L 290 89", "relay"))
+    body.append(path("M 430 89 L 510 89", "relay"))
+    body.append(text(360, 50, "federated", "small"))
+    for cx, name in ((140, "sn1"), (360, "sn2"), (580, "sn3")):
+        node(body, cx, 64, 140, 50, name, "supernode", "hi")
+    for cx, name, sn in ((140, "edge A", "sn1"), (360, "edge C", "sn2"),
+                         (580, "edge B", "sn3")):
+        body.append(path("M {0} 114 L {0} 200".format(cx)))
+        body.append(text(cx + 8, 162, "registered", "small", "start"))
+        node(body, cx, 200, 140, 50, name, "at " + sn)
+    body.append(path("M 140 250 L 140 280 L 580 280 L 580 250", "p2p"))
+    body.append('  <circle class="dot" cx="140" cy="250" r="4.5"/>')
+    body.append('  <circle class="dot" cx="580" cy="250" r="4.5"/>')
+    body.append(text(360, 302, "A and B directly: sn1 asked the federation "
+                     "where B is, and passed the answer on", "small"))
+    body.append(text(360, 318, "a supernode that goes away: its edges move "
+                     "to another one", "small"))
+    return svg(w, h, "A supernode federation",
+               "Three supernodes, federated with each other; edges A, B and "
+               "C registered at different ones still find each other, and A "
+               "and B reach each other directly.", body)
+
+
+PICTURES["federation.svg"] = federation()
+
+
+def nat_punch():
+    """How two edges behind NATs get through to each other"""
+    w, h = 720, 400
+    body = []
+    lanes = {"a": 70, "na": 215, "sn": 360, "nb": 505, "b": 650}
+    for key, title, sub, cls in (("a", "edge A", "10.0.0.1", "box"),
+                                 ("na", "NAT A", "203.0.113.5", "opt"),
+                                 ("sn", "supernode", "", "hi"),
+                                 ("nb", "NAT B", "198.51.100.7", "opt"),
+                                 ("b", "edge B", "10.0.0.2", "box")):
+        x = lanes[key]
+        # the lifelines, with gaps for the captions
+        body.append(path(" ".join("M {0} {1} L {0} {2}".format(x, y0, y1)
+                                  for y0, y1 in ((62, 100), (118, 154),
+                                                 (172, 244), (276, 316))),
+                         "nat"))
+        node(body, x, 14, 116, 48, title, sub, cls)
+    a, na, sn, nb, b = (lanes[k] for k in ("a", "na", "sn", "nb", "b"))
+
+    body.append(arrow(a, 92, sn, 92))
+    body.append(arrow(b, 92, sn, 92))
+    body.append(text(sn, 112, "1. Both register: the supernode sees each at "
+                     "its NAT's public address and port", "small"))
+
+    body.append(arrow(sn, 146, a, 146))
+    body.append(arrow(sn, 146, b, 146))
+    body.append(text((a + sn) / 2, 140, "B is at 198.51.100.7:40211",
+                     "mono"))
+    body.append(text((sn + b) / 2, 140, "A is at 203.0.113.5:51000", "mono"))
+    body.append(text(sn, 166, "2. It tells each where the other one is",
+                     "small"))
+
+    body.append(arrow(a, 200, nb - 4, 200))
+    body.append(path("M {} 192 L {} 208 M {} 192 L {} 208".format(
+        nb - 8, nb + 8, nb + 8, nb - 8), "drop"))
+    body.append(text((a + na) / 2, 194, "REGISTER", "small"))
+    body.append(arrow(b, 232, a, 232))
+    body.append(text((nb + b) / 2, 226, "REGISTER", "small"))
+    body.append(text(sn, 254, "3. Each sends a REGISTER to the other, which "
+                     "opens its own NAT for the answer;", "small"))
+    body.append(text(sn, 270, "the first may be dropped at the other NAT, "
+                     "the next finds it open", "small"))
+
+    body.append(arrow(a, 306, b, 306, "p2p", "phead", both=True))
+    body.append(text(sn, 330, "4. Direct, both ways - the supernode is out "
+                     "of the way", "small"))
+    body.append(text(sn, 362, "a NAT that changes the port for each "
+                     "destination needs more: see “Getting through "
+                     "a hard NAT”", "small"))
+    return svg(w, h, "Hole punching through two NATs",
+               "Both edges register with the supernode, which tells each the "
+               "public address of the other; both send REGISTERs to each "
+               "other, which open their own NATs, and from then on they "
+               "talk directly.", body)
+
+
+PICTURES["nat-punch.svg"] = nat_punch()
+
+
+def routing():
+    """Two networks joined by two edges that route"""
+    w, h = 720, 352
+    body = []
+    for x0, label, cx, edge, eaddr, other, oaddr in (
+            (20, "home: 10.11.12.0/24", 135, "hickory",
+             "eth0 .5 · n3n0 10.99.99.50", "computers",
+             "the rest of the LAN"),
+            (470, "office: 192.168.1.0/24", 585, "oscar",
+             "eth0 .6 · n3n0 10.99.99.60", "olivia", ".123")):
+        body.append(rect(x0, 30, 230, 250, "nat", 12))
+        body.append(text(x0 + 12, 48, label, "small", "start"))
+        body.append(path("M {0} 100 L {0} 238".format(cx - 60)))
+        node(body, cx, 56, 150, 44, "router", ".1 · to the internet")
+        node(body, cx, 140, 190, 50, edge, eaddr, "hi")
+        node(body, cx, 216, 150, 44, other, oaddr, "opt")
+    body.append(arrow(230, 165, 490, 165, "p2p", "phead", both=True))
+    body.append(text(360, 152, "community 10.99.99.0/24", "label"))
+    body.append(text(360, 186, "filter.allow_routing = true", "mono"))
+    body.append(text(360, 200, "and IP forwarding, at both", "small"))
+    body.append(text(20, 304, "on hickory:", "small", "start"))
+    body.append(text(20, 320, "ip route add 192.168.1.0/24 via 10.99.99.60",
+                     "mono", "start"))
+    body.append(text(470, 304, "on the office router:", "small", "start"))
+    body.append(text(470, 320, "10.11.12.5 via 192.168.1.6", "mono",
+                     "start"))
+    return svg(w, h, "Routing between two networks",
+               "Hickory at home and oscar in the office are edges of one "
+               "community and route for their networks: hickory sends what "
+               "is for the office to oscar's address in the community, the "
+               "office router sends what is for hickory to oscar.", body)
+
+
+PICTURES["routing.svg"] = routing()
+
+
+def bridging():
+    """Two sites, one Ethernet segment through a bridge at each"""
+    w, h = 720, 250
+    body = []
+    for x0, site, dev_cx, host_cx, eth_cx, tap_cx in (
+            (20, "site A", 80, 235, 200, 270),
+            (400, "site B", 640, 485, 520, 450)):
+        body.append(rect(x0, 30, 300, 160, "nat", 12))
+        body.append(text(x0 + 12, 48, site, "small", "start"))
+        node(body, dev_cx, 86, 110, 50, "devices", "PLC, printer, ...",
+             "opt")
+        body.append(rect(host_cx - 75, 60, 150, 110, "box", 8))
+        body.append(text(host_cx, 80, "edge, bridge br0", "title"))
+        body.append(rect(eth_cx - 28, 100, 56, 40, "box", 6))
+        body.append(text(eth_cx, 124, "eth0", "label"))
+        body.append(rect(tap_cx - 28, 100, 56, 40, "hi", 6))
+        body.append(text(tap_cx, 124, "n3n0", "label"))
+        x1 = dev_cx + 55 if x0 == 20 else dev_cx - 55
+        x2 = eth_cx - 28 if x0 == 20 else eth_cx + 28
+        body.append(path("M {} 120 L {} 120".format(x1, x2)))
+    body.append(arrow(298, 120, 422, 120, "p2p", "phead", both=True))
+    body.append(text(360, 110, "community", "small"))
+    body.append(text(360, 214, "one Ethernet segment across both sites: "
+                     "frames, broadcasts and, with", "small"))
+    body.append(text(360, 230, "filter.allow_multicast, multicast - the "
+                     "devices need no software of their own", "small"))
+    return svg(w, h, "Bridging two sites",
+               "At each site an edge's TAP device and its Ethernet port are "
+               "in one bridge, so that the devices at both sites are on one "
+               "Ethernet segment.", body)
+
+
+PICTURES["bridging.svg"] = bridging()
 
 
 def main():

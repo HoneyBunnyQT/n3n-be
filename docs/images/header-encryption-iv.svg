@@ -19,6 +19,15 @@
     .title { font: 600 14px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #1e1e24; }
     .small { font: 11px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #5c5c69; }
     .xor   { font: 600 16px system-ui, -apple-system, "Segoe UI", sans-serif; fill: #c2185b; }
+    .mono  { font: 11px ui-monospace, Menlo, Consolas, monospace;
+             fill: #1e1e24; }
+    .p2p   { stroke: #c2185b; stroke-width: 3; fill: none; }
+    .relay { stroke: #7b7b88; stroke-width: 2; stroke-dasharray: 7 5;
+             fill: none; }
+    .dot   { fill: #c2185b; }
+    .head  { fill: #5c5c69; }
+    .phead { fill: #c2185b; }
+    .drop  { stroke: #c2185b; stroke-width: 2.5; }
     @media (prefers-color-scheme: dark) {
       .box   { fill: #23232b; stroke: #a3a3ae; }
       .hi    { fill: #3a1f2c; stroke: #f06ba4; }
@@ -31,6 +40,13 @@
       .title { fill: #ececf1; }
       .small { fill: #a9a9b4; }
       .xor   { fill: #f06ba4; }
+      .mono  { fill: #ececf1; }
+      .p2p   { stroke: #f06ba4; }
+      .relay { stroke: #9c9ca8; }
+      .dot   { fill: #f06ba4; }
+      .head  { fill: #a3a3ae; }
+      .phead { fill: #f06ba4; }
+      .drop  { stroke: #f06ba4; }
     }
   </style>
 
