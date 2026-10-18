@@ -1,14 +1,14 @@
 ---
 name: Slow BSD test job
 
+# On every push, as the other systems: run only for pull requests and
+# releases, it went unseen that the BSDs no longer built.  Not for a
+# release: release.yml builds it, and a release ran this job as the
+# workflow file of its tag, once for each of its events
 # yamllint disable-line rule:truthy
 on:
+  push:
   pull_request:
-  release:
-    types:
-      - published
-      - created
-      - edited
   workflow_dispatch:
 
 permissions:
@@ -58,6 +58,7 @@ jobs:
           ./autogen.sh
           ./configure CC=clang
           gmake all
+          gmake test.builtin test.units
 
   test_openbsd:
     name: Test OpenBSD
@@ -101,6 +102,7 @@ jobs:
           AUTOCONF_VERSION=2.71 AUTOMAKE_VERSION=1.16 ./autogen.sh
           ./configure CC=clang
           gmake all
+          gmake test.builtin test.units
 
   test_netbsd:
     name: Test NetBSD
@@ -144,3 +146,4 @@ jobs:
           ./autogen.sh
           ./configure
           gmake all
+          gmake test.builtin test.units
