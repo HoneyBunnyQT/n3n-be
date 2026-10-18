@@ -462,14 +462,22 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
     if(scan && (scan->last_seen > 0)) {
         if(((now - SHARED_LOAD(scan->last_p2p)) >= (scan->timeout / 2))
            && supernode_answers(eee, now)) {
-            /* Too much time passed since we saw the peer, need to register again
-             * since the peer address may have changed. */
-            struct edge_event ev = { .type = EDGE_EVENT_PEER_EXPIRE, .now = now };
+            /* Not heard directly for half its timeout - peers register
+             * with each other once a register interval, the timeout - so it
+             * may be at another address: through the supernode, while a
+             * REGISTER asks the peer at its address, whose ACK makes it
+             * direct again.  The peer stays known meanwhile, and is not
+             * looked up through the supernode (QUERY_PEER), which may tell
+             * another of its addresses, as one of the other family, and
+             * move it there; only one that does not answer is
+             * (EDGE_EVENT_PEER_IDLE). */
+            struct edge_event ev = { .type = EDGE_EVENT_PEER_IDLE, .now = now };
 
             traceEvent(TRACE_DEBUG, "refreshing idle known peer");
             memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
             edge_event_post(eee, &ev);
-            /* NOTE: registration will be performed upon the receival of the next response packet */
+            memcpy(destination, &(eee->client.curr_sn->sock), sizeof(n3n_sock_t));
+            return 0;
         } else {
             /* Valid known peer found - or one not heard of late, while no
              * supernode answers: it would not find the peer again, so on

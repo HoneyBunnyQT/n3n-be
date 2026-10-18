@@ -2060,6 +2060,14 @@ void edge_rx_register_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
                            ra.cookie,
                            &c->sender, c->now);
 
+    // a known peer that answers at its address is reached there directly,
+    // also after it was quiet for a while (EDGE_EVENT_PEER_IDLE)
+    struct peer_info *known;
+    HASH_FIND_PEER(eee->client.known_peers, ra.srcMac, known);
+    if(known && sock_equal(&known->sock, &c->sender)) {
+        SHARED_STORE(known->last_p2p, c->now);
+    }
+
     // behind a hard NAT, the port it answered from is worth keeping
     struct nat_peer *np = nat_peer_find(eee->client.nat_peers, ra.srcMac, false);
     if(np && (nat_hint_class(np->hint) == NAT_HARD)) {

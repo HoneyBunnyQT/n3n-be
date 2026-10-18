@@ -867,17 +867,34 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
             break;
         }
 
-        case EDGE_EVENT_PEER_EXPIRE: {
+        case EDGE_EVENT_PEER_IDLE: {
             struct peer_info *scan;
+            time_t idle;
 
             // a PACKET from the peer may have come in since the event was
             // posted, so check again
             HASH_FIND_PEER(eee->client.known_peers, ev->mac, scan);
-            if(scan && (scan->last_seen > 0)
-               && ((ev->now - scan->last_p2p) >= (scan->timeout / 2))) {
+            if(!scan || (scan->last_seen == 0)) {
+                break;
+            }
+            idle = ev->now - scan->last_p2p;
+            if(idle < (scan->timeout / 2)) {
+                break;
+            }
+            if(idle >= (scan->timeout + scan->timeout / 2)) {
+                // quiet even when asked: not there any more, it is looked
+                // up anew through the supernode
                 HASH_DEL(eee->client.known_peers, scan);
                 mgmt_event_post(N3N_EVENT_PEER,N3N_EVENT_PEER_P2P_EXPIRED,scan);
                 peer_info_free(scan);
+                break;
+            }
+            // ask it at its address, once a second (the frames that post
+            // this come by the thousand): the ACK from there makes it
+            // direct again, see edge_rx_register_ack()
+            if(scan->last_refresh != ev->now) {
+                scan->last_refresh = ev->now;
+                send_register(eee, &(scan->sock), scan->mac_addr, N2N_REGULAR_REG_COOKIE);
             }
             break;
         }
