@@ -24,6 +24,7 @@
 #include "../src/win32/defs.h"
 #else
 #include <arpa/inet.h>        // for inet_ntop, inet_pton
+#include <sys/socket.h>       // for AF_INET, AF_INET6
 #endif
 
 static const uint8_t mac[6] = {0x02, 0x00, 0x00, 0x5e, 0x00, 0x01};
