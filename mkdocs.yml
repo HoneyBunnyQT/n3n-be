@@ -12,9 +12,9 @@ nav:
   - Home: README.md
   - Licence: LICENSE.md
   - Security Policy: SECURITY.md
-  - Quick Start Guides:
-      - Config: quick_start/Config.md
-      - Debian: quick_start/Debian.md
+  - Getting Started:
+      - Installing: quick_start/Install.md
+      - Your First Network: quick_start/Config.md
   - Configuration:
       - Overview: configure/index.md
       - Configuration Files: configure/ConfigurationFiles.md
