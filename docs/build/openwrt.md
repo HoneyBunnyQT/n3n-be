@@ -42,7 +42,7 @@ where your openwrt checkout is located and `n3n` is the directory for
 the n3n repository.
 
 ```
-git clone https://github.com/n42n/n3n n3n
+git clone https://github.com/HoneyBunnyQT/n3n-be n3n
 N2N_PKG_VERSION=$(n3n/scripts/version.sh)
 export N2N_PKG_VERSION
 echo $N2N_PKG_VERSION

@@ -29,7 +29,7 @@ If you created the following `/etc/n3n/testing.conf` file:
 cipher = Speck
 key = mysecretpass
 name = mynetwork
-supernode = supernode.n3n.dev:7654
+supernode = sn.example.org:7654
 
 [daemon]
 background = false

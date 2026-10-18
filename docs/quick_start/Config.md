@@ -20,16 +20,17 @@ directory location)
 [community]
 name=mynetwork
 key=mypassword
-supernode=supernode.n3n.dev:7654
+supernode=sn.example.org:7654
 ```
 
 **IMPORTANT:** It is strongly advised to choose a custom community name (the
 `community.name` option) and a secret encryption key (the `community.key`
 option) in order to prevent unexpected users from connecting to your computer.
 
-The n3n project runs the public supernode in the above config for testing
-purposes - is it suggested that you setup your own
-[supernode](../configure/Supernode.md) for longer term use.
+`sn.example.org:7654` stands for your supernode: n3n-be runs no public
+one.  A supernode is small and needs only a host with a public address, a
+UDP port (and TCP, for networks that block UDP) - see
+[Supernode](../configure/Supernode.md) for setting one up.
 
 ## Networks that block UDP
 

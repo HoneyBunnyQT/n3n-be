@@ -31,7 +31,7 @@ define Package/n3n/Default
   SECTION:=net
   CATEGORY:=Network
   TITLE:=N3N Peer-to-peer VPN
-  URL:=http://github.com/n42n/n3n
+  URL:=https://github.com/HoneyBunnyQT/n3n-be
   SUBMENU:=VPN
 endef
 

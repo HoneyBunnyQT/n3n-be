@@ -41,7 +41,7 @@ The`-k <key>` command line parameter supplies the key. As even non-privileged
 users might get to see the command line parameters (try `ps -Af | grep edge`),
 the key can also be supplied through the `N3N_KEY` environment variable: `sudo
 N3N_KEY=mysecretpass n3n-edge start -c mynetwork -a 192.168.100.1 -l
-supernode.n3n.dev:7654`, or better in the config file.
+sn.example.org:7654`, or better in the config file.
 
 Providing a key (with a community.key option) without specifying any cipher
 (with a community.cipher` option) will default to AES encryption.
