@@ -239,6 +239,13 @@ def str_table(rows, columns, orderby):
     return ''.join(result)
 
 
+def age(now, then):
+    """How long ago a time stamp was, for a human; 0 is never"""
+    if not then:
+        return "never"
+    return num2timestr(now - then)
+
+
 def num2timestr(seconds):
     """Convert a number of seconds into a human time"""
 
@@ -279,7 +286,7 @@ def subcmd_show_supernodes(rpc, args):
 
     now = int(time.time())
     for row in rows:
-        row["last_seen"] = num2timestr(now - row["last_seen"])
+        row["last_seen"] = age(now, row["last_seen"])
 
     return str_table(rows, columns, args.orderby)
 
@@ -297,7 +304,7 @@ def subcmd_show_edges(rpc, args):
 
     now = int(time.time())
     for row in rows:
-        row["last_seen"] = num2timestr(now - row["last_seen"])
+        row["last_seen"] = age(now, row["last_seen"])
 
     return str_table(rows, columns, args.orderby)
 
@@ -316,7 +323,7 @@ def subcmd_mac(rpc, args):
 
     now = int(time.time())
     for row in rows:
-        row["age"] = num2timestr(now - int(row["last_seen"]))
+        row["age"] = age(now, int(row["last_seen"]))
 
     return str_table(rows, columns, args.orderby)
 
