@@ -30,10 +30,11 @@
     <string name="stopped_see_log">Stopped by itself: see the log</string>
     <string name="address">Address</string>
     <string name="supernode">Supernode</string>
+    <string name="round_trip">Round trip</string>
     <string name="peers">Peers</string>
     <string name="none">–</string>
     <string name="peers_count">%1$d (%2$d direct)</string>
-    <string name="rtt">%1$s · %2$d ms</string>
+    <string name="rtt">%d ms</string>
     <string name="scan">Scan QR code</string>
     <string name="edit">Configuration</string>
     <!-- the keys of the main screen: short, four in a row -->

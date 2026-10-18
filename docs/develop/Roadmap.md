@@ -239,7 +239,11 @@ tests and `make lint` pass after each.
       purple, and raised on the main screen, with a bunny in its top
       corner over "BUNNY EDITION", which shows the version on a tap; the
       notification in bunny-pink (setColor) instead of the system's blue
-      (2026-10-14/15).  Open: try it on a phone;
+      (2026-10-14/15); the values below the button on one line each
+      (`FitText`, smaller when long, shortened in the middle past 60%),
+      the round trip in a row of its own, so that a supernode's IPv6
+      address no longer breaks the line and makes the card jump
+      (2026-10-18).  Open: try it on a phone;
       the QR code again, with a fuzz target for `qr_seal` and the
       configuration it opens (postponed, 2026-10-11, see Decisions); maybe a
       navigation bar instead of the four keys, should the app get more

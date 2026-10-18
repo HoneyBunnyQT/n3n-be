@@ -64,6 +64,11 @@ what comes next.
   of the line below the button: "Changes apply after reconnect".  Below
   it, four round keys built the same way: Scan, Configure, Share, Log.  The accent is bunny-pink, the pink of the
   drawings in the docs.
+- Below the button the address, the supernode, its round trip and the
+  peers, each on one line: a long value - a supernode's IPv6 address -
+  gets smaller to fit, and past 60% of the size is shortened in the
+  middle, where a tap shows it whole.  The card keeps its height
+  whatever the values are, so nothing jumps when they change.
 - A tile in the quick settings connects and disconnects without opening
   the app (add it by editing the quick settings), and shows the state
   below the network's name (Android 10 and later); a long press opens
@@ -143,6 +148,7 @@ android/
                                           the two share
       ConnectTile.kt                      the tile in the quick settings
       BunnyBadge.kt                       the bunny, and the version on a tap
+      FitText.kt                          a value of one line, smaller when long
       Connection.kt                       what the connection is doing
       EditActivity.kt                     the configuration: edit, import, scan
       ShareActivity.kt                    the configuration as a QR code

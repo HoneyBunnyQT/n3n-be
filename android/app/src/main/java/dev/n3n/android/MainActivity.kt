@@ -35,6 +35,7 @@ class MainActivity : Activity() {
     private lateinit var network: TextView
     private lateinit var address: TextView
     private lateinit var supernode: TextView
+    private lateinit var roundTrip: TextView
     private lateinit var peers: TextView
     private lateinit var hint: TextView
     private lateinit var reconnect: View
@@ -50,6 +51,7 @@ class MainActivity : Activity() {
         network = findViewById(R.id.network)
         address = findViewById(R.id.address)
         supernode = findViewById(R.id.supernode)
+        roundTrip = findViewById(R.id.round_trip)
         peers = findViewById(R.id.peers)
         hint = findViewById(R.id.hint)
         reconnect = findViewById(R.id.reconnect)
@@ -238,11 +240,9 @@ class MainActivity : Activity() {
         val info = if (s.phase == Phase.OFF) null else s.info
         val sn = info?.supernode
         val rtt = info?.rttMs
-        supernode.text = when {
-            sn.isNullOrEmpty() -> getString(R.string.none)
-            rtt != null -> getString(R.string.rtt, sn, rtt)
-            else -> sn
-        }
+        supernode.text = if (sn.isNullOrEmpty()) getString(R.string.none) else sn
+        // a row of its own: the address keeps its size while this changes
+        roundTrip.text = if (!sn.isNullOrEmpty() && rtt != null) getString(R.string.rtt, rtt) else getString(R.string.none)
         peers.text = if (info != null) getString(R.string.peers_count, info.peers, info.direct) else getString(R.string.none)
     }
 }
