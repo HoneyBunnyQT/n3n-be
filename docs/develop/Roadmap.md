@@ -121,13 +121,16 @@ tests and `make lint` pass after each.
 
 ### Next
 
-- [ ] Installable next to upstream n3n: the program, `n3nctl`, the
-      systemd units, the man pages, the sysusers file, `/etc/n3n` and
-      `/run/n3n` under a name of n3n-be's own (to be decided), with a
-      note on moving an existing configuration; then the packages drop
-      `Conflicts`, `Replaces` and `Provides: n3n`.  Suggested by upstream's
-      maintainer (2026-10-18).  Before the documentation names the paths
-      everywhere anew
+- [ ] Installable next to upstream n3n, if ever wanted: the program,
+      `n3nctl`, the systemd units, the man pages, the sysusers file,
+      `/etc/n3n` and `/run/n3n` under names of n3n-be's own, and the
+      packages without `Conflicts`, `Replaces` and `Provides: n3n`
+      (suggested by upstream's maintainer, 2026-10-18).  Not for now:
+      n3n-be is a drop-in replacement for n3n, as wire compatible as its
+      files are - who switches keeps the configuration, the units and the
+      scripts.  What tells the two apart is what the program says of
+      itself: "n3n-be" in its version, help, log, management interface
+      and the version string on the wire (5384980f)
 - [x] Communities configured the same way for both roles (see Scratchpad)
 - [x] netns scenarios where a supernode fails over with user/password
       authentication, header encryption, TCP and `supernode.tap` (db91c09)
