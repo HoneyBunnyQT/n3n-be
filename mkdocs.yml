@@ -11,6 +11,7 @@ use_directory_urls: false
 nav:
   - Home: README.md
   - License: LICENSE.md
+  - Security Policy: SECURITY.md
   - Quick Start Guides:
       - Config: quick_start/Config.md
       - Debian: quick_start/Debian.md
