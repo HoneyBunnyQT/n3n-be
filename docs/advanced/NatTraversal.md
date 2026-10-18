@@ -13,8 +13,14 @@ for it - and that NAT has to let the edge's packets in.
 The supernode sees each edge at its public address and tells the edges about
 each other.  Both edges then send REGISTERs to each other at the same time:
 each NAT sees its own edge sending out to the other one first, and lets the
-answer in.  Whether that works depends on how the NATs map the edges'
-sockets.
+answer in - "hole punching":
+
+![Hole punching through two NATs, in four steps](../images/nat-punch.svg)
+
+Whether that works depends on how the NATs map the edges' sockets: a NAT
+that keeps the public port the same for every destination (most home
+routers) lets it work at once; one that takes a new port for every
+destination needs more, see [below](#getting-through-a-hard-nat).
 
 ## Sockets
 

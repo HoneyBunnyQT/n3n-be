@@ -8,7 +8,9 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 - [NAT Traversal](NatTraversal.md): how edges reach each other directly, and
   when they cannot
 - [Threads](Threads.md): handling packets on several cores
-- [IPv4 Routing](Routing.md): reaching networks behind an edge
-- [Bridging](Bridging.md): an edge as part of a bridge
+- [Routing](Routing.md): reaching networks behind an edge, or the
+  internet through one
+- [Bridging](Bridging.md): one Ethernet segment across sites, with a
+  bridge at each
 - [Traffic Restrictions](TrafficRestrictions.md): filtering the traffic of
   the virtual network

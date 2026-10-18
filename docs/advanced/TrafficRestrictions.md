@@ -1,66 +1,61 @@
 <!--
 SPDX-License-Identifier: GPL-3.0-only
 SPDX-FileCopyrightText: Copyright joshuafc
+SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
 # Traffic Restrictions
 
-It is possible to drop or accept specific packet transmit over edge network
-interface by rules. Rules can be specify with the `filter.ruel` option multiple
-times.
+An edge can filter the IPv4 traffic of its device by rules: what it sends
+into the community and what it takes from it.  Each `filter.rule` adds a
+rule; without any, everything passes.
 
-## Rule String Format
-
-rule_str format: `src_ip/len:[b_port,e_port],dst_ip/len:[s_port,e_port],TCP+/-,UDP+/-,ICMP+/-`
-
-`ip/len` indicate a cidr block, len can be ignore, means single ip (not cidr block) will be use in filter rule.
-
-`+`,`-` after `TCP`,`UDP`,`ICMP` proto type indicate allow or drop packet of that proto. if any of above three proto missed, the rule will not take effect for that proto.
-
-Ports range `[s_port,e_port]` can be instead by single port number. If not specify, `[0,65535]` will be used. Ports range include start_port and end_port.
-
-examples:
-`192.168.1.5/32:[0,65535],192.168.0.0/24:[8081,65535],TCP-,UDP-,ICMP+`
-`192.168.1.5:[0,65535],192.168.0.0/24:8000,ICMP+`
-`192.168.1.5,192.168.0.7,TCP-,UDP-,ICMP-` // packets by all proto of all ports from 192.158.1.5 to any ports of 192.168.0.7 will be dropped.
-
-## Multiple Rules
-
-The `filter.rule` option can be used multiple times to add multiple rules. Each
-`filter.rule` definition adds one rule. for example:
-
-```
-n3n-edge \
-    -c xxxx \
-    -k xxxx \
-    -a 192.168.100.5 \
-    -O supernode.peer=xxx.xxx.xxx.xxx:1234 \
-    -r \
-    -Ofilter.rule=192.168.1.5/32:[0,65535],192.168.0.0/24:[8081,65535],TCP-,UDP-,ICMP+ \
-    -Ofilter.rule=192.168.1.5:[0,65535],192.168.0.0/24:8000,ICMP+ \
-    -Ofilter.rule=192.168.1.5,192.168.0.7,TCP-
+```ini
+[filter]
+rule = 192.168.1.5,192.168.0.0/24:[8081,65535],TCP-,UDP-,ICMP+
+rule = 192.168.1.5,192.168.0.0/24:8000,ICMP+
+rule = 192.168.1.5,192.168.0.7,TCP-
 ```
 
-Obviously this gets quite verbose, so adding the filter rules to a config file
-is recommended.
+## A rule
 
-## Matching Rules Priority
-
-If multiple rules matching packet's ips and ports, the rule with smaller cidr block(smaller address space) will be selected. That means rules with larger `len` value has higher priority.
-
-Actually, current implementation will add the `len` of src cidr and dst cidr of each matched rules as priority value, the rule with largest priority value will take effect.
-
-## Blocklist/Allowlist mode
-
-Packets that cannot match any rule will be accepted by default. Users can add rules to block traffics.
-
-This behavior can be change by add the rule : `0.0.0.0/0:[0,65535],0.0.0.0/0:[0,65535],TCP-,UDP-,ICMP-`. Then all traffic will be dropped, users need add rules to allow traffics. 
-
-for example:
 ```
--Ofilter.rule=0.0.0.0/0,0.0.0.0/0,TCP-,UDP-,ICMP- -Ofilter.rule=192.168.100.0/24,192.168.100.0/24,ICMP+
+SOURCE[:PORTS],DESTINATION[:PORTS],TCP±,UDP±,ICMP±
 ```
-drops all traffic, except ICMP traffics inside `192.168.100.0/24`.
 
-More complex behavior can be set with the feature of `Matching Rules Priority`.
+- **SOURCE** and **DESTINATION** are an IPv4 address or a network,
+  `192.168.0.0/24`; an address alone is that one host.
+- **PORTS** are a range, `[8081,65535]` (both ends included), or one
+  port, `8000`.  Without them, all ports.
+- **TCP+**, **UDP+**, **ICMP+** let that protocol pass, **TCP-**, **UDP-**,
+  **ICMP-** drop it.  A protocol not named is not decided by this rule.
 
+So `192.168.1.5,192.168.0.7,TCP-,UDP-,ICMP-` drops everything from
+192.168.1.5 to 192.168.0.7, all protocols, all ports.
+
+## When several rules match
+
+The most specific one wins: the one whose source and destination
+networks are the smallest - the sum of their two prefix lengths is the
+largest.  A rule for one host beats one for its network, which beats one
+for everything.
+
+## Allowing only what is wanted
+
+Packets that match no rule pass.  To turn that round, drop everything by
+a rule for all networks, and allow what is wanted by more specific ones:
+
+```ini
+[filter]
+rule = 0.0.0.0/0,0.0.0.0/0,TCP-,UDP-,ICMP-
+rule = 192.168.100.0/24,192.168.100.0/24,ICMP+
+```
+
+drops all traffic but ICMP inside `192.168.100.0/24`.
+
+The rules are for TCP, UDP and ICMP over IPv4 only: ARP, IPv6 and every
+other protocol pass whatever the rules say.
+
+A new set of rules takes effect on a reload (`n3nctl reload`, SIGHUP),
+see [Configuration Files](../configure/ConfigurationFiles.md#reloading) -
+with packet threads (`daemon.threads`), only at the next start.
