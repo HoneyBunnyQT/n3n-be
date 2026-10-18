@@ -1478,9 +1478,12 @@ static int update_edge (struct n3n_runtime_data *sss,
     } else {
         /* Known */
         if(auth_edge(&(scan->auth), &(reg->auth), answer_auth, comm) == 0) {
-            if(!sock_equal(sender_sock, &(scan->sock))) {
+            // the address the edge has: one we gave it, or another it set
+            if(reg->dev_addr.net_addr != 0) {
                 scan->dev_addr.net_addr = reg->dev_addr.net_addr;
                 scan->dev_addr.net_bitlen = reg->dev_addr.net_bitlen;
+            }
+            if(!sock_equal(sender_sock, &(scan->sock))) {
                 memcpy((char*)scan->dev_desc, reg->dev_desc, N2N_DESC_SIZE);
                 memcpy(&(scan->sock), sender_sock, sizeof(n3n_sock_t));
                 scan->socket_fd = socket_fd;
@@ -2468,10 +2471,20 @@ static int process_pdu_body (struct n3n_runtime_data * sss,
             if(!comm->is_federation) { /* alternatively, do not send zero tap ip address in federation REGISTER_SUPER */
                 if((reg.dev_addr.net_addr == 0) || (reg.dev_addr.net_addr == 0xFFFFFFFF) || (reg.dev_addr.net_bitlen == 0) ||
                    ((reg.dev_addr.net_addr & 0xFFFF0000) == 0xA9FE0000 /* 169.254.0.0 */)) {
-                    memset(&ipaddr, 0, sizeof(n2n_ip_subnet_t));
-                    assign_one_ip_addr(comm, reg.dev_desc, &ipaddr);
+                    HASH_FIND_PEER(comm->edges, reg.edgeMac, p);
+                    if(p && p->dev_addr.net_addr) {
+                        // an edge that has one already asks again, as when
+                        // our ACK got lost: the same
+                        ipaddr = p->dev_addr;
+                    } else {
+                        memset(&ipaddr, 0, sizeof(n2n_ip_subnet_t));
+                        assign_one_ip_addr(comm, reg.dev_desc, &ipaddr);
+                    }
                     ack.dev_addr.net_addr = ipaddr.net_addr;
                     ack.dev_addr.net_bitlen = ipaddr.net_bitlen;
+                    // kept with the edge (update_edge()), so that it is
+                    // taken: the next one asking gets another
+                    reg.dev_addr = ack.dev_addr;
                 }
             }
 
