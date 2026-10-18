@@ -1,5 +1,5 @@
 <!--
-SPDX-License-Identifier: GPL-3.0-only
+SPDX-License-Identifier: AGPL-3.0-only
 SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
@@ -622,6 +622,17 @@ while `peer` keeps getting what does not touch the wire, merged into
   came with.  Something of upstream's newer work wanted here: its file
   header decides - LGPL-2.1 can be taken (into GPL-3.0), GPL-2.0-only with
   that permission is better written anew than copied.
+- 2026-10-18: n3n-be's own work is under AGPL-3.0-only: the files whose
+  only copyright is Honey Bunny QT's, and every new file (see
+  docs/LICENSE.md).  The aim: open for anyone to use, commercially too,
+  but changes stay open, also those only run as a service (a hosted
+  supernode).  What came from n3n and n2n keeps its licence; GPL-3.0
+  section 13 allows the combination, and the AGPL's network clause
+  covers the program as a whole.  `src/crypto/cc20_neon.c`, a port of
+  the SSE2 code of ntop's, and `src/sn_utils.h`, upstream's prototypes,
+  stay GPL-3.0-only.  Upstream's GPL-2.0-only files that are linked into
+  `n3n` (`src/benchmark/`, as upstream had them) are a candidate to be
+  written anew, which would leave no GPL-2.0-only code in the program.
 
 ## Scratchpad
 

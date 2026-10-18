@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 #
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 """Run n3n edges and supernodes in network namespaces behind NATs
 

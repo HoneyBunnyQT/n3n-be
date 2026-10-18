@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Noticing that the host's network changed: an address, a link or the
  * default route (netlink, Linux), or that the host slept.  The edge then

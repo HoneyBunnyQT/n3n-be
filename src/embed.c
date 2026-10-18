@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * An edge inside another program, see n3n/embed.h: what apps/n3n-edge.c
  * does as a daemon, without the parts a daemon needs and an app does not -

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # n3n-qr: what goes into the code, and that a QR reader (zbarimg) reads
 # back the same from the image.  Needs n3n-qr (libqrencode and libpng at

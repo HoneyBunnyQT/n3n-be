@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: a received PDU's first steps (src/pdu_in.c) - whether its
  * header is plain, the header decryption with the dynamic and the static

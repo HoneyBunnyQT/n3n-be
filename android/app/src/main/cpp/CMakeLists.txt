@@ -1,5 +1,5 @@
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # libn3n for the Android app: the edge's sources of the core, straight from
 # src/ of this repository - so the app always builds with the current core -

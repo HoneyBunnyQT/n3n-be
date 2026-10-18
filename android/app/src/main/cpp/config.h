@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * What ./configure --disable-relay writes to include/config.h, for the
  * Android build, which runs no configure (see CMakeLists.txt)

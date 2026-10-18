@@ -1,8 +1,11 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: n3n
-Comment: This is probably not an exhaustive list of the GPL-2.0-only files,
- since the project is going through licensing changes and new works are
- being licensed with GPL-2.0-only where compatible with the project.
+Upstream-Name: n3n-be
+Source: https://github.com/HoneyBunnyQT/n3n-be
+Comment: n3n-be's own files are under AGPL-3.0-only; what came from n3n and
+ n2n keeps its licence, GPL-3.0-only for most of it, GPL-2.0-only or
+ LGPL-2.1-only for some.  The program as a whole is covered by the AGPL's
+ section 13 (GPL-3.0 section 13).  The SPDX line of each file is what
+ counts; this list is not exhaustive.
 
 Files:
  apps/*
@@ -67,3 +70,100 @@ Files:
  libs/lzo/*
 Copyright: 1996-2017 Markus Franz Xaver Johannes Oberhumer
 License: GPL-2+
+
+Files:
+ android/*
+ apps/example_edge_embed_tun.c
+ apps/n3n.c
+ apps/n3n.h
+ docs/SECURITY.md
+ docs/advanced/NatTraversal.md
+ docs/advanced/Threads.md
+ docs/advanced/index.md
+ docs/configure/Systemd.md
+ docs/configure/index.md
+ docs/develop/IPv6.md
+ docs/develop/MobileAndTun.md
+ docs/develop/PathMtu.md
+ docs/develop/Releasing.md
+ docs/develop/Roadmap.md
+ docs/develop/SourceLayout.md
+ docs/develop/netns_testing.md
+ docs/images/*
+ docs/internals/index.md
+ include/n3n/embed.h
+ include/n3n/qr_seal.h
+ include/n3n/version.h
+ scripts/gen_doc_images.py
+ scripts/test_qemu.sh
+ scripts/test_qr.sh
+ src/counter.h
+ src/crypto/aes.c
+ src/crypto/aes_armce.c
+ src/crypto/cc20.c
+ src/crypto/cc20_ssse3.c
+ src/crypto/crypto_impl.h
+ src/crypto/speck.c
+ src/crypto/speck_ssse3.c
+ src/crypto/tf_avx512.c
+ src/edge_threads.c
+ src/edge_threads.h
+ src/embed.c
+ src/ipv6.c
+ src/ipv6.h
+ src/local_link.c
+ src/local_link.h
+ src/management_page.c
+ src/management_page.h
+ src/natclass.c
+ src/natclass.h
+ src/netwatch.c
+ src/netwatch.h
+ src/notify.c
+ src/notify.h
+ src/pdu_in.c
+ src/pdu_in.h
+ src/qr_seal.c
+ src/reload.c
+ src/reload.h
+ src/sock.c
+ src/sock.h
+ src/stats.h
+ src/thread_local.c
+ src/thread_local.h
+ src/tun.c
+ src/tun.h
+ tests/fuzz/*
+ tests/macos/*
+ tests/netns/*
+ tools/n3n-qr.c
+ tools/tests-aes.c
+ tools/tests-cc20.c
+ tools/tests-decode-bounds.c
+ tools/tests-ipv6.c
+ tools/tests-pdu-in.c
+ tools/tests-peers.c
+ tools/tests-regex.c
+ tools/tests-sock.c
+ tools/tests-speck.c
+ tools/tests-tf.c
+ tools/tests-tun.c
+ tools/tests-wire-fuzz.c
+ tools/tests-wire-numsn.c
+Copyright: Honey Bunny QT
+License: AGPL-3.0-only
+ A copy of the GNU Affero General Public License version 3 is available as
+ LICENSES/preferred/AGPL-3.0 in the source of this package or at
+ https://www.gnu.org/licenses/agpl-3.0-standalone.html
+
+Files:
+ android/gradlew
+ android/gradlew.bat
+ android/gradle/wrapper/*
+Copyright: Gradle, Inc. and the original authors
+License: Apache-2.0
+ On Debian systems the full text of the Apache License 2.0 is in
+ /usr/share/common-licenses/Apache-2.0
+
+Files: LICENSES/preferred/AGPL-3.0
+Copyright: Copyright (C) 2007 Free Software Foundation, Inc.

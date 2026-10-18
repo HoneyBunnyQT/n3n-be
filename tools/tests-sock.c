@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The send layer's batches and udp_drain() (src/sock.c), over two UDP
  * sockets on the loopback address:

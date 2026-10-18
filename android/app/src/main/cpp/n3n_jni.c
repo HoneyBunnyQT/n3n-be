@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The app's way into the core: N3nVpnService.nativeRun() runs the edge (see
  * n3n/embed.h) on the thread that calls it, until nativeStop().  Every socket

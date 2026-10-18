@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * An edge inside a program of its own, as the Android app runs it (see
  * n3n/embed.h): the program opens and sets up the TUN device - as Android's

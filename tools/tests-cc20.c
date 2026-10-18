@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Unit tests of ChaCha20's variants (src/crypto/cc20.c): every one this
  * CPU has gives the RFC 8439 vector, the same keystream for every length,

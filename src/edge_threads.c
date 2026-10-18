@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Handling PACKETs on several threads - see edge_threads.h
  */

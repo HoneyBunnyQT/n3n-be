@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # Run the unit tests and the builtin self tests of a cross compiled tree
 # under qemu-user, e.g. for a big endian or 32 bit host:

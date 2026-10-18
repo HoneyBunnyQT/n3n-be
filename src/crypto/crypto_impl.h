@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * What the ciphers with variants chosen at runtime (speck.c, aes.c) share:
  * the extension a variant's code may use, the memory of a context, and how

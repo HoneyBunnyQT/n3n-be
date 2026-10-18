@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 # The netns tests in a kernel of their own: User-Mode Linux, a Linux kernel
 # built as a program that runs on this one.  For hosts whose kernel lacks

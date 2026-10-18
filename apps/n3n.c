@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The one n3n binary.  Installed as n3n-edge or n3n-supernode (a link, or a
  * copy where there are no links), it is that daemon, with the same options;

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The TUN edge's IPv6 neighbour discovery (src/tun.c), on frames made
  * here, for an edge with the address fd00:77::a63:1/64 (its IPv4 address

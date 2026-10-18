@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * ChaCha20's variants, chosen at runtime as Speck's are (speck.c): every
  * one the build can have is built, each with the extension it needs for

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: the PDU decoders (src/wire.c), on PDUs as they are after
  * the header decryption - or as they come, with plain headers.  See

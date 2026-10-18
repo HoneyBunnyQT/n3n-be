@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Twofish's AVX-512 variant: its CBC decryption of 16 blocks at a time,
  * with VBMI and GFNI - built with those for these functions only, and taken

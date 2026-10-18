@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The management page: one HTML page for whatever runs in this process - an
  * edge, a supernode, or a supernode with an edge of its own

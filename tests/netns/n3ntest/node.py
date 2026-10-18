@@ -1,6 +1,6 @@
 #
 # Copyright (C) Honey Bunny QT
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: AGPL-3.0-only
 #
 """n3n edges and supernodes in a lab, and their management interface"""
 

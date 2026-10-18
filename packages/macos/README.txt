@@ -11,8 +11,9 @@ What is in here
   start it as an edge or a supernode
 - edge.conf.sample and supernode.conf.sample, configurations to start from
 - n3nctl, the management client (a Python 3 script)
-- LICENSES: n3n-be is free software under the GNU GPL, version 3 (some
-  parts version 2); its source is on the page above
+- LICENSES: n3n-be is free software under the GNU Affero GPL, version 3;
+  the parts that came from n3n and n2n keep their GNU GPL, version 3
+  (some version 2).  Its source is on the page above
 
 Running an edge
 ---------------

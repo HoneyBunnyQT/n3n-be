@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Speck's variants, chosen at runtime: every one the architecture has is
  * built (each with the extension it needs, for its own functions only, see

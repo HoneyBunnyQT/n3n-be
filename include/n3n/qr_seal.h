@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * A configuration sealed with a PIN, for a QR code that does not show what
  * it holds: see src/qr_seal.c.  Used by tools/n3n-qr and the Android app.

@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Telling a service manager (systemd, Type=notify) how the daemon is doing,
  * see notify.c.  Without $NOTIFY_SOCKET these do nothing.

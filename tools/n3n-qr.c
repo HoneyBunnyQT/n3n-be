@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * n3n-qr: an edge's configuration file as a QR code, for the Android app
  * to scan (see android/README.md).  The code holds the configuration as

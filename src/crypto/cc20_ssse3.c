@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * ChaCha20's SSSE3 variant: the SSE2 one, with its byte rotations by
  * SSSE3's shuffle (see cc20.c for how a variant is chosen)

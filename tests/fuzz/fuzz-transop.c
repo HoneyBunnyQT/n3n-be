@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: the payload of a PACKET as the transforms take it apart -
  * the ciphers' and the compressions' rev().  The first byte picks the

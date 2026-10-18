@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The seeds of the fuzz targets: "fuzz-seeds DIR" writes into DIR/wire,
  * DIR/header, DIR/transop and DIR/tcp valid inputs of each - PDUs of every

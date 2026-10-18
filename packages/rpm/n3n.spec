@@ -2,7 +2,7 @@ Summary: n3n-be peer-to-peer VPN
 Name: n3n-be
 Version: %{VERSION}
 Release: 1
-License: GPL-3.0-only
+License: AGPL-3.0-only AND GPL-3.0-only AND GPL-2.0-only AND GPL-2.0-or-later AND LGPL-2.1-only
 Group: Networking/Utilities
 URL: https://github.com/HoneyBunnyQT/n3n-be
 Source: n3n-be-%{version}.tgz

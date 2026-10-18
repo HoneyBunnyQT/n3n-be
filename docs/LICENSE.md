@@ -1,70 +1,75 @@
-# License
+<!--
+SPDX-License-Identifier: AGPL-3.0-only
+SPDX-FileCopyrightText: Copyright Honey Bunny QT
+-->
 
-The intent of the licensing for the n3n project is to ensure that the source
-code is always freely available, to avoid concentrating the rights into any
-one person or corporation and to clearly recognise the origin of any included
-source code.
+# Licence
 
-- Any new self-contained tools or modules are licensed GPL-2.0-only, as
-  provided in LICENSES/preferred/GPL-2.0
-- Much of the core n3n code was inherited from the n2n project and is licenced
-  as GPL-3-only.
-- There are multiple distinct copyright holders throughout the codebase.
-- There is no Contributor Licence Agreement and thus there is no single body
-  that can take ownership of the code and/or change the licensing.
+n3n-be is free software: anyone may use it, for any purpose, commercial
+ones included, study it, change it and pass it on.  What its licences
+make sure is that it stays that way: whoever builds on it shares their
+changes on the same terms, also when they only run it as a service.
 
-The common way of expressing the licenses in this software is to use Software
-Package Data Exchange (SPDX) license identifiers in each source file. SPDX
-license identifiers are machine parsable and precise shorthands for the
-license under which the content of the file is contributed. SPDX license
-identifiers are managed by the SPDX Workgroup at the Linux Foundation and have
-been agreed on by partners throughout the industry, tool vendors, and legal
-teams. For further information see https://spdx.org/
+| what | licence |
+|------|---------|
+| n3n-be's own work: the files whose only copyright is Honey Bunny QT's | [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.html) |
+| what came from n3n and n2n: most of `src/`, `apps/`, `include/`, `tools/` | GPL-3.0-only |
+| some of upstream's tools and libraries: `libs/connslot`, `src/benchmark`, `scripts/n3nctl`, ... | GPL-2.0-only or LGPL-2.1-only, as their files say |
+| `libs/lzo` | GPL-2.0-or-later |
 
-## License identifier
-The n3n project requires the precise SPDX identifier in all source files. The
-valid identifiers used in the kernel are explained in the section License
-identifiers and have been retrieved from the official SPDX license list at
-https://spdx.org/licenses/ along with the license texts.
+The program as a whole, `n3n` and the Android app, is a combination of
+these parts.  The GPL version 3 allows combining its code with code under
+the AGPL version 3 (its section 13), and the AGPL's network clause then
+applies to the combination.
 
-All SPDX license identifiers must have a corresponding file in the LICENSES
-subdirectories. This is required to allow tool verification and to have the
-licenses ready to read and extract right from the source, which is recommended
-by various FOSS organizations.
+Each file says which licence it is under, in its first lines, as an
+[SPDX](https://spdx.org/licenses/) identifier:
 
-## Unknown sources
+```c
+/**
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
+ */
+```
 
-Over the extended history of this project, multiple external libraries have
-been incorporated via copy-and-paste.  Not all these libraries have been
-clearly recognised and their copyright and license may be incorrectly
-described.
+The texts of the licences are in `LICENSES/preferred/`;
+`debian/copyright` lists the files by licence for the packages.
 
-This is an ongoing janitorial project to determine the provenance and
-correctly mark these included sources.
+## What this means in practice
 
-## Provenance of contributions
+- **Using it**: at home, at work, for customers, in a product - no
+  permission needed and nothing to pay.  Running an unchanged n3n-be
+  needs nothing else either.
+- **Passing it on**, as a package, on a device, in an app store: with its
+  source (or a written offer of it), under the same licences, with the
+  notices kept.
+- **Changing it**: a changed version that is passed on, or that others use
+  over a network - a hosted supernode with changes of its own, a VPN
+  service built on a changed edge - has to offer its users the source of
+  exactly that version, under the same licences (AGPL section 13).
+  Changed files carry a note that they were changed, and when (section
+  5a).
+- **What it does not do**: forbid selling it or making money with it -
+  no free software licence does.  What it rules out is taking it closed:
+  a company may build a business on n3n-be, but not keep its
+  improvements to itself.
 
-All contributions should have a known provenance for their original source.
-If there is any question or concern about this on the part of the maintainers,
-you may be asked to provide a "Developer’s Certificate of Origin" sign off.
+Please give a changed version that you publish a name of its own, so that
+nobody takes it for n3n-be.
 
-If you used any sort of advanced coding tool in the creation of your patch,
-you need to acknowledge that use by adding an Assisted-by tag. Failure to do
-so may impede the acceptance of your work.
+## Contributing
 
-## Debian copyright-format information
+- A **new file** is under AGPL-3.0-only, with the two SPDX lines above.
+- A **change to an existing file** is under that file's licence, as its
+  header says.
+- **Code from elsewhere** keeps its licence and its copyright lines, and
+  its licence has to go together with the GPL version 3: say where it
+  comes from in the commit message.
+- **Upstream's newer work**: n3n's files from 2026-10-04 on carry new
+  terms, see the [Roadmap](develop/Roadmap.md) (decisions of 2026-10-18):
+  what is under LGPL-2.1 can be taken, what is under GPL-2.0-only "for
+  use within this project" is better written anew than copied.
 
-To assist with keeping track of the source, the Debian project has a standard
-for tracking this information.  The file `debian/copyright` contains the
-known details.
-
-## References
-
-Much of the above text was copied from (or inspired by) the linux kernel
-Documentation.  Perusing the original documents may help the reader
-understand more of the intent and flavor of the description above.
-
-This includes at least the following documents:
-
-- [Documentation/process/license-rules.rst](https://www.kernel.org/doc/html/latest/process/license-rules.html) 
-- [Documentation/process/submitting-patches.rst](https://www.kernel.org/doc/html/latest/process/submitting-patches.html)
+There is no contributor licence agreement: each author keeps the
+copyright of their work, and nobody can take the whole of n3n-be closed
+later, this project included.

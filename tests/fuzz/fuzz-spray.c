@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Mutated PDUs at running daemons, for the netns scenarios tagged "spray"
  * (tests/netns, see docs/develop/netns_testing.md): the fuzz targets take

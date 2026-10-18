@@ -1,6 +1,7 @@
 /**
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright ntop.org and contributors
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * ChaCha20 with ARM NEON
  *

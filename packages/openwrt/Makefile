@@ -20,7 +20,7 @@ PKG_SOURCE_PROTO:=git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 
 PKG_MAINTAINER:=Hamish Coleman <hamish@zot.org>
-PKG_LICENSE:=GPL-3.0-only
+PKG_LICENSE:=AGPL-3.0-only GPL-3.0-only GPL-2.0-only GPL-2.0-or-later LGPL-2.1-only
 
 # autogen fix
 PKG_FIXUP:=autoreconf

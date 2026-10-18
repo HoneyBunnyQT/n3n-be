@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Telling a service manager how the daemon is doing: systemd's notification
  * protocol, which is a datagram of "KEY=value" lines to the Unix socket

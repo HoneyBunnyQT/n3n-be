@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Running an edge inside another program - the Android app, or any other
  * that brings its own TUN device - instead of as the n3n-edge daemon.

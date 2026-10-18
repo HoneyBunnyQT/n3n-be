@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: the TUN edge (src/tun.c), which plays the part of the
  * kernel's Ethernet, ARP and IPv6 neighbour discovery for an edge whose

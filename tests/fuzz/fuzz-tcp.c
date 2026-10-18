@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: a v3tcp connection as the main loop reads it - the bytes
  * come in pieces through a socket, conn_read() (libs/connslot) puts them

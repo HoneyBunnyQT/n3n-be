@@ -1,6 +1,6 @@
 /**
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * The edge with a TUN device (tuntap.type = tun): the device carries IP
  * packets, the community Ethernet frames, as with a TAP device.  So the edge

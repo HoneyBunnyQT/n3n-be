@@ -18,7 +18,9 @@ contributions.
 - If you change the help text of an option, regenerate the options reference
   with `make options` (`make options.check` tells whether it is up to date)
 - Keep the documentation in `docs/` and the man pages current with your change
-- Ensure that the licence and copyright of any imported code is marked
+- New files are under AGPL-3.0-only; code from elsewhere keeps its licence
+  and copyright lines, marked in its header, see
+  [Licence](LICENSE.md#contributing)
 - Ensure that each commit has a commit message that clearly explains "why" the
   commit was made (Note, you should not explain "what" as that should be clear
   in the commit diff)

@@ -1,6 +1,6 @@
 /*
  * Copyright (C) Honey Bunny QT
- * SPDX-License-Identifier: GPL-3.0-only
+ * SPDX-License-Identifier: AGPL-3.0-only
  *
  * A fuzz target without libFuzzer: it gets each file named on the
  * command line, or each file in a directory named there - the regression
