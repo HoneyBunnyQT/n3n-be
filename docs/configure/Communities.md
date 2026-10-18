@@ -8,104 +8,145 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # Communities
 
+A community is one virtual network: the edges that give the same
+community name (and key) are in it, and see each other as on one
+Ethernet.  One supernode serves many communities and keeps them apart.
 
-## Names
+An edge is in exactly one community, the one of its `[community]`
+section.  To be in two networks at once, run two edges, each with its
+own configuration file (session).
 
-As communities designate virtual networks, they must be distinguishable from
-each other. Its their name that makes them distinguishable and which therefore
-should be unique per network. The community name is composed of 19 byte-sized
-characters, terminated with one additional NUL byte - totalling up to a maximum
-of 20 bytes.  Hence, the community name can never contain a NUL byte.  There
-are some other characters that cannot be used, namely `. * + ? [ ] \`.
+## The name
 
-To make full use of character space, hex values could be used, e.g. from Linux
-bash applying something like `n3n-edge … -c $(echo -en '\x3a\x3b\x4a\x6a\xfa') …`
-as the command line syntax. If used with a configuration file, the bytes must
-be directly filled as characters into the corresponding `community.name` option
+A community name has up to 19 characters (bytes).  It must not contain
+the characters `. * + ? [ ] \`, which make it a pattern for the
+supernode (see [below](#name-patterns)), nor spaces, which separate the
+fields of a community file.
 
-Apart from command line `-c` and configuration file, the community name can be
-supplied through the `N3N_COMMUNITY` environment variable. This might prove
-useful to hide the community name from command line if used with header
-encryption enabled, see below.
+Any other byte is allowed: from a shell, for example,
+`-c "$(printf '\x3a\x3b\x4a\x6a\xfa')"`; in a configuration file the
+bytes go into `community.name` as they are.  The name can also come
+from the environment, `N3N_COMMUNITY`, which keeps it off the command
+line.
 
+Without [header encryption](#header-encryption), the name travels in
+plain text with every packet: think of it as a label, not a secret.
 
-## Restrict Supernode Access
+## Which communities a supernode serves
 
-By default, a supernode offers its service to all communities and allows them to connect. If a self-setup supernode shall handle certain communities only, the supernode can be given a list of allowed communities. This list is a simple text file containg the allowed community names, one per line:
+By default, a supernode serves any community.  Once it is given at
+least one community - in its configuration file, in a community file or
+as a pattern - it serves those only.
 
-```
- # community.list (a text file)
- -----------------------------------------------------
- myCommunity
- yourCommunity
-```
+### In the configuration file
 
-This file is provided to the supernode through the `supernode.community_file`
-option. This example would allow the supernode to only accept connections from
-communities called "myCommunity" and "yourCommunity", these are fixed-name
-communities.
+Each community is a section, with its name after the word `community`:
 
+```ini
+[community home]
 
-## Communities in the Configuration File
-
-Instead of the community file, or along with it, the communities can be given
-in the supernode's configuration file, one section each, with the name of the
-community after the section name:
-
-```
-[community myCommunity]
-
-[community yourCommunity]
+[community office]
 network = 10.77.0.0/24
 user = logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+header_encryption = true
 
 [supernode]
-community_regex = myCommunity[0-9][0-9]
+community_regex = lab[0-9][0-9]
 ```
 
-- `network` is the address range the auto ip address service hands out
-  addresses from, as the range after a name in the community file.  Without
-  it, the supernode chooses one between `supernode.auto_ip_min` and
-  `supernode.auto_ip_max`.
-- `user` allows a user, as the `* <username> <public key>` lines of the
-  community file do, only without the `*`; see
-  [Authentication](Authentication.md).  It may be given more than once.
-- `community_regex` in the `[supernode]` section allows the communities
-  matching a regular expression, see below.  It may be given more than once.
-- `header_encryption = true` marks the community as one with
-  [header encryption](#header-encryption) from the start, instead of when the
-  first packet shows it.
+| option | in a `[community NAME]` section of the supernode |
+|--------|---------------------------------------------------|
+| `network` | the range the supernode hands out addresses from, to the edges without a static one.  Without it, the supernode picks a /24 between `supernode.auto_ip_min` and `supernode.auto_ip_max` (`10.128.0.0` to `10.255.255.0` by default) |
+| `user` | a user allowed in, with their public key, see [Authentication](Authentication.md); one line per user |
+| `header_encryption` | `true`: the community uses [header encryption](#header-encryption) from the start, instead of from its first packet |
+| `name` | the actual name, where it has characters a section name cannot have |
 
-A section name can only have letters and digits, and in the community name
-after it also `_ - .` (but not at its start).  For any other community name, a
-`name` option in the section gives the actual name:
+A section name can have letters and digits, and also `_ - .` after the
+first character.  For any other name, `name` gives it:
 
-```
+```ini
 [community lab]
 name = my lab!
 ```
 
-The supernode joins the communities of the sections with those of the
-community file.  If a community is in both, the section wins and the
-supernode logs so; the file only gives what the section leaves out, its
-address range if the section has no `network`, its users if the section has
-no `user`.  Issuing the `reload_communities` command to
-the management port reads the community file again, but not the
-configuration file.
+`supernode.community_regex` (in `[supernode]`, as many as needed) allows
+the communities whose names match a pattern.
 
-An edge joins exactly one community: the one of `[community]`, or of its only
-`[community NAME]` section.  More than one community makes the edge stop with
-an error.
+### In a community file
 
-### On the Command Line
-
-Each option of such a section can also be given on the command line, as
-`-O "community NAME.option=value"` or `-O community.NAME.option=value`, see
-[Configuration Files](ConfigurationFiles.md#sections-with-a-name).  For
-simple setups that is enough, without a community file or a configuration
-file:
+The same, as a plain text file with one community a line, given by
+`supernode.community_file`:
 
 ```
+# community.list
+home
+office 10.77.0.0/24
+* logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+lab[0-9][0-9]
+```
+
+A network after the name is the range for its addresses; a line
+`* USER KEY` allows a user in the community above it.  See
+`community.list.sample` that comes with n3n-be.
+
+Both can be used together: the supernode takes the communities of both.
+For a community in both, the section wins and the file only gives what
+the section leaves out (its network, its users); the log says so.  On a
+reload (`n3nctl reload`, SIGHUP) the supernode reads both again;
+`n3nctl reload_communities` reads only the file.
+
+### Name patterns
+
+A line of the file, or `community_regex`, that has one of the characters
+`. * + ? [ ] \` is a regular expression, which a community name must
+match as a whole.  `lab[0-9][0-9]` allows `lab00` to `lab99`;
+`lab\d\d` does the same.
+
+| pattern | matches |
+|---------|---------|
+| `.` | any character |
+| `*` | the element before it, zero or more times (greedy) |
+| `+` | the element before it, one or more times (greedy) |
+| `?` | the element before it, zero or one time (non-greedy) |
+| `[abc]` | one of `a`, `b`, `c` |
+| `[a-zA-Z]` | one character of the ranges |
+| `[^abc]` | none of `a`, `b`, `c` - broken at the moment, do not use |
+| `\s`, `\S` | whitespace, anything else |
+| `\w`, `\W` | a letter, digit or `_`; anything else |
+| `\d`, `\D` | a digit; anything else |
+
+## Header encryption
+
+By default, the community name goes in plain text with each packet.
+Whoever sees the traffic learns the name, and with it can register at
+the supernode as a member of the community - although without the key,
+they cannot read or send its traffic.
+
+With `community.header_encryption = true` on the edges, the headers are
+encrypted with a key made from the community name, which then works as
+a shared password for the supernode, see
+[Cryptography](../internals/Crypto.md#header).  The supernode finds the
+community of such a packet by trying the names it knows, so this works
+for communities with fixed names only, not for those allowed by a
+pattern.
+
+To serve a community with encrypted headers and also any other
+community, allow it by name and everything else by a pattern:
+
+```
+# community.list
+mySecretCommunity
+.*
+```
+
+## On the command line
+
+Each option of a community section can also be given with `-O`, as
+`-O "community NAME.option=value"` or `-O community.NAME.option=value`
+(see [Configuration Files](ConfigurationFiles.md#sections-with-a-name)).
+For a simple setup, that makes the files needless:
+
+```sh
 n3n-supernode start \
     -O community.home.header_encryption=true \
     -O "community.home.user=logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG"
@@ -117,66 +158,9 @@ n3n-edge start \
     -O auth.password=007 -O connection.description=logan
 ```
 
-A `-O` for a section that is also in the configuration file sets that
-option in it, the others stay as the file has them.  On the edge, the
-short options `-c` and `-k` (and `N3N_COMMUNITY`, `N3N_KEY` in the
-environment) set `[community]`, the section without a name: together with a
-named one, the edge stops - two communities, or a key that would be left
-unused.  `-l` adds a supernode, whichever section the community is in.
-
-
-## Somewhat Flexible Community Names
-
-If you want to allow all community names from a certain name range, e.g. from "myCommunity00" to "myCommunity99", the `community.list` file (or whatever you name it) could look as follows:
-
-```
- # community.list (a text file)
- -----------------------------------------------------
- myCommunity[0-9][0-9]
-```
-
-Advanced users recognize the so called regular expression. To prevent users from stop reading, the author did not dare to name this section "Regular Expressions". Anyway, community names can be provided as regular expressions using the following placeholders:
-
-```
- '.'        Dot, matches any character
- '*'        Asterisk, match zero or more of previous element (greedy)
- '+'        Plus, match one or more of previous element (greedy)
- '?'        Question, match zero or one (non-greedy)
- '[abc]'    Character class, match if one of {'a', 'b', 'c'}
- '[^abc]'   Inverted class, match if NOT one of {'a', 'b', 'c'}  (feature is currently broken)
- '[a-zA-Z]' Character ranges, the character set of the ranges { a-z | A-Z }
- '\s'       Whitespace, \t \f \r \n \v and spaces
- '\S'       Non-whitespace
- '\w'       Alphanumeric, [a-zA-Z0-9_]
- '\W'       Non-alphanumeric
- '\d'       Digits, [0-9]
- '\D'       Non-digits
-```
-
-Knowing this, we can as well express the exemplary `community.list` above the following way:
-
-```
- # community.list (a text file)
- -----------------------------------------------------
- myCommunity\d\d
-```
-
-Also, as the `. * + ? [ ] \` characters indicate parts of regular expressions, we now understand why those are not allowed in fixed-name community names.
-
-
-## Header Encryption
-
-By default, the community name is transmitted in plain witch each packet. So, a fixed-name community might keep your younger siblings out of your community (as long as they do not know the community name) but sniffing attackers will find out the community name. Using this name, they will be able to access it by just connecting to the supernode then.
-
-[Header encryption](../internals/Crypto.md#header) can be enabled to prevent plain transmission. It is important to understand that header encryption, if enabled, only works on fixed-name communities. It will not work on community names described by regular expressions.
-
-On the other hand, the provision of fixed-name communities blocks all other, non-listed communities. To allow a mixed operation of certain encrypted and hence fixed-name communities along with all other open communities, the following "trick" can be applied:
-
-```
- # community.list (a text file)
- -----------------------------------------------------
- mySecretCom
- .*
-```
-
-This is not really a trick but just making use of a very permissive regular expression at the second line.
+An `-O` for a section that is also in the configuration file sets that
+one option in it.  On an edge, `-c` and `-k` (and `N3N_COMMUNITY`,
+`N3N_KEY`) set the section without a name, `[community]`: next to a
+named one, the edge stops with an error, as it would have two
+communities.  `-l` adds a supernode, whichever section the community is
+in.

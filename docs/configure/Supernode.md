@@ -4,55 +4,120 @@ SPDX-FileCopyrightText: Copyright 2020 n2n contributors
 SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
-# Setting up a Custom Supernode
+# Setting up a Supernode
 
-For the privacy of your data sent and to reduce the server load or reliance
-on `supernode.ntop.org`, it is also suggested to set up a custom supernode.
+The supernode is where the edges of a network register and find each
+other, and it relays their traffic where they cannot reach each other
+directly.  It never needs the communities' keys: what it relays stays
+encrypted.  It is small, and needs little of its host - but the edges
+have to reach it, so it needs a public IP address, or a port forwarded to
+it.
 
-You can create your own infrastructure by setting up a supernode on a public
-server (e.g. a VPS). You just need to open a single port (1234 in the example
-below) on your firewall (usually `iptables`).
+n3n-be runs no public supernode: you set up your own, on a VPS or any
+host with a public address.
 
-1. Install the n3n package
-2. Edit `/etc/n3n/supernode.conf` and add the following:
-   ```
-   [connection]
-   bind=1234
-   ```
-3. Start the supernode service with `sudo systemctl start n3n-supernode`
-4. Optionally enable supernode start on boot: `sudo systemctl enable n3n-supernode`
+## Quick setup
 
-Now the supernode service should be up and running on port 1234, for IPv6 and
-IPv4, UDP and TCP. On your edge nodes you can now specify
-`-l your_supernode_ip:1234` to use it. All the edge nodes must use the same
-supernode (or be part of the same [supernode federation](Federation.md))
+With the [packages](../quick_start/Install.md):
 
-`bind` takes several addresses, separated by spaces, and the supernode answers
-edges on each of them alike, for example `bind=[::]:1234 [::]:1235` - open
-both ports then.  A second port lets edges see whether their NAT maps each
-destination to a port of its own (see [NAT Traversal](../advanced/NatTraversal.md)).
-A port alone, or `[::]`, stands for IPv6 and IPv4; a given address only for
-its own family.
-
-Each address is for UDP and TCP, unless `udp://` or `tcp://` comes in front:
-`bind=udp://[::]:7654 tcp://[::]:443` takes UDP on port 7654 and TCP on 443,
-a port most firewalls let out.  The supernode needs at least one address for
-UDP.  Tell the edges about the TCP port with a second line for the same host,
-`supernode=tcp://sn.example.org:443`, next to `supernode=sn.example.org:7654`:
-they then fall back to TCP on 443 when UDP does not get through.
-
-Each TCP connection is an open file.  On Linux the supernode takes as many
-as the process may open: it raises its soft limit of open files to the
-hard one (systemd starts services with a soft limit of 1024 and a hard one
-far above); `LimitNOFILE=` in its unit raises the hard one, if that is not
-enough.
-
-## A Supernode That Is an Edge Too
-
-A supernode can also be a member of one community, with a TAP device of its
-own, so that the machine it runs on needs no separate edge:
-
+```sh
+sudo systemctl enable --now n3n-supernode
 ```
+
+That is all it needs to start with: it listens on port 7654, UDP and
+TCP, for IPv6 and IPv4, and takes any community.  Open that port in the
+host's firewall, for UDP and TCP.  The edges then name it in their
+configuration:
+
+```ini
+[community]
+supernode = sn.example.org:7654
+```
+
+Its configuration, if it needs one, goes into `/etc/n3n/supernode.conf`;
+see [Configuration Files](ConfigurationFiles.md).  Without the packages,
+`n3n-supernode start` runs it in the foreground.
+
+To see the edges registered at it:
+
+```sh
+sudo n3nctl -s supernode edges
+```
+
+## Ports and addresses
+
+`connection.bind` sets where the supernode listens.  It takes one or
+more addresses, separated by spaces:
+
+```ini
+[connection]
+bind = [::]:7654 [::]:7655
+```
+
+- A port alone, or `[::]`, stands for IPv6 and IPv4; an address of its
+  own only for its family.
+- The supernode answers edges on each address alike.  A second port lets
+  the edges see whether their NAT maps each destination to a port of its
+  own, see [NAT Traversal](../advanced/NatTraversal.md).
+- Each address takes UDP and TCP, unless `udp://` or `tcp://` comes in
+  front.  At least one has to take UDP.
+
+**TCP on port 443** gets through most firewalls that only let web
+traffic out - in hotels, at airports, in some offices:
+
+```ini
+[connection]
+bind = udp://[::]:7654 tcp://[::]:443
+```
+
+The edges learn about it from a second line for the same host; they fall
+back to TCP when UDP does not get through:
+
+```ini
+[community]
+supernode = sn.example.org:7654
+supernode = tcp://sn.example.org:443
+```
+
+Each TCP connection is an open file.  On Linux, the supernode raises its
+limit of open files to the most the system allows it; if that is not
+enough for the edges over TCP, `LimitNOFILE=` in its systemd unit raises
+it.  (A supernode built for Windows takes UDP only.)
+
+## Which communities it serves
+
+By default, any.  To serve your own communities only, name them in its
+configuration file:
+
+```ini
+[community home]
+
+[community office]
+```
+
+See [Communities](Communities.md): name patterns, address ranges, a
+community file, and [user and password authentication](Authentication.md)
+for each edge.
+
+## More than one supernode
+
+Several supernodes can form a **federation**: the edges register at any
+of them and still find each other, and when one goes away, its edges move
+to another.  See [Federation](Federation.md).  Give the supernode a
+federation name of its own even when it is alone - the log warns while
+it has the default:
+
+```ini
+[supernode]
+federation = myFederation
+```
+
+## A supernode that is an edge too
+
+A supernode can also be a member of one community, with a TAP device of
+its own, so that the host it runs on needs no separate edge:
+
+```ini
 [supernode]
 tap = true
 
@@ -65,28 +130,24 @@ address = 10.1.2.1/24
 address_mode = static
 ```
 
-The `[community]` and `[tuntap]` options are those of an edge; without a
-static address, the supernode gives one to itself as it does to the other
-edges.  With user/password authentication, `auth.password` and
-`connection.description` are its user name and password, and the supernode
-needs that user in the community, as for any other edge; the public key of
-the federation is that of its own.
+The `[community]` and `[tuntap]` options are those of an edge.  Without
+a static address, the supernode gives itself one as it does to the
+other edges.  With user/password authentication, `connection.description`
+and `auth.password` are its user name and password, and the community
+needs that user, as for any other edge.
 
-The supernode's edge reaches the other edges of the community through the
-supernode itself - directly for the edges registered at it, across the
-federation for the others.  It has no sockets of its own, so peer-to-peer
-connections, local peer discovery and hole punching do not apply to it.  The
-supernode needs the privileges to open the TAP device at start, before it
-drops them.  The supernode's management interface answers for its edge as
-well: its web page has a section for each, and the JsonRPC methods are asked
-at `/v1/edge` (`n3nctl -r edge edges`); `get_edges` of the supernode lists it
-at `127.0.0.1:0`.  This is not available on Windows yet.
+This edge reaches the others through the supernode itself: directly for
+the edges registered at it, across the federation for the rest.  It has
+no sockets of its own, so peer-to-peer connections, local peer discovery
+and hole punching do not apply to it, and its packets are handled on the
+supernode's main thread, not on its [packet threads](../advanced/Threads.md).
+It is meant for light use - a management or monitoring host on the
+network, say.  For heavy traffic, run a separate edge next to the
+supernode.
 
-The edge runs with less than a standalone one: its packets are handled on
-the supernode's main thread, not on its packet threads (see
-[Threads](../advanced/Threads.md)), so it is meant for the supernode's own
-light membership of a community - a management or monitoring host on the
-network, say - rather than a heavily used edge.  For that, run a separate
-edge next to the supernode.  Bringing the two roles together into one code
-path, with the same handling for both, is planned for the next wire version
-(v4); until then this stays a convenience with the limits above.
+The management interface answers for both: the web page has a section
+for each, and `n3nctl -s supernode -r edge edges` asks the edge.  The
+supernode lists its own edge at `127.0.0.1:0`.  It needs the privileges
+to open the TAP device at the start, before it drops them, and is not
+available on Windows yet.  Bringing the two roles together into one code
+path is planned for the next wire version (v4).
