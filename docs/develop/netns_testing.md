@@ -27,7 +27,8 @@ sanitizers built in.  There a failed scenario runs once more
 failed or flaky scenario uploads the logs of the scenarios.
 
 It needs root (namespaces, TAP devices, nftables), iproute2, nft and
-`/dev/net/tun`, and Python 3 without further modules.
+`/dev/net/tun`, and Python 3 without further modules; the scenarios with
+IPv6 inside the tunnel also ping (iputils-ping).
 
 ```
 make test                       # includes the quick scenarios

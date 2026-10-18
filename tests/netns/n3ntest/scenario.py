@@ -36,6 +36,7 @@ import os
 import random
 import re
 import resource
+import shutil
 import signal
 import subprocess
 import sys
@@ -1850,6 +1851,10 @@ class Run:
             if not addr:
                 self.check("ipv6:{}->{}".format(src, dst), False,
                            "no IPv6 address in the log of " + dst)
+                continue
+            if not shutil.which("ping"):
+                self.check("ipv6:{}->{}".format(src, dst), False,
+                           "no ping command (iputils-ping) to try it with")
                 continue
             # the first may go while the MAC is asked for
             p = subprocess.run(["ip", "netns", "exec", self.edges[src]["ns"],
