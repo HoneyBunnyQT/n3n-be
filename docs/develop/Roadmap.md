@@ -604,6 +604,12 @@ while `peer` keeps getting what does not touch the wire, merged into
 - 2026-10-10: Development goes on on `main`, which has all of `peer`;
   `peer` is not worked on any more and goes.  The fork's packages are
   named `n3n-be`.
+- 2026-10-18: Multicast of protocols without IP (PROFINET's DCP, NetBEUI,
+  AppleTalk) is n3n-be's own: upstream closed n42n/n3n#119 without a
+  change, although a reproduction with its 3.4.6 and main showed such
+  frames lost in its forwarding (taken for unicast to an unknown MAC, see
+  docs/configure/TapConfiguration.md).  Not to be proposed upstream
+  again; bug fixes still go to `fixes`, for upstream to take or not.
 
 ## Scratchpad
 
