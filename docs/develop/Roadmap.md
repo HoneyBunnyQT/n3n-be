@@ -121,6 +121,13 @@ tests and `make lint` pass after each.
 
 ### Next
 
+- [ ] Installable next to upstream n3n: the program, `n3nctl`, the
+      systemd units, the man pages, the sysusers file, `/etc/n3n` and
+      `/run/n3n` under a name of n3n-be's own (to be decided), with a
+      note on moving an existing configuration; then the packages drop
+      `Conflicts`, `Replaces` and `Provides: n3n`.  Suggested by upstream's
+      maintainer (2026-10-18).  Before the documentation names the paths
+      everywhere anew
 - [x] Communities configured the same way for both roles (see Scratchpad)
 - [x] netns scenarios where a supernode fails over with user/password
       authentication, header encryption, TCP and `supernode.tap` (db91c09)
