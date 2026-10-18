@@ -111,6 +111,14 @@ int main (int argc, char *argv[]) {
         printf("sock: no sockets on the loopback address\n");
         return 1;
     }
+    // room for all the datagrams of a round, which are sent before any is
+    // read: NetBSD's default, about 41 kB counted in whole mbufs, has not.
+    // The most the system takes (kern.sbmax there, 256 kB with overhead)
+    for(int rcvbuf = 1 << 20; rcvbuf >= (1 << 16); rcvbuf /= 2) {
+        if(setsockopt(rx, SOL_SOCKET, SO_RCVBUF, (char *)&rcvbuf, sizeof(rcvbuf)) == 0) {
+            break;
+        }
+    }
 
     // one buffer for all of them, written anew for each: what was sent
     // before must not change with it
