@@ -474,7 +474,7 @@ int main (int argc, char **argv) {
     }
 
     if(!has_address) {
-        fprintf(stderr, "n3n-qr: note: there is no address in [tuntap]; the app needs one\n");
+        fprintf(stderr, "n3n-qr: note: there is no address in [tuntap]; the phone gets one from the supernode\n");
     }
 
     // medium error correction, the usual; low if it does not fit else
