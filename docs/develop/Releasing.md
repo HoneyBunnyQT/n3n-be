@@ -61,6 +61,20 @@ first start.
 4. Look at the draft: the files, the notes; install a package or two.
 5. Publish it.
 
+## Version numbers
+
+- A release is `MAJOR.MINOR.PATCH`, continuing upstream's numbers from
+  where n3n-be started (3.4.x).
+- A build between releases calls itself after the last tag, as `git
+  describe` does: `3.4.8-27-gc796baa`, the 27th commit after 3.4.8.  It
+  says `n3n-be` in front, in `-V`, the log and the management interface;
+  a supernode sends `be-` and the version on the wire.
+- `VERSION` is the version of last resort, for a build without the git
+  tags (a tarball, a shallow clone); the build warns when it does not
+  match the last tag.
+- There are no release branches: a fix goes to `main` and into the next
+  release (see the [Security Policy](../SECURITY.md)).
+
 ## Settled for the first release
 
 - **The Android application ID** (settled 2026-10-15):

@@ -1,36 +1,29 @@
 <!--
 SPDX-License-Identifier: GPL-3.0-only
 SPDX-FileCopyrightText: Copyright Hamish Coleman
+SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
 # Build on Linux
 
-As the Linux environment is a very standard posix system, it can simply use
-the generic build instructions.
+The [generic instructions](index.md) are all it takes.
 
-# Required minimum kernel API
+## Kernels
 
-This project intends to remain buildable with the oldest kernel that is still
-receiving bugfixes and support from the kernel community.  In practice, this
-means the the oldest Longterm release kernel - generally, any kernel older
-than six years is not supported.
+n3n-be is meant to build and run on the oldest kernel that still gets
+fixes from the kernel developers - the oldest longterm release, in
+practice, so nothing much older than six years.  A feature that needs a
+newer kernel is switched off where it is missing, and the program says
+so when it is asked for, instead of failing in strange ways.
 
-The intent is to control the support burden of the maintainers.
+## Packages
 
-Most of the n3n code does not rely on kernel interfaces that are new or
-changing, but this policy will influence the acceptance of patches for
-supporting older kernels.
+- Debian and Ubuntu: `make dpkg` (`make build-dep` installs what it
+  needs)
+- RPM: `packages/rpm/`, as the `Release` workflow builds it in a Fedora
+  container
+- Arch Linux: `packages/arch/PKGBUILD`
+- OpenWrt: see [OpenWrt](openwrt.md)
 
-When some code is determined to not work on older kernel APIs, the preference
-is for the entire feature to be disabled - with a message returned to the user
-informing them of the lack of support before exiting with an errorcode when it
-is detected that a unsupported feature has been requested.
-
-# Building n3n packages
-
-There are also some package build recipes included with the source.
-
-- Debian: `make dpkg`
-  (This detects missing packages and outputs an error. If so, try `make build-dep`)
-- [RPM](../../packages/rpm)
-- [OpenWRT](openwrt.md)
+See [Releasing](../develop/Releasing.md) for how the release packages
+are made.

@@ -51,11 +51,11 @@ nav:
       - Testing behind NATs: develop/netns_testing.md
       - Roadmap: develop/Roadmap.md
       - Mobile and TUN (design): develop/MobileAndTun.md
+      - IPv6 (design): develop/IPv6.md
+      - Path MTU (design): develop/PathMtu.md
       - Releasing n3n-be: develop/Releasing.md
-      - Release Process: ReleaseProcess.md
       - Build From Source:
           - Overview: build/index.md
-          - Branches: build/Overview.md
           - Build Configuration: build/BuildConfig.md
           - Linux: build/linux.md
           - Cross Compiling: build/linux_crosscompile.md

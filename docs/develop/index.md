@@ -17,4 +17,4 @@ documents with useful information.
 - [Releasing n3n-be](Releasing.md): the packages, the keys
 - [Mobile and TUN: design notes](MobileAndTun.md)
 - [Path MTU: notes for v4](PathMtu.md)
-- [The Android app](../../android/README.md): building and trying it
+- [The Android app](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md): building and trying it

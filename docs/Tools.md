@@ -32,7 +32,7 @@ Example:
 ### `n3n-qr`
 
 Makes a QR code of an edge's configuration file, for the Android app to
-scan (see [android/README.md](../android/README.md)).  It is built when
+scan (see [android/README.md](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md)).  It is built when
 `./configure` finds libqrencode and libpng (on Debian and Ubuntu
 `libqrencode-dev` and `libpng-dev`); `--without-qrencode` leaves it out.
 

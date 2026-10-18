@@ -2,12 +2,12 @@
 SPDX-License-Identifier: GPL-2.0-only
 SPDX-FileCopyrightText: Copyright 2022 n2n contributors
 SPDX-FileCopyrightText: Copyright Hamish Coleman
+SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
-# Contributing to the n3n project
+# Contributing to n3n-be
 
-This outlines some of the basic steps that this project uses for
-contributions.
+The basic steps this project uses for contributions.
 
 ## Provide patches or pull requests
 
@@ -15,6 +15,9 @@ contributions.
   [more info](develop/linting.md))
 - Ensure that the tests pass (Use `make test` to check, [more
   info](develop/testing.md))
+- Keep the wire compatible with n3n v3: edges and supernodes of n3n-be,
+  n3n and n2n 3.x share networks, which the netns scenarios tagged
+  `interop` check ([Testing behind NATs](develop/netns_testing.md))
 - If you change the help text of an option, regenerate the options reference
   with `make options` (`make options.check` tells whether it is up to date)
 - Keep the documentation in `docs/` and the man pages current with your change

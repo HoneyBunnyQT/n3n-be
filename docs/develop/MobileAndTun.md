@@ -8,7 +8,7 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 Ideas for two things that belong together: an edge with a TUN device (layer
 3) instead of a TAP device (layer 2), and an Android app built on it.
 TUN mode, the library entry point and a first app are code now (see the
-steps below, and [android/](../../android/README.md)); the rest is here to
+steps below, and [android/](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md)); the rest is here to
 be discussed and refined.  See the [Roadmap](Roadmap.md) for where it
 stands.
 
@@ -162,7 +162,7 @@ with the phone (always-on VPN).
    supernode).
 3. Done: libn3n built by the NDK, in the app's Gradle build, in CI (the
    `Android` workflow).
-4. Done in part: a minimal app in [android/](../../android/README.md):
+4. Done in part: a minimal app in [android/](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md):
    import a file or a QR code (camera or image), connect, disconnect, the
    log, the state (peers, supernode) from the management API, registering
    again on network changes.  Open: automatic addresses.

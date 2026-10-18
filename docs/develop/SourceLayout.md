@@ -53,4 +53,4 @@ The handlers of each role are listed in a table by message type,
 `android/` is the Android app.  Its native library is built from the
 sources in `src/` directly (`android/app/src/main/cpp/CMakeLists.txt`), so
 a file added to or removed from the edge may need a line there too; see
-[its README](../../android/README.md).
+[its README](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md).
