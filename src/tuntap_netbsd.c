@@ -88,7 +88,7 @@ int tuntap_open (tuntap_dev *device /* ignored */,
         in_addr_t addr = device->ip_addr;
         in_addr_t mask = htonl(bitlen2mask(v4subnet.net_bitlen));
         char addr_buf[INET_ADDRSTRLEN];
-        inet_ntop(AF_INET, &addr, &addr_buf, sizeof(addr_buf));
+        inet_ntop(AF_INET, &addr, addr_buf, sizeof(addr_buf));
 
         snprintf(cmd, sizeof(cmd), "ifconfig %s %s netmask %s mtu %d up",
                  tap_device,
