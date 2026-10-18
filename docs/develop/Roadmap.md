@@ -633,13 +633,15 @@ while `peer` keeps getting what does not touch the wire, merged into
   stay GPL-3.0-only.  Upstream's GPL-2.0-only files that are linked into
   `n3n` (`src/benchmark/`, as upstream had them) are a candidate to be
   written anew, which would leave no GPL-2.0-only code in the program.
-- 2026-10-18: What n3n-be takes from upstream comes in by `git
-  cherry-pick -x` (or `git format-patch` / `git am`), with its author and
-  the line naming the upstream commit, never retyped or squashed into a
-  change of ours - as upstream's maintainer asked, and as said to him.
-  Only what its licence allows (see above); GPL-2.0-only code "for use
-  within this project" stays out, and is not rewritten from either.
-  `upstream.yml` only builds upstream's main to test against it.
+- 2026-10-18: n3n-be goes on with its own code.  Upstream's newer code is
+  not taken: n3n has chosen terms and a way of working of its own, and
+  both are better served by each project keeping to its own.  Upstream is
+  watched for compatibility only (`upstream.yml`, which builds its main to
+  test against it); a drift found there is fixed from the protocol and
+  n3n-be's own code.  Should something of upstream's ever be taken after
+  all, it comes in by `git cherry-pick -x`, with its author, as upstream's
+  maintainer asked - and only where its licence allows (see above).
+  Fixes of ours that help upstream still go to `fixes`, as before.
 
 ## Scratchpad
 

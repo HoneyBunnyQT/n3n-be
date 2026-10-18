@@ -65,12 +65,13 @@ nobody takes it for n3n-be.
 - **Code from elsewhere** keeps its licence and its copyright lines, and
   its licence has to go together with the GPL version 3: say where it
   comes from in the commit message.
-- **Upstream's work** comes in as it is, with its author, by `git
-  cherry-pick -x` (or `git format-patch` and `git am`), so that every
-  tool sees where it came from.  n3n's files from 2026-10-04 on carry new
-  terms, see the [Roadmap](develop/Roadmap.md) (decisions of 2026-10-18):
-  what is under LGPL-2.1 can be taken; what is under GPL-2.0-only "for
-  use within this project" is not taken, nor written anew from it.
+- **Upstream n3n** has chosen terms and a way of working of its own, and
+  n3n-be leaves it to them: it does not take n3n's newer code, and
+  follows it only so far as compatibility needs - the weekly test
+  against n3n's main shows where the two drift apart, and n3n-be then
+  fixes that its own way, from the protocol and its own code.  Should
+  something of n3n's ever be taken, it comes as it is, with its author,
+  by `git cherry-pick -x`, and only where its licence allows.
 
 There is no contributor licence agreement: each author keeps the
 copyright of their work, and nobody can take the whole of n3n-be closed
