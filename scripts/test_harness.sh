@@ -43,8 +43,13 @@ for i in $TESTS; do
     fi
 
     echo "$TEST >$LISTDIR/$i.out"
+    if ! "$TEST" >"$LISTDIR/$i.out"; then
+        # what it said, which the log of a CI run would not show otherwise
+        cat "$LISTDIR/$i.out"
+        echo "$TEST failed"
+        exit 1
+    fi
     set -e
-    "$TEST" >"$LISTDIR/$i.out"
     diff -wu "$LISTDIR/$i.expected" "$LISTDIR/$i.out"
     set +e
 done
