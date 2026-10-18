@@ -78,6 +78,33 @@ docmd "${BINDIR}"/scripts/test_packets \
 
 docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 get_edges --raw
 
+# An edge at the tunnel address of a known one takes its entry over only
+# when it shows the same token (the same edge, with another MAC); address
+# 0, before the supernode gives one out, is nobody's.  Edges a and b come
+# without an address, c with 10.9.0.5, and d claims c's address with a
+# token of its own: refused, and c stays
+claim() {
+    mac=$1; ip=$2; token=$3; desc=$4
+    docmd "${BINDIR}"/scripts/test_packets \
+        --bind 7002 \
+        -s localhost:7001 \
+        --field edgeMac="$mac" \
+        --field ipv4="$ip" \
+        --field masklen=24 \
+        --field desc="$desc" \
+        --field auth_scheme=1 \
+        --field auth_token_size=16 \
+        --field auth_token="$token" \
+        test_REGISTER_SUPER
+}
+# (the descriptions "claim-a" ... in hex)
+claim 02000000000a 00000000 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa 636c61696d2d61
+claim 02000000000b 00000000 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb 636c61696d2d62
+claim 02000000000c 0a090005 cccccccccccccccccccccccccccccccc 636c61696d2d63
+claim 02000000000d 0a090005 dddddddddddddddddddddddddddddddd 636c61696d2d64
+
+docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 get_edges --raw |grep -v last_seen |grep -v time_alloc
+
 # TCP
 #
 docmd "${BINDIR}"/scripts/test_packets \
