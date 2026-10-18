@@ -124,18 +124,26 @@ in `main` since 2026-10-10.
 
 Picked for now (2026-10-18), in this order: the flaky netns scenarios, the
 BSD job, `src/benchmark/` written anew, the possible bug in
-`update_edge()`; after them the lossy direct path, then rate limits, the
-Prometheus endpoint and the coverage report.
+`update_edge()` - all four done the same day; after them the lossy
+direct path, then rate limits, the Prometheus endpoint and the coverage
+report.
 
-- [ ] Possible bug (found reading, not reproduced yet): a REGISTER_SUPER
-      from a MAC the supernode does not know looks for an edge of the same
-      tunnel IPv4 address and gives that entry the new MAC
-      (`update_edge()`, `role_relay.c`) - with no check for address 0,
-      which edges register with before the supernode gives them one, so
-      two edges starting at once may take each other's entry; and before
-      `auth_edge()`, so a REGISTER_SUPER that fails authentication still
-      renames another member's entry.  Upstream has the same code: for
-      `fixes` once a netns scenario shows it
+- [x] `update_edge()` (`role_relay.c`): a REGISTER_SUPER from a MAC the
+      supernode does not know took the entry of the edge at the same
+      tunnel address - before the authentication, and for the address 0
+      too.  Shown with `scripts/test_packets` against a supernode: any
+      edge that gets its address from the supernode and starts after
+      another took that one's entry, was refused, and stayed refused
+      until the entry expired (the entry kept the 0 it registered with,
+      for good); and an edge refused for claiming another's address had
+      renamed its entry all the same.  With that fixed, the second
+      showed: as the supernode never kept an address it gave out, two
+      edges of the same description got the same one.  Both fixed, on
+      `fixes` too, with `test_integration_packets` (2026-10-18)
+- [ ] With user/password, `auth_edge()` asks only whether the presented
+      key is of an allowed user, not whether it is the key the edge
+      registered with: any user may take over another's MAC or address.
+      To look into; upstream's code the same
 - [ ] A lossy direct path: v3 picks a direct path and keeps it however
       bad it gets (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  The edge can
@@ -201,9 +209,13 @@ Prometheus endpoint and the coverage report.
       everywhere; a peer the supernode reports at another public address
       while it is quiet has moved; Android tells the edge through
       `n3n_edge_network_changed()`.  netns scenario `roam`: ~1s without a
-      frame instead of ~10s.  Open: `dual-stack` fails in UML now and then
-      (a few frames relayed when the measured flow starts, before this
-      work too: 3 of 6)
+      frame instead of ~10s.  `dual-stack` failing in UML now and then
+      (4 of 19, 2026-10-18): a known peer quiet for half its timeout was
+      dropped and looked up through the supernode anew, which may tell
+      its address of the other family - a second move.  Now it is kept,
+      the frames go through the supernode while a REGISTER asks it at
+      its address, whose ACK makes it direct again; dropped only after
+      one and a half timeouts (15 of 15)
 - [x] Supernode outage and path MTU: netns scenarios `sn-outage`,
       `sn-outage-idle`, `sn-outage-restart`, `mtu-1280`, and (tagged
       `limits`, failing on purpose) `sn-outage-roam`,
@@ -319,7 +331,9 @@ Prometheus endpoint and the coverage report.
       shows both supernodes one port; edges behind hard NATs on both
       sides that get through directly pass (`PASS+`); `/run/n3n` made
       before the daemons for 3.4.6; what is left gets `--retry 1` in CI
-      and shows as `FLAKY`.  Open: `dual-stack`, `sn-tap-userpw` (ASan)
+      and shows as `FLAKY`.  `dual-stack` explained and fixed (see
+      Network changes).  Open: `sn-tap-userpw` (ASan), not seen in 25
+      runs here (2026-10-18)
 - [~] Fuzzing: libFuzzer targets for header decryption, the PDU
       decoders and the transforms (`tests/fuzz`), which found the
       receive-path bugs of 3.4.7 (GHSA); their inputs in the regression
@@ -741,8 +755,9 @@ Open, in rough order:
 - `slow_openwrt.yml` (the `openwrt` branch, or by hand): stale - it
   checks out to `src` and builds `$GITHUB_WORKSPACE/n3n`, sets
   `PKG_VERSION` where the package takes `BUILD_VERSION`, and compiles
-  without `USE_SOURCE_DIR`; `slow_bsd.yml` (pull requests, releases)
-  has not run on this fork.
+  without `USE_SOURCE_DIR`.  `slow_bsd.yml` runs on every push now,
+  with the builtin and unit tests on FreeBSD, OpenBSD and NetBSD
+  (2026-10-18).
 
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
   privileges (Landlock, CAP_NET_ADMIN only is there);
@@ -877,10 +892,16 @@ runs, one scenario each), and reproduced with `-v 3` in a loop:
   and never made the keys again.  Fixed in n3n-supernode.c (also an
   upstream bug); `userpw` now starts its supernodes 1.1 s apart.  Maybe
   the `sn-tap-userpw` ASan case below as well.
-- Not explained yet, the logs of CI were not at hand: `dual-stack` (2 moves
-  of the peer, 1 allowed, the last from IPv4 to IPv6; once in 23 runs,
-  and see "Network changes" above for UML) and `sn-tap-userpw` under
-  ASan (the edge never registered; once in 16).
+- `dual-stack` (2 moves of the peer, 1 allowed; once in 23 runs, 4 in 19
+  in UML): an edge's peer, quiet between the warm-up and the measured
+  flow for more than half its timeout, was dropped and looked up through
+  the supernode, which told its IPv4 address - the peer's IPv6 one it
+  learns only with the peer's second registration - and the peer moved
+  there and back to IPv6.  Fixed in the edge (2026-10-18, see "Network
+  changes").
+- Not explained yet: `sn-tap-userpw` under ASan (the edge never
+  registered; once in 16 in CI, none in 25 runs here, also with the
+  supernodes a second apart, either way round, 2026-10-18).
 - `sn-tcp-1100` under ASan (2026-10-11, twice, on commits that changed
   only the Android app and the edge): "tcp burst: the connections did
   not get through" - the harness gave the 1100 connections 60s, and the
