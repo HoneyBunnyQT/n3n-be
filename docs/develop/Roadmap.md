@@ -612,6 +612,16 @@ while `peer` keeps getting what does not touch the wire, merged into
   again; bug fixes still go to `fixes`, for upstream to take or not.
   Compatibility with upstream is watched by tests instead: `upstream.yml`
   runs the interop scenarios against upstream's current main every week.
+- 2026-10-18: n3n-be goes its own way: no more pull requests or notes to
+  upstream; the open ones are closed with a pointer to `fixes`, and the
+  repository leaves the fork network (see Scratchpad for the steps).
+  Upstream's code from 2026-10-04 on carries new licence terms: the
+  maintainer's own files GPL-2.0-only with a permission to link them with
+  GPL-3.0 code "just for use within this project", new contributions to
+  the core LGPL-2.1-only.  What n3n-be already has keeps the licences it
+  came with.  Something of upstream's newer work wanted here: its file
+  header decides - LGPL-2.1 can be taken (into GPL-3.0), GPL-2.0-only with
+  that permission is better written anew than copied.
 
 ## Scratchpad
 
@@ -672,6 +682,14 @@ Open, in rough order:
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
   privileges (Landlock, CAP_NET_ADMIN only is there);
   the supernode's forwards with GSO.
+- Leaving the fork network, in this order: the upstream PRs closed with
+  the note (only once upstream has stopped merging them for the day);
+  the branches deleted that are on `fixes` or `main` (an archive of them
+  as a git bundle exists; `pr/big-endian` stays, two Twofish fixes are
+  only there); the 3.4.8 release's files saved; then Settings, "Leave
+  fork network", or GitHub Support (n3n-be has a fork of its own, which
+  the setting does not allow).  Private vulnerability reporting
+  (docs/SECURITY.md) to switch on in the settings.
 - Releases: the channels - decisions to take.  The Windows zip for
   3.4.8: `release.yml` without "draft", then the zip from the run's
   artifacts onto the release (and into its SHA256SUMS) by hand.
