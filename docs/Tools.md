@@ -19,7 +19,7 @@ the `n3n-edge test benchmark` command.
 
 It is not built by default, and no longer builds as it stands; use
 `n3n-edge test benchmark` (or `n3n edge test benchmark`), which also runs
-in several threads at once with `test.threads`.
+in several threads at once with `-Otest.benchmark_threads=N`.
 
 This C tool has n3n's basic transforms (the ciphers, compression, hash)
 crunch a test packet and outputs the measured throughput. You might observe

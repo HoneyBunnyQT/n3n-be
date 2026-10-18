@@ -72,22 +72,25 @@ be gathered.
 
 ## Adding new tests to the code
 
-Note that some of these details are still under development and are expected
-to change.
-
-Each test uses a `static struct bench_item` to describe the test.
-
-These are then hooked into the framework with the `n3n_benchmark_register()`
-function.  This is expected to be called from the module's initfunc.
+Each test is a `static struct bench_item` (`include/n3n/benchmark.h`): a
+name and maybe a variant (the implementation, as `AES-NI`), the size of
+its context with a `setup` and a `teardown`, a `run` that works on one
+buffer of test data, and either a `check` of its own or a `get_output`
+and the test data its output has to be (`src/benchmark/testdata.c`).
+The module registers it with `n3n_benchmark_register()` from its
+initfunc.  The harness is in `src/benchmark/`.
 
 ## Running built in tests
 
 `n3n-edge test check`
 
-This can optionally be followed by a list of the test names to run.
+This can optionally be followed by the names of the tests to run: a name
+runs all its variants, `name,variant` one of them (`aes_encr,AES-NI`),
+`name,` the one without a variant - the fastest the CPU has - and `ALL`
+also those that do not run by default.  `n3n-edge test list` lists them.
 
 If all the tests that run were successful, an "OK" is output on stdout and the
-program exitcode is set to zero. 
+program exitcode is set to zero.
 
 More details about each test can be shown by adding the
 `-Otest.output_format=raw` option.  This will show the internal ID of which
@@ -96,32 +99,31 @@ from the test and can be used for further debugging of tests.
 
 ## Running benchmarks
 
-To run the preferred benchmarking, use:
-
 `n3n-edge test benchmark`
 
-This can optionally be followed by a list of the test names to run.
+This takes the same names as `test check`.  Each test runs for a second
+(`-Otest.benchmark_seconds=N`; 0 runs it once), in rounds of a growing
+number of loops with the clock read in between, so that the clock costs
+next to nothing.  With `-Otest.benchmark_threads=N` it runs in N threads
+at once, each with a context of its own, as packet threads work.
 
-On supported systems and with high enough permissions, this will track the CPU
-instructions and clock cycles (currently, only Linux supports this.  You will
-need to either run it as root or change the sysctl to allow perf access for
-regular users)
+Where Linux lets a program read the CPU's performance counters - as root,
+or with the sysctl `kernel.perf_event_paranoid` at 2 or lower - and the CPU
+or virtual machine has them, it also shows the CPU cycles and instructions
+per loop, counted in each thread and added up.
 
-This information can also be output as CSV to allow easy storage and analysis.
-Add the `-Otest.output_format=raw` option.
+`-Otest.output_format=raw` gives CSV for storing and comparing.
 
-Due to the lack of Performance Management Unit (PMU) virtualisation in many
-CI/CD pipelines, the regular benchmark cannot be used in those cases.  Since
-one key reason to have this benchmark is to allow tracking of performance
-regressions, an alternative (worse) benchmark has been added that works
-without the need for a PMU.  This uses ptrace to single-step the tests and is
-less accurate, takes longer to run and only supports Linux.
+Many CI runners have no performance counters in their virtual machines.
+To still see from one commit to the next whether a test needs more work,
+there is
 
 `n3n-edge test fakebench`
 
-This "fakebench" generates fake numbers and should not be used for precise
-measurements. It should be considered a hack that has been cobbled together as
-a last resort to allow a minimal CI testing.
+which counts the instructions per loop by single-stepping each test with
+ptrace (Linux only), as CSV.  It is slow, and an instruction is not a
+cycle, but it counts the same on any machine; `benchmark.yml` keeps its
+numbers of some tests from run to run.
 
 ### The whole packet path
 

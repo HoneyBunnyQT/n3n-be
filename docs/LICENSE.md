@@ -14,7 +14,7 @@ changes on the same terms, also when they only run it as a service.
 |------|---------|
 | n3n-be's own work: the files whose only copyright is Honey Bunny QT's | [AGPL-3.0-only](https://www.gnu.org/licenses/agpl-3.0.html) |
 | what came from n3n and n2n: most of `src/`, `apps/`, `include/`, `tools/` | GPL-3.0-only |
-| some of upstream's tools and libraries: `libs/connslot`, `src/benchmark`, `scripts/n3nctl`, ... | GPL-2.0-only or LGPL-2.1-only, as their files say |
+| some of upstream's tools and libraries: `libs/connslot`, `scripts/n3nctl`, ... | GPL-2.0-only or LGPL-2.1-only, as their files say; none of the GPL-2.0-only ones is part of the program |
 | `libs/lzo` | GPL-2.0-or-later |
 
 The program as a whole, `n3n` and the Android app, is a combination of

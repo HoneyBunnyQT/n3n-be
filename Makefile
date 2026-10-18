@@ -109,11 +109,12 @@ OBJS=\
 	libs/lzo/minilzo.o \
 	src/auth.o \
 	src/base64.o \
-	src/benchmark/core.o \
-	src/benchmark/gettime.o \
-	src/benchmark/pdu.o \
-	src/benchmark/staticdata.o \
-	src/benchmark/nop.o \
+	src/benchmark/basics.o \
+	src/benchmark/bench.o \
+	src/benchmark/counters.o \
+	src/benchmark/packet.o \
+	src/benchmark/testdata.o \
+	src/benchmark/trace.o \
 	src/conffile.o \
 	src/conffile_defs.o \
 	src/crypto/aes.o \

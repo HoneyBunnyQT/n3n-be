@@ -97,6 +97,7 @@ Files:
  scripts/gen_doc_images.py
  scripts/test_qemu.sh
  scripts/test_qr.sh
+ src/benchmark/*
  src/counter.h
  src/crypto/aes.c
  src/crypto/aes_armce.c

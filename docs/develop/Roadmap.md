@@ -675,9 +675,9 @@ while `main` keeps getting what does not touch the wire, merged into
   section 13 allows the combination, and the AGPL's network clause
   covers the program as a whole.  `src/crypto/cc20_neon.c`, a port of
   the SSE2 code of ntop's, and `src/sn_utils.h`, upstream's prototypes,
-  stay GPL-3.0-only.  Upstream's GPL-2.0-only files that are linked into
-  `n3n` (`src/benchmark/`, as upstream had them) are a candidate to be
-  written anew, which would leave no GPL-2.0-only code in the program.
+  stay GPL-3.0-only.  Upstream's GPL-2.0-only files that were linked into
+  `n3n`, `src/benchmark/`, are written anew (2026-10-18): no GPL-2.0-only
+  code is left in the program.
 - 2026-10-18: n3n-be goes on with its own code.  Upstream's newer code is
   not taken: n3n has chosen terms and a way of working of its own, and
   both are better served by each project keeping to its own.  Upstream is

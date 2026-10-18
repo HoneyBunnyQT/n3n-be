@@ -30,7 +30,7 @@
 #include <string.h>          // for memcpy, size_t, memset, memcmp, strlen
 #include <sys/types.h>       // for u_char, ssize_t, time_t
 
-#include "benchmark/staticdata.h"  // for benchmark_test_data
+#include "benchmark/testdata.h"    // for bench_data
 #include "crypto/aes.h"      // for AES_BLOCK_SIZE, aes_cbc_decrypt, aes_cbc...
 #include "n2n.h"             // for n2n_trans_op_t
 #include "n2n_define.h"
@@ -604,7 +604,7 @@ static const ssize_t bench_encr_burst_run (
 // every packet of the burst has to come out as bench_encr_run() makes it
 static int bench_encr_burst_check (void *const _ctx, const int level) {
     struct bench_ctx *ctx = (struct bench_ctx *)_ctx;
-    const struct n3n_pktbuf expect = benchmark_test_data[test_data_aes];
+    const struct n3n_pktbuf expect = bench_data[test_data_aes];
     int i;
 
     for(i = 0; i < BENCH_BURST; i++) {
