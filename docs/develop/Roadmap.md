@@ -42,10 +42,11 @@ still serving v3 edges.
 
 Status: `[ ]` open, `[~]` in progress, `[x]` done.
 
-### Now: merge edge and supernode code (branch `peer`, protocol unchanged)
+### Done: merge edge and supernode code (protocol unchanged)
 
 Each step is a commit (or a few) of its own and changes no behaviour; all
-tests and `make lint` pass after each.
+tests and `make lint` pass after each.  Done on the branch `peer`, which is
+in `main` since 2026-10-10.
 
 - [x] Format the C code as uncrustify 0.77.1 does, and check it so in CI
 - [x] Step 1: one send layer, `src/sock.c`: picking the socket of
@@ -121,6 +122,38 @@ tests and `make lint` pass after each.
 
 ### Next
 
+Picked for now (2026-10-18), in this order: the flaky netns scenarios, the
+BSD job, `src/benchmark/` written anew, the possible bug in
+`update_edge()`; after them the lossy direct path, then rate limits, the
+Prometheus endpoint and the coverage report.
+
+- [ ] Possible bug (found reading, not reproduced yet): a REGISTER_SUPER
+      from a MAC the supernode does not know looks for an edge of the same
+      tunnel IPv4 address and gives that entry the new MAC
+      (`update_edge()`, `role_relay.c`) - with no check for address 0,
+      which edges register with before the supernode gives them one, so
+      two edges starting at once may take each other's entry; and before
+      `auth_edge()`, so a REGISTER_SUPER that fails authentication still
+      renames another member's entry.  Upstream has the same code: for
+      `fixes` once a netns scenario shows it
+- [ ] A lossy direct path: v3 picks a direct path and keeps it however
+      bad it gets (the real case: an ISP spreading traffic over two
+      peering legs, one dropping 20-30 %, the relay clean).  The edge can
+      count the replies missing to what it sends a peer anyway (REGISTER
+      and its ACK, PINGs), show the loss per peer on the page, go by the
+      supernode above a threshold - and back to the direct path once it
+      is good again, which the probes it keeps sending there tell.  Only
+      behaviour, nothing on the wire; netns with netem on one leg.  A
+      first piece of v4's path manager
+- [ ] Rate limits at the supernode against floods of registrations (and
+      of anything else that costs it work before it knows the sender),
+      per source address; moved up from "Far future" (2026-10-18)
+- [ ] Prometheus endpoint for the metrics (the management interface has
+      them already); moved up from "Far future" (2026-10-18)
+- [ ] Coverage report: the tests built with `--coverage`, `make test`,
+      the netns scenarios and the fuzz corpus replayed, `gcovr` or
+      `lcov` into Codecov (`codecov/codecov-action`, its token as a
+      secret, or tokenless with OIDC); to see which paths no test reaches
 - [ ] Installable next to upstream n3n, if ever wanted: the program,
       `n3nctl`, the systemd units, the man pages, the sysusers file,
       `/etc/n3n` and `/run/n3n` under names of n3n-be's own, and the
@@ -206,8 +239,8 @@ tests and `make lint` pass after each.
       its own changes in the supernode's configuration (`sn-tap-reload`),
       and a new description reaches the peers at once
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
-      privileges (CAP_NET_ADMIN only, Landlock); packages for the single
-      binary; tools init / tools qr.  (Learned supernodes on disk wait for
+      privileges (Landlock, seccomp; CAP_NET_ADMIN only is there); tools
+      init (`tools/n3n-qr` is there).  (Learned supernodes on disk wait for
       v4, see Decisions 2026-10-04; epoll, batched I/O, no alloc per
       packet and UDP GSO/GRO are done, below)
 - [~] Releases of n3n-be (see [Releasing](Releasing.md)): the packages
@@ -217,9 +250,11 @@ tests and `make lint` pass after each.
       builds them all from a tag, with a draft GitHub Release if asked;
       `tests.yml` no longer reacts to releases.  The app's ID is
       `io.github.honeybunnyqt.n3nbe` (2026-10-15).  First release: 3.4.8
-      (2026-10-15), Linux packages and the signed app.  Since: a zip of the
-      Windows programs and a tarball of the macOS ones (from the tag after
-      3.4.8, the first with utun).  Open: the channels (apt repository,
+      (2026-10-15), Linux packages and the signed app; rebuilt from the
+      same tag on 2026-10-18 in the new home, with the zip of the Windows
+      programs and attestations that point to `HoneyBunnyQT/n3n-be`.  A
+      tarball of the macOS programs from the tag after 3.4.8 (the first
+      with utun).  Open: the channels (apt repository,
       AUR, COPR, Obtainium / IzzyOnDroid), OpenWrt
 - [x] TUN mode (layer 3 device): `tuntap.type = tun`, `src/tun.c`, netns
       scenarios `tun-tap` and `tun-tun`; IPv6 (neighbour discovery); macOS
@@ -437,11 +472,11 @@ tests and `make lint` pass after each.
 ### Later: the peer protocol (v4)
 
 Where v3 compatibility ends: everything above keeps the v3 wire format, so
-`peer` stays able to talk to today's edges and supernodes, and to n2n 3.x.
+`main` stays able to talk to today's edges and supernodes, and to n2n 3.x.
 The first item below that changes what goes over the wire - peer identities
 in REGISTER, the handshake, signed records - starts the branch `peer-v4`
-off `peer`.  From there, v3 lives on in the relay role (the v3 bridge),
-while `peer` keeps getting what does not touch the wire, merged into
+off `main`.  From there, v3 lives on in the relay role (the v3 bridge),
+while `main` keeps getting what does not touch the wire, merged into
 `peer-v4` from time to time.
 
 - [ ] Peer identity: a Curve25519 key per peer, node ID = hash of the
@@ -539,8 +574,8 @@ while `peer` keeps getting what does not touch the wire, merged into
       buckets; NATed peers only as clients of the directory
 - [ ] Android (VpnService) and iOS (NetworkExtension) on a stable libn3n API
 - [ ] Peer names in DNS (`laptop.mycommunity`), answered by the peer itself
-- [ ] Prometheus endpoint for the metrics
-- [ ] Relay quotas, rate limits against floods of registrations
+- [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
+      "Next", 2026-10-18)
 - [ ] Windows on par with Linux.  One step: TUN on Wintun (the signed
       driver of WireGuard, a DLL that installs it on the fly), with
       `tun.c` as on Android and macOS, instead of OpenVPN's TAP driver;
@@ -661,7 +696,7 @@ Current ideas, half-decided things, commands worth keeping.
 
 Recently on `main` and done: epoll and batched I/O (`recvmmsg()` /
 `sendmmsg()`), with `tests/netns/bench.py` for the whole packet path; the
-packages of n3n-be and `release.yml` (not run yet); fuzzing of the receive
+packages of n3n-be and `release.yml`; fuzzing of the receive
 path, the TCP framing, the management interface and the TUN edge, plus
 `fuzz-spray` at running daemons, which found and fixed several bugs (see
 Fuzzing above); netns scenarios with builds for other CPUs under
@@ -712,17 +747,7 @@ Open, in rough order:
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
   privileges (Landlock, CAP_NET_ADMIN only is there);
   the supernode's forwards with GSO.
-- Leaving the fork network, in this order: the upstream PRs closed with
-  the note (only once upstream has stopped merging them for the day);
-  the branches deleted that are on `fixes` or `main` (an archive of them
-  as a git bundle exists; `pr/big-endian` stays, two Twofish fixes are
-  only there); the 3.4.8 release's files saved; then Settings, "Leave
-  fork network", or GitHub Support (n3n-be has a fork of its own, which
-  the setting does not allow).  Private vulnerability reporting
-  (docs/SECURITY.md) to switch on in the settings.
-- Releases: the channels - decisions to take.  The Windows zip for
-  3.4.8: `release.yml` without "draft", then the zip from the run's
-  artifacts onto the release (and into its SHA256SUMS) by hand.
+- Releases: the channels - decisions to take.
 - To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
   on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`
   (default false) drops on both edges; on Windows also the interface
@@ -736,25 +761,21 @@ Open, in rough order:
   dropped and counted by the edge.
 - On real hardware: the Android app on a phone, the edge on a Mac (only
   CI's macOS runners so far) with a Linux edge across the internet, the
-  ARM benchmarks, the benchmarks for the parked upstream PRs.
+  ARM benchmarks.
 - Keep in mind a real finding: the direct path between two edges can be
   the lossy one (an ISP spreading traffic over two peering legs, one
-  dropping) while the relay is clean - see the v4 path-manager note above.
+  dropping) while the relay is clean - see the v4 path-manager note above,
+  and "A lossy direct path" in Next for what v3 can do about it.
+
+Done on 2026-10-18: n3n-be has left the fork network, the pull requests at
+upstream are closed with a pointer to `fixes`, private vulnerability
+reporting is on (docs/SECURITY.md), and 3.4.8 was built again in the new
+home, with the Windows zip.
 
 Picking up in a new session: read this file and `docs/develop/*.md`, build
 with `./autogen.sh && ./configure && make`, and the tests are `make test`
 (and `tests/netns/` for the NAT scenarios, `tests/netns/uml.sh` where
 there is no IPv6).
-
-### Parked: the fixes as PRs for upstream
-
-Nine branches `pr/*` on honeybunnyqt/n3n, cut from n42n/n3n main, one per
-topic of the `fixes` branch; each builds and passes its tests and
-upstream's lint alone, and all nine merge into upstream main without
-conflict.  Branch `pr-notes` has the PR texts, the state, and
-`bench-prs.sh` for the before/after benchmarks the performance commits
-need (on a real machine, with the CPU counters).  Then: benchmarks into
-the commit messages, open the PRs one or two at a time.
 
 ### Communities for both roles
 
@@ -807,14 +828,17 @@ community_regex = net[0-9]+     # may repeat
   `-O "community NAME.option=value"` (2026-10-12).
 - netns scenario `userpw-conf` runs with sections on both sides.
 
-### Old branches on honeybunnyqt/n3n
+### Old branches
 
 Gone: the pull requests at n42n/n3n from `chachacha` (#155), `crash` (#158),
 `drain` (#157), `pdu-len-check` (#152), `speck-avx512` (#161),
 `trace-level-check` (#153) and `twofish` (#154) are closed, with notes that
 point to where their work is now (`main`, or `fixes` for the length checks
 and the AES burst benchmark), and the branches deleted, as `phase-a` and
-`phase-b` before them.  The fork has `main`, `fixes` and `peer`.
+`phase-b` before them.  Since 2026-10-18 the repository has `main` and
+`fixes`; the `pr/*` branches went with the pull requests at upstream
+(closed, see Decisions; an archive of them as a git bundle exists),
+`peer` with its merge into `main`.
 
 ### Flaky netns scenarios (NAT work)
 
