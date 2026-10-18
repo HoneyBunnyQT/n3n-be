@@ -16,6 +16,7 @@
 #include "win32/defs.h"
 #else
 #include <arpa/inet.h>       // for inet_pton
+#include <sys/socket.h>      // for AF_INET6
 #endif
 
 
