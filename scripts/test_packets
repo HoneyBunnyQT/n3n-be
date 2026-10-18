@@ -451,6 +451,40 @@ class PacketUNREGISTER_SUPER(PacketBase):
         return self.data
 
 
+class PacketREGISTER_SUPER_NAK(PacketBase):
+    format1 = "!I6sHH"
+
+    def encode(self):
+        self.encode_common(8)
+        self.pack_fields(
+            self.format1,
+            "cookie",
+            "srcMac",
+            "auth_scheme",
+            "auth_token_size",
+        )
+        if self.data["auth_token_size"]:
+            size = self.data["auth_token_size"]
+            self.pack_fields(f"{size}s", "auth_token")
+        return self.buffer
+
+    def decode(self, buffer):
+        offset = self.decode_common(buffer)
+        offset += self.unpack_fields(
+            buffer[offset:],
+            self.format1,
+            "cookie",
+            "srcMac",
+            "auth_scheme",
+            "auth_token_size",
+        )
+        size = self.data["auth_token_size"]
+        self.data["auth_token"] = buffer[offset:offset+size]
+
+        self.buffer = buffer
+        return self.data
+
+
 class PacketREGISTER_SUPER_ACK(PacketBase):
     format1 = "!I6s4sBH"
     format2 = "!HH"
@@ -620,7 +654,7 @@ class PacketGeneric(PacketBase):
         5: PacketREGISTER_SUPER,
         6: PacketUNREGISTER_SUPER,
         7: PacketREGISTER_SUPER_ACK,
-        # 8: PacketREGISTER_SUPER_NAK,
+        8: PacketREGISTER_SUPER_NAK,
         # 9: PacketFEDERATION,
         10: PacketPEER_INFO,
         11: PacketQUERY_PEER,
@@ -710,6 +744,13 @@ def main():
         help="Switch to TCP connection",
         default=False,
     )
+    ap.add_argument(
+        "--field",
+        action="append",
+        default=[],
+        metavar="NAME=VALUE",
+        help="Set a field of the packet sent: bytes in hex, numbers as such",
+    )
     ap.add_argument("scenario", help="What packet to send")
 
     args = ap.parse_args()
@@ -736,6 +777,12 @@ def main():
 
     if args.scenario != "listen":
         send_pkt = PacketGeneric.from_scenario(args.scenario)
+        for field in args.field:
+            name, sep, value = field.partition("=")
+            if isinstance(send_pkt.data[name], bytes):
+                send_pkt.data[name] = bytes.fromhex(value)
+            else:
+                send_pkt.data[name] = int(value, 0)
         buf = send_pkt.encode()
         print("test:")
         hexdump(0, buf)
