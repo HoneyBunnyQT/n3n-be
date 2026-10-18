@@ -241,6 +241,12 @@ tests/netns/uml.sh exec make test.integration # any command, e.g. upstream's
                                               # tests, which need IPv6 too
 ```
 
+On a host whose CPU has AMX (Intel Sapphire Rapids and later), the UML
+kernel of Ubuntu 24.04's `linux-source` (6.8) panics as it starts
+("ptrace set fp regs failed, errno = 14": the host's FPU state is larger
+than it knows); one built from Linux 6.17 runs (`git clone --depth 1
+--branch v6.17 https://github.com/torvalds/linux`).
+
 The UML kernel runs on one CPU and slower than the host, so `uml.sh`
 passes `-j 1` and `--register-interval 10` unless given: with 5 seconds,
 the peers' idle timeout (half of it) can pass while the senders of the
