@@ -496,11 +496,18 @@ static void *worker_main (void *arg) {
         // up to the cap for each
         pthread_rwlock_rdlock(&t->lock);
         now = time(NULL);
+        // a supernode's forwards go out together, see mainloop.c
+        if(eee->conf.is_supernode) {
+            sock_batch_begin();
+        }
         for(int i = 0; i < w->nsock; i++) {
             if(pfd[i].revents & POLLIN) {
                 w->packets += udp_drain(eee, w->sock[i], pkt, WORKER_DRAIN_MAX, now,
                                         t->ops->read_udp, t->ops->rx_udp);
             }
+        }
+        if(eee->conf.is_supernode) {
+            sock_batch_end();
         }
         if(tap->revents) {
             w->frames += edge_read_from_tap_batch(eee, WORKER_DRAIN_MAX);

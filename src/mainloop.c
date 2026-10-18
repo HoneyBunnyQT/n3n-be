@@ -835,8 +835,18 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
             }
             pkt->owner = n3n_pktbuf_owner_rx_pdu;
 
+            // a supernode's forwards go out together: those to one edge
+            // in one send, with UDP GSO (sock.c).  The edge sends little
+            // here, and measured no gain
+            bool batch = eee->conf.is_supernode;
+            if(batch) {
+                sock_batch_begin();
+            }
             udp_drain(eee, info.fd, pkt, FD_DRAIN_MAX, now, eee->ops->read_udp,
                       eee->ops->rx_udp);
+            if(batch) {
+                sock_batch_end();
+            }
 
             n3n_pktbuf_free(pkt);
             return;

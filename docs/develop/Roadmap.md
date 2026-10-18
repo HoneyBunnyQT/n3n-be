@@ -454,8 +454,8 @@ report.
       `udp_drain()`, `sock_batch_begin()`), the edge's sends of a tap batch
       and all receives on the sockets of `connection.bind`: up to a third
       more throughput, a third less CPU per packet for small packets
-      (4102317).  Not batched: what a supernode forwards (no difference
-      measured).
+      (4102317).  What a supernode forwards: batched too since
+      2026-10-18, see GSO below (without GSO no difference was measured).
 - [x] UDP GSO and GRO on Linux (`sock.c`): a batch's runs of datagrams
       for one destination, of one size, go to the kernel as one send
       (`UDP_SEGMENT`), and the sockets of `connection.bind` take joined
@@ -467,8 +467,11 @@ report.
       C, 2.06 -> 4.39 Gbit/s with AES-NI; relayed with AES-NI 2.22 ->
       2.80 Gbit/s; at a fixed rate the CPU per packet direct -50 % (64
       byte frames) and -17 % (1200 byte).  The lab overstates the sending
-      side (see testing.md, "Reading the numbers").  Open: what a
-      supernode forwards, still one by one, with GSO too
+      side (see testing.md, "Reading the numbers").  What a supernode
+      forwards while it handles a drain goes as a batch too, with GSO
+      (2026-10-18): relayed TCP 1.53 -> 2.44 and 1.60 -> 2.67 Gbit/s, UDP
+      1200 byte 0.67 -> 1.07 and 0.77 -> 1.00 Gbit/s, the CPU per packet
+      39-48 % less (before and after in turns, twice)
 - [x] No `alloc()` on the packet path: so already (the pktbuf pool, the tap
       batch once per thread); counted with a malloc wrapper, 9x the frames
       add at most two allocations over a daemon's life
@@ -764,8 +767,7 @@ Open, in rough order:
   (2026-10-18).
 
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
-  privileges (Landlock, CAP_NET_ADMIN only is there);
-  the supernode's forwards with GSO.
+  privileges (Landlock, CAP_NET_ADMIN only is there).
 - Releases: the channels - decisions to take.
 - To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
   on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`
