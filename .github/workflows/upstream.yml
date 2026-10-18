@@ -1,0 +1,64 @@
+---
+name: Upstream
+
+# This tree's edges and supernodes together with those of upstream n3n's
+# current main (https://github.com/n42n/n3n): the scenarios tagged
+# "interop", as interop.yml runs them with its last release, once a week
+# and by hand.  A change of upstream's that breaks a mixed network - on
+# the wire, or in what its daemons take - shows here within a week; so
+# does an upstream main that does not build.  See
+# docs/develop/netns_testing.md.
+
+# yamllint disable-line rule:truthy
+on:
+  schedule:
+    # Mondays, 04:17 UTC
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  upstream:
+    name: With upstream n3n's main
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Build this tree and upstream's main
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nftables iproute2
+          ./autogen.sh
+          ./configure
+          make build-dep
+          make -j4 all
+          tests/netns/versions.sh build n3n-upstream main
+          # which commit of upstream this was, for the summary
+          {
+            echo "Upstream n3n: \`$(tests/netns/versions.sh list)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Interop scenarios with upstream's main
+        env:
+          N3N_INTEROP_VERSION: n3n-upstream
+        run: |
+          # a failed scenario once more, see netns.yml; the interop
+          # scenarios but n2n's (interop-n2n-*), which interop.yml runs
+          env="GITHUB_ACTIONS,GITHUB_STEP_SUMMARY,N3N_INTEROP_VERSION"
+          sudo --preserve-env="$env" \
+            python3 tests/netns/run.py -j 2 --retry 1 'interop-[!n]*'
+
+      - if: ${{ failure() || hashFiles('tests/netns/out/flaky.txt') != '' }}
+        name: Upload the logs
+        uses: actions/upload-artifact@v6
+        with:
+          name: upstream
+          path: tests/netns/out

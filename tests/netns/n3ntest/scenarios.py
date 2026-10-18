@@ -8,11 +8,15 @@ The expectations follow docs/advanced/NatTraversal.md.  Scenarios tagged
 "quick" make up the set "make test" runs.
 """
 
+import os
+
 from .scenario import Scenario, Site, version_built
 
 # The release of upstream n3n the interop scenarios run against, see
-# tests/netns/versions.sh: "tests/netns/versions.sh build n3n-3.4.6 3.4.6"
-OLD = "n3n-3.4.6"
+# tests/netns/versions.sh: "tests/netns/versions.sh build n3n-3.4.6 3.4.6";
+# N3N_INTEROP_VERSION names another one built there, as upstream.yml does
+# for upstream's current main
+OLD = os.environ.get("N3N_INTEROP_VERSION") or "n3n-3.4.6"
 # The release of n2n they run against: IPv4 only, so a few basic ones
 # "tests/netns/versions.sh build n2n-3.1.1 3.1.1 https://github.com/ntop/n2n"
 N2N = "n2n-3.1.1"

@@ -83,6 +83,15 @@ tests/netns/versions.sh build n3n-3.4.6 3.4.6     # the last release
 sudo tests/netns/run.py @interop
 ```
 
+Against upstream's current development instead of its last release, the
+environment variable `N3N_INTEROP_VERSION` names the version the
+scenarios take for "old" (CI does it once a week, `upstream.yml`):
+
+```
+tests/netns/versions.sh build n3n-upstream main
+sudo N3N_INTEROP_VERSION=n3n-upstream tests/netns/run.py 'interop-[!n]*'
+```
+
 A run without names includes the interop scenarios of the versions that are
 built.  An older version gets only the options it knows (from its `help
 config`; the run names those it left out), its NAT class is not checked,

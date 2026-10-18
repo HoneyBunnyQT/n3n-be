@@ -610,6 +610,8 @@ while `peer` keeps getting what does not touch the wire, merged into
   frames lost in its forwarding (taken for unicast to an unknown MAC, see
   docs/configure/TapConfiguration.md).  Not to be proposed upstream
   again; bug fixes still go to `fixes`, for upstream to take or not.
+  Compatibility with upstream is watched by tests instead: `upstream.yml`
+  runs the interop scenarios against upstream's current main every week.
 
 ## Scratchpad
 
