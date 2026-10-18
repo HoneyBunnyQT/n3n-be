@@ -703,6 +703,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 "\"desc\":\"%s\","
                 "\"version\":\"%s\","
                 "\"nat\":\"%s\","
+                "\"loss\":%u,"
                 "\"timeout\":%i,"
                 "\"uptime\":%u,"
                 "\"time_alloc\":%u,"
@@ -723,6 +724,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 json_str(desc, peer->dev_desc, N2N_DESC_SIZE),
                 json_str(version, peer->version, N2N_VERSION_STRING_SIZE),
                 nat_hint_str(nat, sizeof(nat), np ? np->hint : 0),
+                (unsigned)peer->loss,
                 peer->timeout,
                 (uint32_t)peer->uptime,
                 (uint32_t)peer->time_alloc,
@@ -785,10 +787,12 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
         }
         index++;
 
+        // a peer known directly whose frames go through the supernode, as
+        // its direct path loses too many (see peer_probe()): pSp
         jsonrpc_get_edges_row(
             &conn->request,
             peer,
-            "p2p",
+            (peer->lossy && eee->conf.client.p2p_max_loss) ? "pSp" : "p2p",
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
             eee->client.nat_peers

@@ -483,6 +483,23 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
              * supernode answers: it would not find the peer again, so on
              * at its last address (update_supernode_reg() sends it
              * REGISTERs meanwhile) */
+            uint64_t us = n3n_monotonic_us();
+
+            // the direct path measured while frames go, see peer_probe()
+            if(eee->conf.client.p2p_max_loss
+               && (us - SHARED_LOAD(scan->last_probe_us) >= P2P_PROBE_US)) {
+                struct edge_event ev = { .type = EDGE_EVENT_PEER_PROBE, .now = now };
+
+                SHARED_STORE(scan->last_probe_us, us);
+                memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
+                edge_event_post(eee, &ev);
+            }
+            if(SHARED_LOAD(scan->lossy) && eee->conf.client.p2p_max_loss
+               && supernode_answers(eee, now)) {
+                // too lossy: through the supernode, still a known peer
+                memcpy(destination, &(eee->client.curr_sn->sock), sizeof(n3n_sock_t));
+                return 0;
+            }
             memcpy(destination, &scan->sock, sizeof(n3n_sock_t));
             retval = 1;
         }

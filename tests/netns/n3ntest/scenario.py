@@ -117,6 +117,19 @@ SN_BLOCK6 = """table ip6 block6 {
 
 # What an airport's network lets out: no UDP but DNS (the overlay, on
 # n3n0, is not the airport's)
+# The direct path to a peer at {peer} losing {pct} percent each way
+LOSSY = """table inet lossy {{
+    chain output {{
+        type filter hook output priority 0; policy accept;
+        ip daddr {peer} numgen random mod 100 < {pct} drop
+    }}
+    chain input {{
+        type filter hook input priority 0; policy accept;
+        ip saddr {peer} numgen random mod 100 < {pct} drop
+    }}
+}}
+"""
+
 AIRPORT = """table inet airport {
     chain output {
         type filter hook output priority 0; policy accept;
@@ -182,7 +195,7 @@ class Scenario:
                  direct_ok=None, sn_peer_family=4, sn_start_gap=0,
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
-                 multicast=False):
+                 multicast=False, lossy=0):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -209,6 +222,11 @@ class Scenario:
         # Once the edges of block_udp sites are on TCP, let UDP through
         # again and wait for them to go back to it
         self.unblock_udp = unblock_udp
+        # After the warm-up, with frames going both ways, the direct path
+        # between the edges loses this many percent of the packets each way
+        # (at site a): the edges are to send through the supernode, and
+        # once the loss stops, directly again (connection.p2p_max_loss)
+        self.lossy = lossy
         # The supernodes take UDP on SN_PORT and TCP on this port
         # (connection.bind udp:// and tcp://), and the edges know it
         # (community.supernode tcp://)
@@ -1605,6 +1623,43 @@ class Run:
         # A round of registrations for the peers to find each other again
         time.sleep(interval + 1)
 
+    def lossy_phase(self):
+        """The direct path between a and b loses sc.lossy percent each way,
+        while frames go: the edges are to send through the supernode, and
+        once the loss stops, directly again"""
+        _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+        peer = (row or {}).get("sockaddr", "").rsplit(":", 1)[0]
+        if not peer or ":" in peer:
+            return self.check("lossy", False, "no IPv4 address of b at a "
+                              "({!r})".format(peer))
+        trickle = [self.sender(s, d, FLOW_HOLD, 0, 20)
+                   for s, d in self.sc.directions()]
+        try:
+            self.lab.nft(self.edges["a"]["ns"],
+                         LOSSY.format(peer=peer, pct=self.sc.lossy), "lossy")
+            for want, tag in (("pSp", "lossy"), ("p2p", "lossy: back")):
+                t = time.monotonic()
+
+                def switched():
+                    if not self.check_alive_quiet():
+                        return "dead"
+                    return "ok" if all(m == want for m in
+                                       self.modes().values()) else None
+                # rounds of 20 probes, two a second
+                ok = wait_for(switched, 60, interval=0.5) == "ok"
+                took = round(time.monotonic() - t, 1)
+                now = self._modes_str(self.modes())
+                self.result[tag] = {"seconds": took, "modes": now}
+                self.check(tag, ok, "{} after {}s".format(now,
+                                                          took))
+                if not ok or want == "p2p":
+                    break
+                run(["nft", "delete", "table", "inet", "lossy"],
+                    ns=self.edges["a"]["ns"])
+        finally:
+            for p in trickle:
+                p.stop()
+
     def check_marked(self):
         """The learned supernodes the edge of udp_lost's site marked as
         reached over UDP only: some of marked, once each"""
@@ -1988,6 +2043,8 @@ class Run:
                 self.roam_phase()
             if self.sc.udp_lost and self.check_alive("warm-up"):
                 self.udp_lost_phase()
+            if self.sc.lossy and self.check_alive("warm-up"):
+                self.lossy_phase()
             if self.sc.failover and self.check_alive("warm-up"):
                 self.failover()
             if self.sc.udp_lost and self.check_alive("warm-up"):

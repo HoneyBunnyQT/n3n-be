@@ -545,6 +545,22 @@ SCENARIOS = [
         Site([]),
         "direct", unblock_udp=True),
     Scenario(
+        "lossy-direct",
+        "edges behind easy NATs, direct; then their direct path loses 30% "
+        "each way while the supernode's stays clean, as when one of two "
+        "peering legs drops: through the supernode, and direct again once "
+        "the loss stops (connection.p2p_max_loss)",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", lossy=30),
+    Scenario(
+        "lossy-direct-threads",
+        "as lossy-direct, the edges with packet threads, which ask the main "
+        "thread for the probes",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", lossy=30, conf={"daemon": {"threads": 3}}),
+    Scenario(
         "tcp-fallback-userpw",
         "as tcp-fallback-back, with user/password authentication",
         Site(["easy-kept"], block_udp=True),

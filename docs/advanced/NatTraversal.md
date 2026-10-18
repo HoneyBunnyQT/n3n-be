@@ -195,6 +195,32 @@ the peer never gets through, and the traffic stays with the supernode, as
 without this.  0, the default, leaves the system's TTL.  The socket that
 gets through gets that back before it answers.
 
+## A direct path that loses packets
+
+A direct path is not always the better one.  A real case: an edge's ISP
+spread its traffic over two peering links, one of which dropped packets,
+and the direct path to a peer lost 20 to 30 percent while the way through
+the supernode's data centre was clean.
+
+So while frames go to a peer directly, the edge sends it a REGISTER twice a
+second, and counts the REGISTER_ACKs that come back from the peer's
+address; every REGISTER to the peer there counts, also the regular ones.
+After 20 of them, the share that went unanswered is the loss of the direct
+path, which `n3nctl get_edges` shows (`loss`, in percent) and the
+management page with the peer's path.  With `connection.p2p_max_loss`
+percent or more lost (20 by default), the peer's frames go through the
+supernode - as long as one answers - while the edge keeps asking the peer
+directly, and back the direct way once a round loses at most a quarter as
+many (5 percent by default): as an edge on TCP goes back to UDP once UDP
+gets through.  Such a peer shows as `pSp` in `get_edges`.  A switch takes a
+round or two, 10 to 20 seconds; `connection.p2p_max_loss = 0` keeps a
+direct path however bad it gets.
+
+Nothing of it is on the wire: the probes are REGISTERs, which every
+version of n3n and n2n answers.  The way through the supernode is not
+measured itself; where the loss is on the edge's own line, it loses there
+too.
+
 ## Federation
 
 With several federated supernodes, edges may be registered at different

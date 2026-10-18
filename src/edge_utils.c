@@ -899,6 +899,16 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
             break;
         }
 
+        case EDGE_EVENT_PEER_PROBE: {
+            struct peer_info *scan;
+
+            HASH_FIND_PEER(eee->client.known_peers, ev->mac, scan);
+            if(scan) {
+                peer_probe(eee, scan);
+            }
+            break;
+        }
+
         case EDGE_EVENT_QUERY_PEER:
             check_query_peer_info(eee, ev->now, ev->mac);
             break;
@@ -1917,6 +1927,7 @@ void edge_conf_role_defaults (n2n_edge_conf_t *conf) {
     conf->client.register_interval = REGISTER_SUPER_INTERVAL_DFL;
     conf->client.punch_ports = NAT_PUNCH_PORTS_DFL;
     conf->client.punch_sockets = NAT_PUNCH_SOCKETS_DFL;
+    conf->client.p2p_max_loss = P2P_MAX_LOSS_DFL;
 
     // Ensure we can notice if the config has set a dev name
     conf->tap.tuntap_dev_name[0] = '\0';

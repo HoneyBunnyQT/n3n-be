@@ -36,6 +36,7 @@ enum edge_event_type {
     EDGE_EVENT_PEER_SEEN,           /* check_peer_registration_needed() */
     EDGE_EVENT_HOST_SEEN,           /* learn a bridged host behind an edge */
     EDGE_EVENT_PEER_IDLE,           /* not heard from the peer directly of late */
+    EDGE_EVENT_PEER_PROBE,          /* frames go to the peer: probe the direct path */
     EDGE_EVENT_QUERY_PEER,          /* check_query_peer_info() */
 };
 

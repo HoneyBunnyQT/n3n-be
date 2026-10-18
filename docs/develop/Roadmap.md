@@ -144,15 +144,19 @@ report.
       key is of an allowed user, not whether it is the key the edge
       registered with: any user may take over another's MAC or address.
       To look into; upstream's code the same
-- [ ] A lossy direct path: v3 picks a direct path and keeps it however
-      bad it gets (the real case: an ISP spreading traffic over two
-      peering legs, one dropping 20-30 %, the relay clean).  The edge can
-      count the replies missing to what it sends a peer anyway (REGISTER
-      and its ACK, PINGs), show the loss per peer on the page, go by the
-      supernode above a threshold - and back to the direct path once it
-      is good again, which the probes it keeps sending there tell.  Only
-      behaviour, nothing on the wire; netns with netem on one leg.  A
-      first piece of v4's path manager
+- [x] A lossy direct path: v3 picked a direct path and kept it however
+      bad it got (the real case: an ISP spreading traffic over two
+      peering legs, one dropping 20-30 %, the relay clean).  Now, while
+      frames go to a peer, the edge sends it a REGISTER twice a second and
+      counts the ACKs from its address, in rounds of 20; at
+      `connection.p2p_max_loss` (20 %) or more the peer's frames go
+      through the supernode, and back the direct way at a quarter of it,
+      as TCP goes back to UDP.  `get_edges` shows the loss, and such a peer
+      as `pSp`; the page too.  Nothing on the wire.  netns scenarios
+      `lossy-direct`, `lossy-direct-threads` (30 % each way: through the
+      supernode after 9-18 s, direct again 9-19 s after; 10 of 10).  Not
+      measured: the way through the supernode itself - v4's path manager
+      (2026-10-18)
 - [ ] Rate limits at the supernode against floods of registrations (and
       of anything else that costs it work before it knows the sender),
       per source address; moved up from "Far future" (2026-10-18)
@@ -779,8 +783,8 @@ Open, in rough order:
   ARM benchmarks.
 - Keep in mind a real finding: the direct path between two edges can be
   the lossy one (an ISP spreading traffic over two peering legs, one
-  dropping) while the relay is clean - see the v4 path-manager note above,
-  and "A lossy direct path" in Next for what v3 can do about it.
+  dropping) while the relay is clean - see the v4 path-manager note above;
+  v3 goes by the supernode then ("A lossy direct path" in Next).
 
 Done on 2026-10-18: n3n-be has left the fork network, the pull requests at
 upstream are closed with a pointer to `fixes`, private vulnerability

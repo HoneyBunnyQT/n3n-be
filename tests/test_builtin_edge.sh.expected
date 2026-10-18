@@ -19,6 +19,7 @@ connect_tcp=false
 tcp_fallback=false
 local_discovery=false
 watch_network=false
+p2p_max_loss=0
 pmtu_discovery=false
 punch_ports=0
 punch_sockets=0

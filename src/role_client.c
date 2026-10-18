@@ -31,6 +31,7 @@
 #include "edge_utils.h"
 #include "header_encryption.h"
 #include "management.h"
+#include "minmax.h"
 #include "n2n_wire.h"
 #include "natclass.h"
 #include "netwatch.h"
@@ -969,6 +970,13 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
             HASH_FIND_PEER(eee->client.known_peers, mac, scan_tmp);
             if(scan_tmp != NULL) {
                 HASH_DEL(eee->client.known_peers, scan_tmp);
+                if(!sock_equal(&scan_tmp->sock, &scan->sock)) {
+                    // another path, not measured yet
+                    scan_tmp->probes_sent = 0;
+                    scan_tmp->probes_answered = 0;
+                    scan_tmp->loss = 0;
+                    SHARED_STORE(scan_tmp->lossy, 0);
+                }
                 scan_tmp->sock = scan->sock;
                 scan_tmp->last_cookie = scan->last_cookie;
                 scan_tmp->last_seen = scan->last_seen;
@@ -1650,6 +1658,45 @@ size_t encode_register_pkt (struct n3n_runtime_data * eee,
 }
 
 
+// The end of a round of probes of the direct path to a peer: its loss, and
+// whether its frames go through the supernode, see role_client.h.  An ACK
+// late for its round counts in the next one.
+static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *peer) {
+
+    macstr_t mac_buf;
+    uint32_t max = eee->conf.client.p2p_max_loss;
+    unsigned sent = peer->probes_sent;
+    unsigned answered = MIN(peer->probes_answered, sent);
+
+    peer->loss = 100 * (sent - answered) / sent;
+    peer->probes_sent = 0;
+    peer->probes_answered = 0;
+
+    if(!peer->lossy && max && (peer->loss >= max)) {
+        SHARED_STORE(peer->lossy, 1);
+        traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path, through the supernode",
+                   macaddr_str(mac_buf, peer->mac_addr), peer->loss);
+    } else if(peer->lossy && (!max || (peer->loss <= max / 4))) {
+        SHARED_STORE(peer->lossy, 0);
+        traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path, direct again",
+                   macaddr_str(mac_buf, peer->mac_addr), peer->loss);
+    }
+}
+
+static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer) {
+
+    if(peer->probes_sent >= P2P_PROBE_ROUND) {
+        probe_round_end(eee, peer);
+    }
+    peer->probes_sent++;
+}
+
+void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer) {
+
+    send_register(eee, &(peer->sock), peer->mac_addr, N2N_REGULAR_REG_COOKIE);
+}
+
+
 /** Send a REGISTER packet to another edge. */
 void send_register (struct n3n_runtime_data * eee,
                     const n3n_sock_t * remote_peer,
@@ -1676,6 +1723,15 @@ void send_register (struct n3n_runtime_data * eee,
                sock_to_cstr(sockbuf, remote_peer));
 
     edge_sendto_sock(eee, pktbuf, idx, remote_peer);
+
+    // to a known peer at its address: a probe of the direct path
+    if(peer_mac) {
+        struct peer_info *peer;
+        HASH_FIND_PEER(eee->client.known_peers, peer_mac, peer);
+        if(peer && sock_equal(remote_peer, &peer->sock)) {
+            probe_sent(eee, peer);
+        }
+    }
 }
 
 
@@ -2066,6 +2122,10 @@ void edge_rx_register_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
     HASH_FIND_PEER(eee->client.known_peers, ra.srcMac, known);
     if(known && sock_equal(&known->sock, &c->sender)) {
         SHARED_STORE(known->last_p2p, c->now);
+        // and the answer to a probe of the path
+        if(known->probes_answered < UINT16_MAX) {
+            known->probes_answered++;
+        }
     }
 
     // behind a hard NAT, the port it answered from is worth keeping

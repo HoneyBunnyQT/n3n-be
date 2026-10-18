@@ -167,6 +167,14 @@ Defaulting to true, the edge notices when an address, a link or the default rout
 
 Default: `true`
 
+### connection.p2p_max_loss
+
+Percent lost on a direct path that sends through the supernode.
+
+While frames go to a peer directly, the edge sends it a REGISTER twice a second and counts the answers. Where this many percent of 20 or more go unanswered, the peer's frames go through the supernode - as long as one answers - and back the direct way once at most a quarter as many are lost; the edge goes on asking meanwhile. 0 keeps a direct path however bad it gets. See docs/advanced/NatTraversal.md
+
+Default: `20`
+
 ### connection.pmtu_discovery
 
 Control use of PMTU discovery for network packets.

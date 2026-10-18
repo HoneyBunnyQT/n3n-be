@@ -44,6 +44,11 @@ struct peer_info {
     time_t last_sent_query;
     time_t last_reg_back;   /* an edge's peer: when we last registered back, see check_peer_registration_needed() */
     time_t last_refresh;    /* an edge's peer: when we last asked it, quiet, whether it is still there */
+    uint64_t last_probe_us; /* an edge's peer: when we last probed the direct path, see peer_probe() */
+    uint16_t probes_sent;   /* REGISTERs sent it directly, in this round of probes */
+    uint16_t probes_answered; /* REGISTER_ACKs from its address, in this round */
+    uint8_t loss;           /* percent of the probes lost in the last round */
+    uint8_t lossy;          /* its frames go through the supernode, see peer_probe() */
     time_t time_alloc;
     uint64_t selection_criterion;
     uint64_t last_valid_time_stamp;

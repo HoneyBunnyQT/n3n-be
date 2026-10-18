@@ -290,6 +290,9 @@ the edge tries a few more of the peer's ports in each round of registrations
 (\fBconnection.punch_ports\fR).  Behind such a NAT itself, it opens more
 sockets towards a peer that guesses, so that a guess meets one of their
 ports sooner (\fBconnection.punch_sockets\fR, \fBconnection.punch_ttl\fR).
+While frames go to a peer directly, the edge measures what that path loses
+with REGISTERs to the peer; where it loses too many, the frames go through
+the supernode until it is good again (\fBconnection.p2p_max_loss\fR).
 See docs/advanced/NatTraversal.md for details.
 
 .SH TRANSPORT

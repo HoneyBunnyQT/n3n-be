@@ -457,6 +457,7 @@ struct n3n_conf_client {
     uint32_t punch_ports;                            /**< ports to try per round towards a peer behind a hard NAT, 0: none */
     uint32_t punch_sockets;                          /**< behind a hard NAT: extra sockets towards a peer that guesses, 0: none */
     uint32_t punch_ttl;                              /**< the TTL of what those sockets send until one is reached, 0: the system's */
+    uint32_t p2p_max_loss;                           /**< percent of probes lost on a direct path that sends a peer's frames through the supernode, 0: never */
     n3n_sock_t preferred_sock;                       /**< propagated local sock for better p2p in LAN (-e) */
     n2n_auth_t auth;
     bool connect_tcp;                                /** connection to supernode 0 = UDP; 1 = TCP */

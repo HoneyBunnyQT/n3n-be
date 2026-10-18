@@ -306,7 +306,16 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
     rows = 0;
     HASH_ITER(hh, eee->client.known_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
-            peer_row(b, peer, "direct", "ok", NULL, false, eee->client.nat_peers, now);
+            // with what its direct path lost of late, see peer_probe()
+            char path[48];
+            bool lossy = peer->lossy && eee->conf.client.p2p_max_loss;
+            const char *way = lossy ? "via supernode" : "direct";
+            if(peer->loss) {
+                snprintf(path, sizeof(path), "%s, %u%% lost", way, peer->loss);
+            } else {
+                snprintf(path, sizeof(path), "%s", way);
+            }
+            peer_row(b, peer, path, lossy ? "warn" : "ok", NULL, false, eee->client.nat_peers, now);
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {

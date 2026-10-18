@@ -32,6 +32,18 @@ void send_register (struct n3n_runtime_data * eee,
                     const n3n_sock_t * remote_peer,
                     const n2n_mac_t peer_mac,
                     const n2n_cookie_t cookie);
+
+// The direct path to a known peer, measured: each REGISTER sent to the
+// peer at its address is a probe, each REGISTER_ACK from there an answer.
+// After a round of probes, the share unanswered is the path's loss; at
+// connection.p2p_max_loss or more, the peer's frames go through the
+// supernode (find_peer_destination()), and back the direct way at a
+// quarter of it.  While frames go to the peer, it is probed every
+// P2P_PROBE_US (edge_event_apply(), EDGE_EVENT_PEER_PROBE)
+#define P2P_MAX_LOSS_DFL    20      /* percent */
+#define P2P_PROBE_ROUND     20      /* probes */
+#define P2P_PROBE_US        500000
+void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer);
 bool is_link_local (const n3n_sock_t *sock);
 int peer_way_rank (const n3n_sock_t *sock);
 // the host's network changed (NETWATCH_* of netwatch.h); from any thread

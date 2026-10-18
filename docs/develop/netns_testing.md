@@ -336,6 +336,8 @@ ports from all of it.
 | sn-tap-failover | easy-kept at sn1 (`supernode_selection=mac`) / the TAP device of sn2, sn1 killed | relayed, a moves to sn2 |
 | tcp-fallback | easy-kept without UDP (`block_udp`) / public | relayed, a over TCP by `tcp_fallback` |
 | tcp-fallback-back | as tcp-fallback, then UDP let through again (`unblock_udp`) | direct, a back on UDP |
+| lossy-direct | easy NATs, direct; then the direct path loses 30% each way, the supernode's clean (`lossy`) | through the supernode within 60s, direct again within 60s of the loss stopping |
+| lossy-direct-threads | as lossy-direct, the edges with packet threads | the same |
 | tcp-fallback-userpw | as tcp-fallback-back, with user/password authentication | direct, a back on UDP |
 | tcp-port | as tcp-fallback-back, the supernodes with UDP on 7654 and TCP on 4443 only (`sn_tcp_port`) | direct, after a over TCP to 4443 |
 | tcp-only | easy-kept with its supernodes as `tcp://` only (`tcp_only`) / public | relayed, a over TCP from the start |
