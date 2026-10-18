@@ -236,6 +236,7 @@ int update_edge (struct n3n_runtime_data *sss,
                  time_t now) {
 
     macstr_t mac_buf;
+    macstr_t mac_buf2;
     n3n_sock_str_t sockbuf;
     struct peer_info *scan, *iter, *tmp;
 
@@ -245,8 +246,13 @@ int update_edge (struct n3n_runtime_data *sss,
 
     HASH_FIND_PEER(comm->edges, reg->edgeMac, scan);
 
-    // if unknown, make sure it is also not known by IP address
-    if(NULL == scan) {
+    // if unknown, make sure it is also not known by IP address: an edge at
+    // the address of a known one takes its entry over, as the same edge
+    // with another MAC - once it has shown that it is (auth_edge()), else
+    // it is refused and the entry stays as it is.  0 is no address of its
+    // own: what an edge registers with before the supernode gives it one,
+    // and what an entry keeps of that
+    if((NULL == scan) && (reg->dev_addr.net_addr != 0)) {
         HASH_ITER(hh,comm->edges,iter,tmp) {
             // TODO:
             // - needs ipv6 support
@@ -254,6 +260,12 @@ int update_edge (struct n3n_runtime_data *sss,
             // - convert to using a peer_info_*() call for manipulating the
             //   peer info lists
             if(iter->dev_addr.net_addr == reg->dev_addr.net_addr) {
+                if(auth_edge(&(iter->auth), &(reg->auth), NULL, comm) != 0) {
+                    traceEvent(TRACE_INFO, "%s at the address of %s: authentication failed",
+                               macaddr_str(mac_buf, reg->edgeMac),
+                               macaddr_str(mac_buf2, iter->mac_addr));
+                    return update_edge_auth_fail;
+                }
                 scan = iter;
                 HASH_DEL(comm->edges, scan);
                 memcpy(scan->mac_addr, reg->edgeMac, sizeof(n2n_mac_t));
