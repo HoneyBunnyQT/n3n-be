@@ -90,7 +90,7 @@ n3n-edge debug config load_dump mysession
 Some sections can be there more than once, each with a name after the
 section's own: `[community home]`.  A supernode takes each such
 `[community NAME]` as a community it allows, see
-[Communities](Communities.md#communities-in-the-configuration-file); an edge
+[Communities](Communities.md#in-the-configuration-file); an edge
 takes its one community from `[community]` or from its only named section.
 
 On the command line, the name goes between the section and the option,

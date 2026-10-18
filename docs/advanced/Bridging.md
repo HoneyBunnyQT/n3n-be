@@ -31,7 +31,7 @@ Multicast does the same where the edges allow it
 (`filter.allow_multicast`), also that of protocols without IP, such as the
 discovery of PROFINET devices (DCP); the IEEE 802.1 link-local frames
 (spanning tree, LLDP and the like) never pass, as through any bridge.  See
-[Multicast](../configure/TapConfiguration.md#multicast).
+[Multicast](../configure/TapConfiguration.md#broadcast-and-multicast).
 
 ## Compile Time Option
 

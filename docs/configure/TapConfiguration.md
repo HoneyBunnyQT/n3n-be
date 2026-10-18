@@ -6,198 +6,169 @@ SPDX-FileCopyrightText: Copyright Hamish Coleman
 SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
-# TAP Device Configuration
+# The Virtual Network Device
 
-n3n provides its service through a TAP device which is the virtual ethernet device seen by the computer and user. As a prerequisite, it requires the appropriate TAP driver to be installed. Most Linux systems come with it. If not loaded, `sudo modprobe tap` will do.
+An edge gives its computer a virtual network device: the computer sees
+the community through it as an Ethernet network, with an address in it.
+Its options are in the `[tuntap]` section.
 
-For MacOS and Windows there are specific instructions; please see the [Building](../build/index.md) document.
+What the system needs for it:
+
+- **Linux**: nothing, the TAP and TUN drivers come with the kernel (if
+  not loaded, `sudo modprobe tun`).
+- **Windows**: the TAP driver of OpenVPN, `tap-windows6`, see
+  [Installing](../quick_start/Install.md#windows).
+- **macOS**: nothing with `tuntap.type = tun`, which uses macOS's own
+  `utun` device, see [Build on macOS](../build/macos.md#run-on-macos).
+- **Android**: the app uses the system's VPN service.
 
 ## TAP or TUN
 
-By default the edge uses a TAP device, which carries Ethernet frames.  With
-`tuntap.type = tun` it uses a TUN device instead, which carries IP packets:
-the edge then puts the Ethernet header on and takes it off itself, answers
-ARP for its own address, and finds the MAC address of the other edges from
-what they announce of themselves, or by asking with ARP.  On the wire nothing
-changes, so edges with TUN and with TAP devices are in the same community.
+![A TAP device carries Ethernet frames, a TUN device IP packets; the edge adds the Ethernet header and does ARP itself](../images/tun-tap.svg)
 
-This is for systems that offer only TUN devices: Android, and macOS, whose
-own `utun` device it uses (see [Build on macOS](../build/macos.md#run-on-macos));
-on Linux it works too, and is what the tests use.  IPv4, and IPv6 with
-`tuntap.address6` (below), the edge doing neighbour discovery as it does
-ARP.  For now: no bridging
-(`filter.allow_routing` with a bridge), no `dhcp` address mode, one thread,
-Linux and macOS.  Routes and address work as with a TAP device; there are no
-neighbour entries on a TUN device (`ip neigh`): the edge keeps its own.
+By default the edge uses a **TAP** device, which carries Ethernet frames:
+everything a network card would, IPv4, IPv6, ARP and any other protocol.
 
-## Device Name
+With `tuntap.type = tun` it uses a **TUN** device instead, which carries
+IP packets only.  The edge then puts the Ethernet header on and takes it
+off itself, answers ARP for its own address, and finds the MAC addresses
+of the others from what they announce, or by asking with ARP - and does
+neighbour discovery for IPv6 the same way.  On the wire nothing changes:
+edges with TUN and with TAP devices are in the same community.
 
-If the OS specific driver allows **naming** the virtual Ethernet device created
-by n3n, the `tuntap.name` option can be used to give a name, e.g.
-`-Otuntap.name=n3n0`. This device name makes the virtual ethernet device easily
-accessible to all `ip` command activity, `iptables`, `tcpdump` and any other of
-your
-preferred network tools. If not provided, it defaults to the sessionname with
-a zero appended (so, with the default sessionname, the interface will be called
-`edge0`)
+TUN is for systems that offer only TUN devices - Android, and macOS -
+and works on Linux too, where the tests use it.  For now it has no
+bridging, no `dhcp` address mode and one thread.  Routes and addresses
+work as with a TAP device; the neighbour entries are the edge's own,
+`ip neigh` does not show them.
 
-One exception applies to Windows: As the installed TAP driver(s) come with
-fixed names, `tuntap.name` **selects** the appropriate device by name out of
-the present ones. This is only required if more than one TAP devices are
-present. To help with determining the adaptor names, the command
-`edge help adaptors` lists the available TAP adapters (Windows only).
+## Name
 
-## MAC
+`tuntap.name` names the device, for `ip`, `iptables`, `tcpdump` and the
+like:
 
-Even virtual ethernet devices have a MAC address. As in real networks, it
-should be unique as it is used to identify the different participants and
-transport packets accordingly. The MAC address can optionally be specified by
-using the `tuntap.macaddr` config option. If omitted, n3n tries to assign a
-random MAC address.
-
-## IP Address
-
-n3n supports several ways to assign an IPv4 address to the virtual ethernet device. Support for IPv6 addresses relies on OS support.
-
-### Manually Assigned IP Address
-
-The command line parameter `-a <static:IP address>` assigns a static IP address, e.g. `-a static:192.168.8.5` to the device. The optional `static` keyword (and the delimiting colon) can be omitted, so `-a 192.168.8.5` works as well.
-
-The netmask in CIDR notation can optionally be appended to the address, e.g. `-a 192.168.8.5/24` for netmask `255.255.255.0` which also is the default should the netmask not be provided.
-
-### Auto IP Address
-
-If `-a` is omitted, the supernode assigns an IP address to the node. This feature uses different IP address pools on a per-community basis. So, all edges of the same community will find themselves in the same sub-network.
-
-By default, `/24`-sized IP address sub-network pools from the upper half of the `10.0.0.0` class A network will be used, that is from `10.128.0.0/24` … `10.255.255.0/24`. The supernode can be configured to assign addresses from a different network range: `-a 10.0.0.0-10.255.0.0/16` would the supernode make use of the complete `10.0.0.0` class A range but handle `/16`-sized sub-networks. Also, named communities could be pre-assigned certain sub-networks, please see the explanatory comments in the `community.list` file.
-
-### DHCP
-
-If an edge of the community runs a DHCP server, the others could draw their IP addresses from there. It requires the new edges to start-up with the `-r -a dhcp:0.0.0.0` parameters (literally). More details can be found [at this discussion](https://github.com/ntop/n2n/issues/629).
-
-### IPv6
-
-IPv6 inside the tunnel needs an address on the device of each edge:
-`tuntap.address6`.
-
+```ini
+[tuntap]
+name = n3n0
 ```
+
+Without it, the device is called after the session, with a `0`:
+`edge0` for the session `edge`, `mynetwork0` for `mynetwork.conf`.  On
+Windows, where the TAP adapters come with fixed names, `tuntap.name`
+picks one of them, by name, if there is more than one;
+`n3n-edge help adaptors` lists them.
+
+## IPv4 address
+
+`tuntap.address_mode` says where the address comes from:
+
+- **`auto`** (the default): the supernode hands one out.  Each community
+  gets a /24 of its own, from `10.128.0.0` to `10.255.255.0` by default,
+  so all the edges of a community are in one subnet; the supernode's
+  `supernode.auto_ip_min` and `supernode.auto_ip_max` set another range,
+  and a community's `network` a fixed one (see
+  [Communities](Communities.md)).  Which address an edge gets depends on
+  its description (`connection.description`, by default the host name), so
+  it usually gets the same one again.
+- **`static`**: the address of `tuntap.address`, with its prefix length
+  (`/24` if none is given).  `tuntap.address` alone is not enough, the
+  mode has to say `static`:
+
+    ```ini
+    [tuntap]
+    address = 10.77.0.5/24
+    address_mode = static
+    ```
+
+    On the command line, `-a 10.77.0.5/24` does both.
+- **`dhcp`**: the edge sets no address, and a DHCP client on the device
+  asks the DHCP server of the community - one that an edge of the
+  community runs, or one behind a bridge.  The edge needs
+  `filter.allow_routing = true` for that.  Not with TUN.
+
+## IPv6 address
+
+IPv6 inside the tunnel needs an address on each edge's device,
+`tuntap.address6`:
+
+```ini
 [tuntap]
 address6 = auto
 ```
 
-`auto` makes an address that is the edge's own without anyone handing it
-out, and without anything new on the wire:
+`auto` makes an address that is the edge's own, without anyone handing
+it out and without anything new on the wire:
 
-- the network (the upper 64 bits) from `tuntap.prefix6`, by default `fd`
-  and 40 bits of a hash of the community's name - the same /64 for all the
-  edges of a community, a private (unique local) one;
-- the lower part from the edge's IPv4 address, static or from the
-  supernode: with 10.77.0.5, `fd6c:bcdb:8e7b::10.77.0.5` (shown as
-  `fd6c:bcdb:8e7b::a4d:5`), or, for an edge without one, from its MAC
-  address, as the kernel makes the link-local address.
+- the network (the upper 64 bits) is `tuntap.prefix6`, by default `fd`
+  and 40 bits of a hash of the community's name - the same private /64
+  for all the edges of a community;
+- the lower part is the edge's IPv4 address: with 10.77.0.5,
+  `fd6c:bcdb:8e7b::10.77.0.5` (shown as `fd6c:bcdb:8e7b::a4d:5`); an edge
+  without one takes its MAC address, as the kernel does for the
+  link-local address.
 
 Or give one: `address6 = fd00:77::5/64`.  The edge puts it on the device
-(Linux for now) and logs it ("IPv6 address of the device").  Neighbour
-solicitations, IPv6's ARP, then pass without `filter.allow_multicast`; on a
-TUN device the edge does the neighbour discovery itself.  The design, and
-what comes next: [IPv6](../develop/IPv6.md).
+(Linux and macOS) and logs it ("IPv6 address of the device").  Neighbour
+solicitations, IPv6's ARP, then pass without `filter.allow_multicast`.
+Test it with `ping -6`.  The design, and what comes next:
+[IPv6](../develop/IPv6.md).
 
-Without the option, an address added by hand works as well, e.g. on Linux
-`ip -6 addr add fd00:77::7/64 dev n3n0` at each end - neighbour discovery
-then needs `filter.allow_multicast = true`.  Test it with `ping -6`.
+An address added by hand works as well (`ip -6 addr add fd00:77::7/64
+dev n3n0` at each end), but then neighbour discovery needs
+`filter.allow_multicast = true`.
 
 (This is IPv6 inside the tunnel.  Between the edges and the supernodes,
-n3n speaks IPv6 too, see `connection.bind` and `community.supernode`.)
+n3n-be speaks IPv6 as well, see `connection.bind` and
+`community.supernode`.)
+
+## MAC address
+
+The device has a MAC address, which identifies the edge in the
+community, and must be unique there.  By default the edge makes up a
+random one; `tuntap.macaddr` sets one, so that it stays the same from one
+start to the next.
 
 ## MTU
 
-The MTU of the VPN interface is set to a lower value (rather than the standard
-value of 1500 bytes) to avoid excessive fragmentation of the datagram sent over the internet.
-This is required because n3n adds additional headers to the packets received from
-the VPN interface. The size of the final frame sent through the internet interface
-must have a size lower or equal to the internet interface MTU (usually 1500 bytes).
+The edge wraps each frame into a packet of its own - a header, and the
+cipher's padding - so the frames on the device have to be smaller than
+the packets the internet carries.  The default MTU, 1290, makes packets
+of up to about 1440 bytes on the wire (relayed over IPv6 with AES), which
+fits paths of 1500 bytes and 1492 bytes (PPPoE).
 
-As a fragmentation example, suppose that a 3000 byte TCP segment should be sent through
-the VPN. If the VPN interface MTU is set to 1500, the packet will be split into two
-fragments of 1500 bytes each. However, n3n will add its headers to each fragment, so
-each fragment becomes a 1540 byte packet. The internet interface MTU of 1500 bytes
-will fragment each packet again in two further fragments, e.g. 1500 + 50 bytes, so a
-total of 4 fragments will be sent over the internet. On the other hand, if the VPN interface
-MTU was set to 1460 bytes, it would result in only 3 fragments sent as the initial segment of
-3000 bytes would be split in 1460 + 1460 + 80 bytes without further fragmentation.
+On a smaller path - 1280 bytes, the IPv6 minimum, which some mobile
+networks and tunnels inside tunnels leave - larger packets get
+fragmented, and get lost where fragments are dropped.  There, set
 
-The default MTU of 1290 makes frames of up to about 1440 bytes on the
-wire (relayed over IPv6 with AES), which fits paths of 1500 and 1492
-bytes (PPPoE).  On a smaller path - 1280 bytes, the IPv6 minimum, as some
-mobile networks and tunnels in tunnels leave - frames that do not fit get
-fragmented, and get lost where fragments are dropped.  Set
-`tuntap.mtu = 1128` there (in the `[tuntap]` section, on the edges of the
-community): that fits a 1280 byte path in every case.  The edge does not
-find the MTU of a path by itself yet; see
-[Path MTU](../develop/PathMtu.md).
+```ini
+[tuntap]
+mtu = 1128
+```
 
-IP packet fragmentation in general is something to avoid, as described in
-http://www.hpl.hp.com/techreports/Compaq-DEC/WRL-87-3.pdf. If possible,
-the fragmentation should be moved to the TCP layer by a proper MSS value.
-This can be forced by mangling the packet MSS, which is called "MSS clamping" (currently not
-implemented in n3n). See https://github.com/gsliepen/tinc/blob/228a03aaa707a5fcced9dd5148a4bdb7e5ef025b/src/route.c#L386.
+on the edges of the community: that fits a 1280 byte path in every
+case.
 
-The exact value to use as a clamp value, however, depends on the PMTU, which is the minimum
-MTU of the path between two hosts. Knowing the PMTU is also useful for a sender in order to
-avoid fragmentation at IP level. Trying to find the highest non-fragmenting MTU possible is useful since it allows to
-maximize bandwidth.
+The edge does not find the MTU of a path by itself yet (see
+[Path MTU](../develop/PathMtu.md)).  It sends its packets without the
+"don't fragment" flag, so that a router on the way fragments a packet
+that is too large instead of dropping it; `connection.pmtu_discovery =
+true` sets the flag, and leaves the path MTU discovery to the system.
+`tracepath` shows the MTU of a path.
 
-### PMTU Discovery Failures
+## Broadcast and multicast
 
-Most operating systems try to periodically discover the PMTU by using a PMTU discovery algorithm.
-This involves setting the DF (don't fragment) flag on the IP packets. When a large IP packet exceeds
-the MTU of a router in the path, an "ICMP Fragmentation Needed" message should be received, which will
-help the OS along to tune the size of the next IP packets. However, some routers do not report such ICMP message,
-which results in packets being silently dropped. The `tracepath` tool can be used to detect the PMTU.
+**Broadcast** (`ff:ff:ff:ff:ff:ff`) always passes: ARP, DHCP, and the
+games and services that look for each other.  On Windows, broadcasts go
+out of the interface with the lowest metric only, usually the internet
+one (metric 25); `tuntap.metric` gives the TAP adapter a lower one, so
+that such services find each other over n3n-be.
 
-The main problem with this situation is that the actual PMTU is unknown, so an automatic
-solution is not applicable. The user must manually specify a lower MTU for the VPN interface
-in order to solve the issue.
-
-### n3n and MTU
-
-n3n shall work by default in different environments. For this reason, the following solution
-has been provided:
-
-- PMTU discovery is disabled if possible (via the IP_MTU_DISCOVER socket option). This avoids
-  silently dropping an oversized packet due to the DF flag; however, it possibly increments fragmentation on the path.
-- As explained above, a lower MTU is set on the VPN interface, thus removing excessive fragmentation on
-  the sender.
-- A value of 1290 bytes is used instead of 1500 bytes as reference value for the internet interface MTU.
-  This essentially avoids fragmentation if the PMTU is greater or equal than 1400 bytes.
-
-This is a conservative solution which should make n3n work by default. The user
-can manually change these options with these configuration settings:
-- specify the MTU (`tuntap.mtu`)
-- enable PMTU discovery (`connection.pmtu_discovery=true`)
-
-## Interface Metric and Broadcasts
-
-On Windows, broadcasts are sent out to the network interface with the lowest
-metric only. This usually is the WAN interface with its default metric of `25`.
-The `tuntap.metric` option could be used to configure the TAP with a lower
-interface metric and hence facilitate service and online game server detection
-over n3n.
-
-Linux and others do not require this feature as broadcasts are sent to all
-network interfaces by default, also to the
-virtual ones.
-
-## Multicast
-
-n3n does not transmit multicast packets by default. It can be enabled by
-using the `filter.allow_multicast=true` config option, on each edge that is
-to send or to receive them: each drops them both ways otherwise, and counts
-them (`multicast_drop` in `n3nctl get_packetstats`).
-
-With the option, n3n carries multicast as a switch does: a frame to any
-multicast MAC goes to every edge of the community.  Without it, all of
-them stay where they are.  Broadcast (`ff:ff:ff:ff:ff:ff`) always passes.
+**Multicast** does not pass by default.  `filter.allow_multicast = true`
+lets it through, on each edge that is to send or to receive it: each
+drops it both ways otherwise, and counts it (`multicast_drop` in
+`n3nctl get_packetstats`).  With the option, n3n-be carries multicast as
+a switch does: a frame to a multicast MAC goes to every edge of the
+community.
 
 | destination MAC | for | `allow_multicast` |
 |-----------------|-----|-------------------|
@@ -210,44 +181,36 @@ them stay where they are.  Broadcast (`ff:ff:ff:ff:ff:ff`) always passes.
 The last row never passes, whatever the option: these frames are about
 the link they are sent on, and no bridge forwards them (IEEE 802.1D and
 802.1Q).  Over a VPN they would do harm: pause frames from one site would
-throttle a link at another, spanning tree would see the far end of the
-tunnel as part of its own segment, 802.1X would try to authenticate across
-it, and LLDP would show devices a neighbour at the far end of the tunnel
-(and tools such as TIA Portal a topology that is not there).  The edge
-drops them both ways and counts them in `multicast_drop`.
+throttle a link at another, spanning tree would take the far end of the
+tunnel for part of its own segment, 802.1X would try to authenticate
+across it, and LLDP would show devices a neighbour at the far end (and
+tools such as TIA Portal a topology that is not there).  The edge drops
+them both ways and counts them in `multicast_drop`.
 
 Multicast goes through the supernode to every edge of the community, as
-broadcast does, and each edge's option decides about it on the way out
-and on the way in.  A supernode of n3n-be 3.4.8 or older, of upstream n3n
-or of n2n passes on only the IPv4 and IPv6 ones: through it, frames to
-other multicast MACs stay lost; and such an edge takes them in whatever
-its option says.  With a bridge (`filter.allow_routing`, see
+broadcast does, and each edge's option decides on the way out and on the
+way in.  A supernode of n3n-be 3.4.8 or older, of upstream n3n or of n2n
+passes on only the IPv4 and IPv6 multicast: through it, frames to other
+multicast MACs are lost; and such an edge takes them in whatever its
+option says.  With a bridge (`filter.allow_routing`, see
 [Bridging](../advanced/Bridging.md)) they reach the devices behind it, as
-a PLC's discovery needs.  With a TUN device (`tuntap.type = tun`) there is
-IP only, so IPv4 and IPv6 multicast.
+a PLC's discovery needs.  With a TUN device there is IP only, so IPv4
+and IPv6 multicast.
 
-## Edge Description
+## Description
 
-To keep edge's and supernode's management port output well arranged and
-understandable, each edge can have a plain text description fed to the edge by
-the `connection.description` config option. If not provided, n3n uses the
-hostname by default.
+`connection.description` is the edge's name in the management output of
+the edges and supernodes: by default the host name.  With automatic
+addresses, the supernode picks the address from a hash of it, so a new
+host name can mean a new address; two edges with the same description
+(two edges on one host, say) would get the same one, and the second is
+refused (see [the FAQ](../FAQ.md)).  With users and passwords, the
+description is the user name, see [Authentication](Authentication.md).
 
-When 'auto' address mode is used to allow the supernode to issue an IP address,
-a hash of the description field is used by the supernode to choose an auto IP
-address. So, just be aware that changing the hostname can lead to assigning a
-different auto IP address on next edge start-up – if auto IP address is used.
+## Routing and filtering
 
-## Routing
-
-n3n supports routing the traffic through its network. `-r` enables an edge to accept packets at its TAP interface not originating from the local IP address or not destined to the local IP address. As there is more to routing than just this one command-line option, please refer to the dedicated [Routing](../advanced/Routing.md) document
-explaining it all in detail.
-
-## Traffic Filter
-
-Setting up the integrated traffic filter permits to define exactly the kind of
-allowed traffic or deny other on edge's TAP interface. It helps to keep
-unwanted traffic out of the n3n network for bandwidth and security reasons. The
-traffic filter is disabled by default and gets activated by providing as many
-`filter.rule` options as required to the edge. Specifics are written down in
-the [Traffic Restrictions](../advanced/TrafficRestrictions.md) documentation.
+By default, an edge drops the packets from the community that are not
+for its own address.  To route for a network behind it, or to bridge, see
+[Routing](../advanced/Routing.md) and [Bridging](../advanced/Bridging.md)
+(`filter.allow_routing`).  To restrict the traffic, see
+[Traffic Restrictions](../advanced/TrafficRestrictions.md) (`filter.rule`).
