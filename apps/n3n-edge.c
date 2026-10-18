@@ -213,7 +213,7 @@ static void loadFromCLI (int argc, char *argv[], n2n_edge_conf_t *conf) {
 static struct n3n_subcmd_def cmd_top[]; // Forward define
 
 static void cmd_help_about (int argc, char **argv, void *conf) {
-    printf("n3n - a peer to peer VPN for when you have noLAN\n"
+    printf(N3N_PROGRAM " - a peer to peer VPN for when you have noLAN\n"
            "\n"
            " usage: edge [options...] [command] [command args]\n"
            "\n"
@@ -410,7 +410,7 @@ static void cmd_test_hashing (int argc, char **argv, void *conf) {
 static void cmd_tools_keygen (int argc, char **argv, void *conf) {
     if(argc == 1) {
         printf(
-            "n3n keygen tool\n"
+            N3N_PROGRAM " keygen tool\n"
             "\n"
             "  usage: edge tools keygen <username> <password>\n"
             "\n"
@@ -1021,7 +1021,7 @@ int n3n_edge_main (int argc, char* argv[]) {
         cmd_help_about(0, NULL, NULL);
     }
 
-    traceEvent(TRACE_NORMAL, "starting n3n edge %s", n3n_version());
+    traceEvent(TRACE_NORMAL, "starting " N3N_PROGRAM " edge %s", n3n_version());
 
 #ifdef HAVE_LIBCRYPTO
     traceEvent(TRACE_NORMAL, "using %s", OpenSSL_version(0));

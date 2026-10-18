@@ -137,7 +137,7 @@ int n3n_edge_run (const char *config, int tun_fd, const struct n3n_embed *e) {
         return -3;
     }
 
-    traceEvent(TRACE_NORMAL, "starting n3n edge %s, embedded", n3n_version());
+    traceEvent(TRACE_NORMAL, "starting " N3N_PROGRAM " edge %s, embedded", n3n_version());
 
     eee = edge_init(&conf, &rc);
     if(!eee) {

@@ -415,7 +415,7 @@ Default: `false`
 
 Version text.
 
-Modify the supernode version string which is distributed to edges and shown in the management port output (max 19 letters, defaults to the build version).
+Modify the supernode version string which is distributed to edges and shown in the management port output (max 19 letters, defaults to be- and the build version).
 
 Default: the version of the program.
 

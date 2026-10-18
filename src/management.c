@@ -850,6 +850,7 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
 
     sb_reprintf(&conn->request,
                 "{"
+                "\"program\":\"" N3N_PROGRAM "\","
                 "\"version\":\"%s\","
                 "\"builddate\":\"%s\","
                 "\"is_edge\":%i,"
@@ -1415,8 +1416,8 @@ static void handle_page_action (struct n3n_runtime_data *eee, conn_t *conn) {
     if(strstr(body, "do=stop")) {
         *eee->keep_running = false;
         sb_zero(conn->request);
-        sb_printf(conn->request, "<!DOCTYPE html><html><head><meta charset=utf-8><title>n3n</title></head>"
-                  "<body><p>n3n is stopping.</p></body></html>\n");
+        sb_printf(conn->request, "<!DOCTYPE html><html><head><meta charset=utf-8><title>" N3N_PROGRAM "</title></head>"
+                  "<body><p>" N3N_PROGRAM " is stopping.</p></body></html>\n");
         conn->reply = conn->request;
         generate_http_headers(conn, "text/html; charset=utf-8", 200);
         return;

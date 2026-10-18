@@ -590,7 +590,7 @@ static struct n3n_conf_option section_supernode[] = {
         .desc = "Version text",
         .help = "Modify the supernode version string which is distributed to "
                 "edges and shown in the management port output "
-                "(max 19 letters, defaults to the build version).",
+                "(max 19 letters, defaults to be- and the build version).",
 
     },
     {.name = NULL},

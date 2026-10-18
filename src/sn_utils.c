@@ -296,8 +296,9 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
     // for an edge of its own, see supernode.tap
     edge_conf_role_defaults(conf);
 
-    strncpy(conf->relay.version, VERSION, sizeof(n2n_version_t));
-    conf->relay.version[sizeof(n2n_version_t) - 1] = '\0';
+    // "be-" and the version: other supernodes and edges show it, and it
+    // says which program a supernode is, also to those of n3n or n2n
+    snprintf(conf->relay.version, sizeof(n2n_version_t), "be-%.16s", VERSION);
 
     // room for a full list and its end, as n3n_conf_sockaddr makes it:
     // open_bind_sockets() may add to it

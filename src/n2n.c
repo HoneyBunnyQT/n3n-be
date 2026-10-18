@@ -536,9 +536,12 @@ const char *n3n_version (void) {
 
 void print_n3n_version () {
 
-    printf("n3n v%s\n"
+    printf(N3N_PROGRAM " v%s\n"
+           N3N_PROGRAM_URL "\n"
+           "\n"
            "Copyright n2n contributors\n"
            "Copyright Hamish Coleman\n"
+           "Copyright Honey Bunny QT\n"
            "\n",
            n3n_version());
 }

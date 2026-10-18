@@ -147,7 +147,7 @@ static void cmd_debug_config_load_dump (int argc, char **argv, void *conf) {
 }
 
 static void cmd_help_about (int argc, char **argv, void *conf) {
-    printf("n3n - a peer to peer VPN for when you have noLAN\n"
+    printf(N3N_PROGRAM " - a peer to peer VPN for when you have noLAN\n"
            "\n"
            " usage: supernode [options...] [command] [command args]\n"
            "\n"
@@ -672,7 +672,7 @@ int n3n_supernode_main (int argc, char * argv[]) {
 
     traceEvent(
         TRACE_NORMAL,
-        "starting n3n supernode %s",
+        "starting " N3N_PROGRAM " supernode %s",
         n3n_version()
     );
 

@@ -149,6 +149,11 @@ enum n3n_event_topic {
 /* ************************************** */
 
 #define N2N_PKT_VERSION            3
+
+// what the program calls itself - its files keep upstream's names, as a
+// drop-in replacement for n3n - and where it comes from
+#define N3N_PROGRAM                "n3n-be"
+#define N3N_PROGRAM_URL            "https://github.com/HoneyBunnyQT/n3n-be"
 #define N2N_DEFAULT_TTL            2  /* can be forwarded twice at most */
 #define N2N_COMMUNITY_SIZE         20
 #define N2N_PRIVATE_PUBLIC_KEY_SIZE 32

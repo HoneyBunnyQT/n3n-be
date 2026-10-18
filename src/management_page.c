@@ -497,9 +497,9 @@ void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_run
 
     sb_reprintf(b, "<!DOCTYPE html>\n<html lang=en><head><meta charset=utf-8>"
                 "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
-                "<title>n3n ");
+                "<title>" N3N_PROGRAM " ");
     html_text(b, rt->conf.sessionname ? rt->conf.sessionname : "", 64);
-    sb_reprintf(b, "</title>\n<style>%s</style></head>\n<body>\n<header><h1>n3n <small>", page_style);
+    sb_reprintf(b, "</title>\n<style>%s</style></head>\n<body>\n<header><h1>" N3N_PROGRAM " <small>", page_style);
     html_text(b, rt->conf.sessionname ? rt->conf.sessionname : "", 64);
     sb_reprintf(b, "</small></h1>\n<span>%s | up %s | version %s</span>\n"
                 "<nav><a href=\"/\">refresh</a> | <a href=\"/metrics\">metrics</a> | "
