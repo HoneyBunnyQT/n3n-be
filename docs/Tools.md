@@ -7,10 +7,8 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # Tools
 
-There are a number of handy tools coming with n3n extending fumction and
-user experience or just prove helpful during build and development.
-
-All tools can be found in the `tools` directory.
+Tools that come with n3n-be, for users and for development, in the
+`tools` directory.
 
 ## End User Tools
 
@@ -53,15 +51,17 @@ well below the 2900 or so bytes a code can hold.
 
 - The code holds the community's key, if the file has one: share the image
   like the key itself.
-- The app needs a static `address` in `[tuntap]`, and each phone its own;
-  `n3n-qr` notes when there is none.  One configuration file per phone is
-  the simple way.
+- Without an `address` in `[tuntap]`, the phone gets one from the
+  supernode (`n3n-qr` notes it).  A static one has to be each phone's
+  own: one configuration file per phone, then.
 
 `make test.qr` checks that `zbarimg` (zbar-tools) reads back what went in.
 
 ### `n3n-route`
 
-This tool has not been converted to work with the JsonRPC API interface.
+This tool still speaks the old management protocol and does not work
+with the current daemons, whose management interface is JSON-RPC; see
+[Routing](advanced/Routing.md) for setting the routes by hand.
 
 This C tool sets new routes for all the traffic to be routed via a VPN gateway
 (another edge) and polls the management port of a local n3n edge for adding
@@ -83,7 +83,9 @@ Example:
 
 ### `n3n-portfwd`
 
-This tool has not been converted to work with the JsonRPC API interface.
+This tool still speaks the old management protocol and does not work
+with the current daemons, whose management interface is JSON-RPC; see
+[Routing](advanced/Routing.md) for setting the routes by hand.
 
 This C tool uses UPnP and/or PMP to have a local router forward the edge port.
 The program polls a local edge's management port and takes apporpriate action.
