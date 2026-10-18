@@ -19,13 +19,13 @@ nav:
       - Overview: configure/index.md
       - Configuration Files: configure/ConfigurationFiles.md
       - Options: configure/Options.md
-      - Communities: configure/Communities.md
       - Supernode: configure/Supernode.md
+      - Communities: configure/Communities.md
       - Federation: configure/Federation.md
       - Authentication: configure/Authentication.md
-      - TAP Device: configure/TapConfiguration.md
-      - Advanced: configure/Advanced.md
+      - Network Device: configure/TapConfiguration.md
       - Security: configure/Security.md
+      - Advanced: configure/Advanced.md
       - Running as a Service: configure/Systemd.md
   - Advanced Topics:
       - Overview: advanced/index.md

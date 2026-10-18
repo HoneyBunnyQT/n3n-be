@@ -5,19 +5,24 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # Configuration
 
-How to set up edges and supernodes.
+How to set up edges and supernodes.  New to n3n-be?  Start with
+[Your First Network](../quick_start/Config.md).
 
-- [Configuration Files](ConfigurationFiles.md): where the configuration comes
-  from - the file, the environment, the command line
+- [Configuration Files](ConfigurationFiles.md): where the settings come
+  from - the file, the environment, the command line - and reloading
 - [Configuration Options](Options.md): every option, generated from the
   program itself
-- [Communities](Communities.md): community names, which ones a supernode
-  takes, in its configuration or in a community file
-- [Setting up a Custom Supernode](Supernode.md), also one that is an edge too
-- [Supernode Federation](Federation.md): several supernodes for one network
-- [Edge Authentication](Authentication.md): user names and passwords
-- [TAP Device Configuration](TapConfiguration.md): addresses, MTU, routes
-- [Advanced Configuration](Advanced.md)
-- [Security Considerations](Security.md)
-- [Running as a Service](Systemd.md): systemd (status, watchdog), or any
-  other service manager
+- [Setting up a Supernode](Supernode.md): ports, TCP on 443, a supernode
+  that is an edge too
+- [Communities](Communities.md): names, and which communities a
+  supernode serves
+- [Federation](Federation.md): several supernodes for one network
+- [Authentication](Authentication.md): spoofing protection, users and
+  passwords
+- [The Virtual Network Device](TapConfiguration.md): TAP or TUN,
+  addresses, MTU, broadcast and multicast
+- [Security](Security.md): what protects a network, layer by layer
+- [Advanced Configuration](Advanced.md): peers on the same network,
+  several networks on one computer
+- [Running as a Service](Systemd.md): systemd, or any other service
+  manager

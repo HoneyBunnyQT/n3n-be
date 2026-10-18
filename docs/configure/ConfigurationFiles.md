@@ -7,62 +7,42 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # Configuration Files
 
-To help deployment and better handle locally different configurations, n3n
-supports the use of configuration files for `n3n-edge` and `n3n-supernode`.
+An edge or a supernode reads its configuration from a file named after
+its **session**: `n3n-edge start home` reads `/etc/n3n/home.conf`
+(`%USERPROFILE%\n3n\home.conf` on Windows).  Without a session name,
+the edge's session is `edge` and the supernode's `supernode`.  A path
+instead of a name, starting with `/` or `./`, reads that file.
 
-The daemon will attempt to locate a configuration file based on the
-"sessionname" - which defaults to "edge" for the edge daemon.  This would
-result in a config file called "edge.conf", which is located in "/etc/n3n" (or
-the %USERPROFILE%\n3n directory on Windows)
+The files are like INI files: sections in brackets, one `option = value`
+a line, `#` for comments:
 
-They are plain text files formatted very similar to INI files.
-
-To generate the help documentation for all current options:
-```bash
-n3n-edge help config
-```
-
-If you created the following `/etc/n3n/testing.conf` file:
-
-```
+```ini
+# /etc/n3n/home.conf
 [community]
-cipher = Speck
-key = mysecretpass
 name = mynetwork
+key = mysecretpass
+cipher = Speck
 supernode = sn.example.org:7654
 
-[daemon]
-background = false
-
 [tuntap]
-address = 192.168.100.1
+address = 192.168.100.1/24
 address_mode = static
 ```
 
-which can be loaded by
-
-```
-sudo ./n3n-edge start testing
+```sh
+sudo n3n-edge start home
 ```
 
-If needed, the settings from the config file can all be overridden, or
-added to, on the command line:
+Every setting can also be given, or overridden, on the command line, as
+`-O section.option=value`:
 
-```
-sudo n3n-edge start testing \
-    -Oconnection.description=myComputer \
-    -O community.compression=lzo
+```sh
+sudo n3n-edge start home -O connection.description=laptop -O community.compression=lzo
 ```
 
-Some of the most common options also have a shortcut version, you can see all
-these with:
-
-```
-n3n-edge help options
-```
-
-All the options, with their defaults, are in [Configuration
-Options](Options.md), generated from what the program says about them -
+The most common options have short forms as well (`-c`, `-k`, `-l`,
+`-a`, ...): `n3n-edge help options` lists them.  All the options, with
+their defaults, are in [Configuration Options](Options.md);
 `n3n-edge help config` shows the same.
 
 ## Where the Settings Come From
