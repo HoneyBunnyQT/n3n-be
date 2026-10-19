@@ -140,10 +140,18 @@ report.
       showed: as the supernode never kept an address it gave out, two
       edges of the same description got the same one.  Both fixed, on
       `fixes` too, with `test_integration_packets` (2026-10-18)
-- [ ] With user/password, `auth_edge()` asks only whether the presented
-      key is of an allowed user, not whether it is the key the edge
-      registered with: any user may take over another's MAC or address.
-      To look into; upstream's code the same
+- [x] With user/password, `auth_edge()` asked only whether the presented
+      key was of an allowed user, not whether it was the key the edge
+      registered with: any user could take over another's MAC or address,
+      and unregister it.  Now the key has to be the entry's; netns
+      scenario `userpw-spoof`; on `fixes` too (2026-10-19)
+- [ ] Real-time traffic over a lossy line of the edge's own, where the
+      supernode's way loses as much as the direct one (and TCP would only
+      turn losses into stalls): small frames sent twice, directly and
+      through the supernode (or twice a few ms apart), the duplicate
+      dropped by the application (RTP) - a lost frame only where both are.
+      An option per edge, perhaps by size or DSCP; nothing on the wire.
+      An idea (2026-10-19)
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while
@@ -162,10 +170,11 @@ report.
       per source address; moved up from "Far future" (2026-10-18)
 - [ ] Prometheus endpoint for the metrics (the management interface has
       them already); moved up from "Far future" (2026-10-18)
-- [ ] Coverage report: the tests built with `--coverage`, `make test`,
-      the netns scenarios and the fuzz corpus replayed, `gcovr` or
-      `lcov` into Codecov (`codecov/codecov-action`, its token as a
-      secret, or tokenless with OIDC); to see which paths no test reaches
+- [x] Coverage report: `coverage.yml` on every push - the tests built
+      with `--coverage`, unit, builtin, integration, the fuzz corpus and
+      the netns scenarios; gcovr's summary on the run's page, the HTML
+      report as an artifact, `coverage.xml` to Codecov (tokenless, OIDC;
+      the repository is to be added at codecov.io) (2026-10-19)
 - [ ] Installable next to upstream n3n, if ever wanted: the program,
       `n3nctl`, the systemd units, the man pages, the sysusers file,
       `/etc/n3n` and `/run/n3n` under names of n3n-be's own, and the
