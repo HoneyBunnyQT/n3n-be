@@ -199,9 +199,23 @@ report.
             GSO batch as one): 10 % each way, pings 97-98 % answered,
             2000 frames of 1200 bytes 99.7-100 % (90 % without), about a
             repair for two frames
-      - [ ] Repairs riding in data PACKETs where they fit (then scheme 2
-            goes), and spaced from the group's last frame, so that a
-            burst that takes one does not take both
+      - [x] Repairs spaced and riding (2026-10-19): a closed group's
+            repairs go spread out after it (the j-th (j+1) x
+            min(2 ms, 10 ms / (m+1)) later), so that no burst takes a
+            frame and its repair together - and all of them while the
+            group is still in the receiver's window of 64 at the rate
+            the frames come.  A repair rides along with the next frame
+            to the peer where both fit in a full frame's size (scheme 4,
+            RIDE), waiting up to a frame and a half (10-50 ms) for one,
+            else goes on its own (scheme 3).  Repairs have no seq any
+            more: they took seqs between the next group's frames, whose
+            seqs have to be in a row; a repair is known by its group and
+            number, one that came twice is dropped, and a repair moves
+            the receiver's window up to its group's last frame.  The
+            copies (`copy`, scheme 2) went; the schemes renumbered (still
+            under development).  Pings over 10 % each way: 393-398 of
+            400 answered, at no extra PACKETs; 2000 big frames one way:
+            all arrive
       - [ ] SIMD for gf256_muladd: SSSE3/AVX2 PSHUFB, NEON, GFNI,
             chosen at run time as the ciphers', checked against plain C;
             a benchmark item first

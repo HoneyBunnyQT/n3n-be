@@ -732,16 +732,18 @@ size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
     pkt.compression = N2N_COMPRESSION_ID_NONE;
 
     // forward error correction first, to a peer: the compression takes
-    // the copy in too, and the sequence number
+    // its trailer in too, and a repair riding along - as long as a full
+    // frame of the device at most, which a PACKET has room for
     int fec_scheme = N3N_FEC_NONE;
     if(eee->conf.community.fec && !is_multi_broadcast(out_destMac)) {
+        size_t room = eee->conf.tap.mtu + ETH_FRAMESIZE;
         size_t fec_len;
 
         fec_scheme = n3n_fec_wrap(eee->client.fec, eee->conf.community.fec, out_destMac,
-                                  tap_pkt, len, fec_buf, compression_buf_size, &fec_len,
-                                  n3n_monotonic_us());
+                                  tap_pkt, len, fec_buf, compression_buf_size, room,
+                                  &fec_len, n3n_monotonic_us());
         if(fec_scheme != N3N_FEC_NONE) {
-            if(fec_scheme == N3N_FEC_REPEAT) {
+            if(fec_scheme == N3N_FEC_RIDE) {
                 STATS_INC(eee, tx_fec_redundant);
             }
             tap_pkt = fec_buf;

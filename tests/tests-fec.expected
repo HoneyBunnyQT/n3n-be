@@ -1,4 +1,4 @@
-gf256                          ok
+gf256                      ok
 m by k (rows) and loss % (columns):
         0   1   2   5  10  20  50
    1    0   1   1   1   1   1   1
@@ -7,17 +7,18 @@ m by k (rows) and loss % (columns):
   10    0   1   2   3   5   5   5
   20    0   2   3   5   8  10  10
   32    0   2   3   6  10  12  12
-copy, 10 % lost                 500 frames,    0 redundant,  44 lost on the way,  38 undone,   6 missing: ok
-copy, nothing told              500 frames,    0 redundant,  44 lost on the way,   0 undone,  44 missing: ok
-copy, big frames                500 frames,    0 redundant,  44 lost on the way,   0 undone,  44 missing: ok
-auto, no loss told              500 frames,    0 redundant,   0 lost on the way,   0 undone,   0 missing: ok
-auto, voice, 5 %               2000 frames, 2000 redundant, 199 lost on the way,  85 undone,   6 missing: ok
-auto, bulk, 1 %                2000 frames,  195 redundant,  21 lost on the way,  18 undone,   0 missing: ok
-auto, bulk, 5 %                2000 frames,  511 redundant, 122 lost on the way,  95 undone,   0 missing: ok
-auto, mixed, 10 %              2000 frames,  760 redundant, 256 lost on the way, 185 undone,   0 missing: ok
-auto, mixed, 20 % (capped)     2000 frames,  760 redundant, 527 lost on the way, 322 undone,  62 missing: ok
-always, no loss                2000 frames,   68 redundant,   0 lost on the way,   0 undone,   0 missing: ok
-none                            500 frames,    0 redundant,   0 lost on the way,   0 undone,  44 missing: ok
-any m of k + m lost            k 10, m 5, 6 ways: ok
-backwards, twice               26 PDUs, 20 frames came out: ok
-broken trailers                ok
+auto, no loss told          500 frames, repairs    0 alone    0 riding,   0 lost,   0 undone,   0 missing: ok
+auto, nothing told          500 frames, repairs    0 alone    0 riding,  44 lost,   0 undone,  44 missing: ok
+auto, voice, 5 %           2000 frames, repairs    1 alone 1999 riding,  97 lost,  91 undone,   6 missing: ok
+auto, voice, 20 %          2000 frames, repairs    1 alone 1999 riding, 383 lost, 306 undone,  78 missing: ok
+auto, bulk, 1 %            2000 frames, repairs  195 alone    0 riding,  17 lost,  17 undone,   0 missing: ok
+auto, bulk, 5 %            2000 frames, repairs  511 alone    0 riding,  95 lost,  95 undone,   0 missing: ok
+auto, small, 10 %          2000 frames, repairs    5 alone  995 riding, 184 lost, 181 undone,   4 missing: ok
+auto, mixed, 10 %          2000 frames, repairs  753 alone    7 riding, 199 lost, 199 undone,   0 missing: ok
+auto, mixed, 20 % (capped) 2000 frames, repairs  753 alone    7 riding, 385 lost, 287 undone,  98 missing: ok
+always, no loss            2000 frames, repairs   62 alone    6 riding,   0 lost,   0 undone,   0 missing: ok
+none                        500 frames, repairs    0 alone    0 riding,   0 lost,   0 undone,  44 missing: ok
+any m of k + m lost        k 10, m 5, 6 ways: ok
+backwards, twice           26 PDUs, 20 frames came out: ok
+spacing, riding            ok
+broken trailers            ok

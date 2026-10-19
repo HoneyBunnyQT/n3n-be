@@ -37,14 +37,10 @@ nothing.  It can be changed while the edge runs (`n3nctl reload`).
 
 - `none`, the default: PACKETs as ever, which every version of n3n reads
 - `auto`: frames to a peer go in groups, and after each group as many
-  repair PACKETs as the loss on the way to that peer asks for - none while
+  repairs as the loss on the way to that peer asks for - none while
   nothing is lost
 - `always`: as `auto`, but at least one repair per group, whatever the
   loss - for testing, or for a line known to be bad
-- `copy`: instead of groups, a copy of each small frame (up to 400 bytes)
-  in the next PACKET to the same peer, while there is loss - the first
-  way n3n did it; repairs that ride along in data PACKETs are to take its
-  place
 
 Every edge reads all of them, whatever its own setting.
 
@@ -53,14 +49,24 @@ Every edge reads all of them, whatever its own setting.
 The frames to a peer go in **groups**: up to 32 frames, or what comes in
 10 ms, whichever is first - so a stream at a high rate makes groups of 32,
 a voice call (a frame each 20 ms) groups of one.  The frames go as they
-are, at once; after the group, **m repair PACKETs** follow, computed from
-its frames with a Reed-Solomon code.  The receiving edge keeps the frames
-of a group as they come; where some are missing, **any m of them** are
+are, at once; after the group, **m repairs** follow, computed from its
+frames with a Reed-Solomon code.  The receiving edge keeps the frames of
+a group as they come; where some are missing, **any m of them** are
 undone from the repairs, as soon as enough of them came.  A group with
 more lost than it has repairs keeps its losses, but nothing more.
 
+The repairs do not go right after their group's last frame, but spread
+out over the next few milliseconds - so that a burst of loss, which
+takes several packets in a row, does not take a frame and what is to
+undo it together.  A repair **rides along** in the next frame's PACKET to
+the same peer where both fit (in a full frame's size), and goes in a
+PACKET of its own where they do not, or where no frame comes for long.
+So a small frame's repair at a low rate - voice, a game, pings - is a
+copy of it in the next PACKET, at no extra PACKETs; the repairs of big
+frames - a download - go on their own.
+
 How many repairs a group gets follows the loss: each edge counts the
-PACKETs it gets from each peer (they carry sequence numbers), and tells
+frames it gets from each peer (they carry sequence numbers), and tells
 the peer, in the PACKETs it sends to it, what it sees lost.  The sender
 takes the fewest repairs that leave at most 0.1 % of the frames lost -
 given the loss it is told, half as much again for safety, and losses
@@ -80,11 +86,12 @@ Where no edge tells (traffic one way only), the sender goes by what it
 sees lost of the peer's PACKETs to it, as if the loss were the same both
 ways.
 
-What it costs: 3 bytes in each PACKET to a peer (7 in a repair), and the
-repairs: one PACKET each, as long as the longest frame of its group.
-Groups and repairs never wait for each other more than 10 ms; a frame
-undone comes that much later, or less.  Broadcast and multicast go
-without.
+What it costs: 3 bytes in each PACKET to a peer, and the repairs, each
+as long as the longest frame of its group: in a PACKET of its own (5
+bytes more), or riding along (9 bytes more).  A group waits 10 ms at
+most, its repairs some more, up to a frame and a half at the rate of the
+frames to the peer for one that rides; a frame undone comes that much
+later, or less.  Broadcast and multicast go without.
 
 It works the same through a supernode: it is between the two edges, inside
 the encryption.  Repairs do not help against loss from congestion - more
@@ -95,8 +102,8 @@ nothing is lost, and at most half as many as frames.
 
 `n3nctl get_packetstats`:
 
-- `fec`: `tx_pkt` copies and repairs sent, `rx_pkt` frames undone
-- `fec_lost`: `rx_pkt` PACKETs from peers found missing by their sequence
+- `fec`: `tx_pkt` repairs sent, `rx_pkt` frames undone
+- `fec_lost`: `rx_pkt` frames from peers found missing by their sequence
   numbers, whether undone or not - the loss of the way in
 
 The same on the metrics page (`packets`, events `fec_redundant`,
@@ -105,8 +112,9 @@ The same on the metrics page (`packets`, events `fec_redundant`,
 The netns scenario `fec-lossy` (see
 [Testing behind NATs](../develop/netns_testing.md)) has a direct path that
 loses 10 percent each way: of 400 pings, 97 to 98 percent are answered
-(without, some 82); of 2000 frames of 1200 bytes one way, 99.7 to 100
-percent arrive (without, 90), with about one repair for two frames.
+(without, some 82), their repairs riding along with the next; of 2000
+frames of 1200 bytes one way, all arrive (without, 90 percent), with
+about one repair for two frames.
 
 ## On the wire
 
@@ -119,16 +127,16 @@ payload, decrypted and decompressed, is the frame with a trailer:
 |--------|---------|
 | 0 | the frame, as ever |
 | 1 | frame, sequence number (16 bits), loss (8 bits) |
-| 2 | frame, copy of the frame before, length of the copy (16 bits), sequence number, loss |
-| 3 | a frame of a group: as 1 |
-| 4 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), sequence number, loss |
+| 2 | a frame of a group: as 1 |
+| 3 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), loss |
+| 4 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, loss |
 
-The sequence numbers count the PACKETs from one edge to another, from a
-number of chance, repairs too; the frames of a group have them in a row.
-The receiver keeps a window of the last 64, to tell what is missing, what
-came twice (dropped), and what is still to be undone.  Loss is what the
-sender sees lost of the PACKETs coming from the one it sends to, in
-percent, 255 while it does not know yet.
+The sequence numbers count the frames from one edge to another, from a
+number of chance; a group's have them in a row, and a repair is known by
+its group and its number.  The receiver keeps a window of the last 64,
+to tell what is missing, what came twice (dropped), and what is still to
+be undone.  Loss is what the sender sees lost of the frames coming from
+the one it sends to, in percent, 255 while it does not know yet.
 
 The code: Reed-Solomon over GF(2^8) with the polynomial
 x^8 + x^4 + x^3 + x + 1 (AES's), systematic - the frames go as they are -
@@ -136,5 +144,5 @@ with a Cauchy matrix for the repairs, its first row all ones (the first
 repair is the XOR of the frames).  What is coded of each frame is its
 length (16 bits) and the frame, padded with zeros to the longest of the
 group.  See `src/fec.h` and `src/gf256.h`, and the
-[Roadmap](../develop/Roadmap.md) for what is to come (repairs riding
-along in data PACKETs, SIMD for the arithmetic).
+[Roadmap](../develop/Roadmap.md) for what is to come (SIMD for the
+arithmetic, losses in bursts, backing off under congestion).

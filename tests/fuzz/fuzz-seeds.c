@@ -339,46 +339,55 @@ static void transops (void) {
         ops[i].deinit(&ops[i]);
     }
 
-    // the forward error correction's payloads, see src/fec.h: a frame
-    // with its seq, one with a copy of the one before - once the peer
-    // told of loss - and a group of frames of all sizes with its repairs
+    // the forward error correction's payloads, see src/fec.h: frames
+    // with their seq, frames of groups of all sizes, once the peer told of
+    // loss, with repairs riding along with them or on their own
     static uint8_t scratch[N3N_FEC_SCRATCH];
     struct n3n_fec *fec = n3n_fec_new();
     struct n3n_fec_frames f;
     uint8_t told[64] = {0};
+    uint64_t now = 1000000;
     n2n_mac_t to;
     size_t n;
 
-    for(i = 0; i < 3; i++) {
-        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_COPY, mac, in, 100,
-                                  out + 1, sizeof(out) - 1, &n, 1000000 * (i + 1));
+    for(i = 0; i < 24; i++) {
+        size_t len = (i % 2) ? 100 : 60 + i * 50;
+        int scheme;
         char name[32];
 
-        if(i == 0) {
+        now += 3000;
+        if(i == 1) {
             // 10 % lost, it says
             told[63] = 10;
-            n3n_fec_unwrap(fec, N3N_FEC_SEQ, mac, told, sizeof(told), 1000000, scratch, &f);
+            n3n_fec_unwrap(fec, N3N_FEC_SEQ, mac, told, sizeof(told), now, scratch, &f);
         }
+        scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_AUTO, mac, in, len,
+                              out + 1, sizeof(out) - 1, 1304, &n, now);
         out[0] = 0xf0 | scheme;
-        snprintf(name, sizeof(name), "fec-%s-%i", scheme == N3N_FEC_REPEAT ? "repeat" : "seq", i);
+        snprintf(name, sizeof(name), "fec-%i-%i", scheme, i);
         put("transop", name, out, n + 1);
-    }
-    for(i = 0; i < 8; i++) {
-        uint64_t now = 10000000 + i * 1000;
-        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_ALWAYS, mac, in, 60 + i * 150,
-                                  out + 1, sizeof(out) - 1, &n, now);
-        char name[32];
-        int r = 0;
-
-        out[0] = 0xf0 | scheme;
-        snprintf(name, sizeof(name), "fec-group-%i", i);
-        put("transop", name, out, n + 1);
-        while(n3n_fec_repair(fec, now + (i == 7) * N3N_FEC_GROUP_US, to,
-                             out + 1, sizeof(out) - 1, &n)) {
+        while(n3n_fec_repair(fec, now, to, out + 1, sizeof(out) - 1, &n)) {
             out[0] = 0xf0 | N3N_FEC_REPAIR;
-            snprintf(name, sizeof(name), "fec-repair-%i-%i", i, r++);
+            snprintf(name, sizeof(name), "fec-repair-%i", i);
             put("transop", name, out, n + 1);
         }
+    }
+    // big frames, their repairs with no room to ride: on their own
+    for(i = 0; i < 4; i++) {
+        char name[32];
+
+        now += 3000;
+        out[0] = 0xf0 | n3n_fec_wrap(fec, N3N_FEC_MODE_AUTO, mac, in, 1200,
+                                     out + 1, sizeof(out) - 1, 0, &n, now);
+        snprintf(name, sizeof(name), "fec-big-%i", i);
+        put("transop", name, out, n + 1);
+    }
+    for(i = 0; n3n_fec_repair(fec, now + 100000, to, out + 1, sizeof(out) - 1, &n); i++) {
+        char name[32];
+
+        out[0] = 0xf0 | N3N_FEC_REPAIR;
+        snprintf(name, sizeof(name), "fec-repair-alone-%i", i);
+        put("transop", name, out, n + 1);
     }
     n3n_fec_free(fec);
 }

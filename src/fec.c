@@ -32,8 +32,6 @@
 #define FEC_PURGE_US            (10 * 1000000ULL)
 // more peers are not kept: their PACKETs go without
 #define FEC_PEERS_MAX           4096
-// a copy goes only of a frame sent this recently
-#define FEC_REPEAT_AGE_US       (2 * 1000000ULL)
 // what the peer told of its loss counts for so long
 #define FEC_REPORT_AGE_US       (10 * 1000000ULL)
 // after so long without a PACKET from the peer, its count starts anew
@@ -58,13 +56,27 @@
 #define FEC_RX_REPAIR_US        (1000000ULL)
 // what n3n_fec_m() leaves lost at most
 #define FEC_RESIDUAL            0.001
+// a group's repairs go spread out after it - the j-th (j + 1) times the
+// time between them, at most this - so that no burst takes a frame and
+// what is to undo it together ...
+#define FEC_SPACING_US          2000
+// ... and then wait up to so long - at least a group's time, a frame and
+// a half at the rate of the peer's frames - for a frame to ride along with
+#define FEC_RIDE_HOLD_MAX_US    50000
+// the smallest frame a repair would ride along with
+#define FEC_RIDE_MIN_FRAME      60
 
 
-// a repair waiting to go
-struct fec_ready {
-    struct fec_ready *next;
-    n2n_mac_t mac;
-    size_t len;
+// a repair of a peer's group that closed, waiting to go
+struct fec_out {
+    struct fec_out *next;
+    uint64_t not_before;        // it goes from then on, ...
+    uint64_t deadline;          // ... on its own from then on, if it can ride
+    bool rides;                 // small enough to ride along with a frame
+    uint16_t first;
+    uint8_t k;
+    uint8_t j;
+    uint16_t len;
     uint8_t data[];
 };
 
@@ -96,10 +108,7 @@ struct fec_peer {
     uint64_t reported_us;
     uint64_t tx_us;             // the last frame
     uint32_t gap_us;            // between frames, averaged
-    // copies (REPEAT)
-    uint16_t prev_len;          // of the last frame, if small enough for a copy; 0: none
-    uint64_t prev_us;
-    uint8_t prev[N3N_FEC_REPEAT_MAX];
+    size_t room;                // what a PACKET's payload may be, as wrap was told
     // the open group (GROUP, REPAIR)
     bool group_open;
     uint16_t group_first;
@@ -109,6 +118,8 @@ struct fec_peer {
     uint16_t group_len;         // the longest symbol
     uint64_t group_us;          // opened
     uint8_t *sums;              // N3N_FEC_M_MAX x N3N_FEC_SYMBOL_MAX, from the first group on
+    // the repairs of closed groups, in the order they go
+    struct fec_out *out;
 
     // receiving from it: a window of the last 64 seqs, bit i for top - i
     bool rx_started;
@@ -136,8 +147,7 @@ struct n3n_fec {
     struct fec_peer *peers;
     uint64_t purged_us;
     int open_groups;
-    struct fec_ready *ready;
-    struct fec_ready **ready_tail;
+    int pending;                // repairs waiting, of all peers
 };
 
 // coef[j][i]: of frame i in repair j, see fec_tables()
@@ -254,7 +264,6 @@ struct n3n_fec *n3n_fec_new (void) {
         return NULL;
     }
     fec_tables();
-    fec->ready_tail = &fec->ready;
 #ifdef HAVE_LIBPTHREAD
     pthread_mutex_init(&fec->lock, NULL);
 #elif defined(_WIN32)
@@ -266,6 +275,12 @@ struct n3n_fec *n3n_fec_new (void) {
 
 static void peer_free (struct fec_peer *p) {
 
+    while(p->out) {
+        struct fec_out *r = p->out;
+
+        p->out = r->next;
+        free(r);
+    }
     free(p->sums);
     free(p->slot_data);
     free(p->repair_data);
@@ -283,12 +298,6 @@ void n3n_fec_free (struct n3n_fec *fec) {
     HASH_ITER(hh, fec->peers, p, tmp) {
         HASH_DEL(fec->peers, p);
         peer_free(p);
-    }
-    while(fec->ready) {
-        struct fec_ready *r = fec->ready;
-
-        fec->ready = r->next;
-        free(r);
     }
 #ifdef HAVE_LIBPTHREAD
     pthread_mutex_destroy(&fec->lock);
@@ -318,7 +327,7 @@ static struct fec_peer *fec_peer (struct n3n_fec *fec, const n2n_mac_t mac, uint
 
     if(now_us - fec->purged_us > FEC_PURGE_US) {
         HASH_ITER(hh, fec->peers, p, tmp) {
-            if((now_us - p->last_us > FEC_PEER_IDLE_US) && !p->group_open) {
+            if((now_us - p->last_us > FEC_PEER_IDLE_US) && !p->group_open && !p->out) {
                 HASH_DEL(fec->peers, p);
                 peer_free(p);
             }
@@ -374,38 +383,54 @@ static int loss_out (const struct fec_peer *p, uint64_t now_us) {
 }
 
 
-// Whether a frame for the peer gets a copy of the one before
-static bool repeat_wanted (const struct fec_peer *p, uint64_t now_us) {
+// The repairs of the open group, to wait for their time: spread out over
+// a group's time after it, at most FEC_SPACING_US apart - and all of them
+// to go while the group is still in the receiver's window of seqs: before
+// half of what is left of it after the group and its repairs is taken by
+// the frames that come meanwhile, at the rate they come
+static void group_close (struct n3n_fec *fec, struct fec_peer *p, uint64_t now_us) {
 
-    return loss_out(p, now_us) >= N3N_FEC_AUTO_MIN_LOSS;
-}
-
-
-// The repairs of the open group, to the queue for n3n_fec_repair()
-static void group_close (struct n3n_fec *fec, struct fec_peer *p) {
-
+    int left = FEC_WINDOW - p->group_k - 8;
+    uint64_t window = (left > 0 ? left : 0) * (uint64_t)p->gap_us / 2;
+    uint64_t spread = window < N3N_FEC_GROUP_US ? window : N3N_FEC_GROUP_US;
+    uint64_t spacing = spread / (p->group_m + 1);
+    uint64_t hold = p->gap_us * 3 / 2;
+    struct fec_out **tail = &p->out;
     int j;
 
+    if(spacing > FEC_SPACING_US) {
+        spacing = FEC_SPACING_US;
+    }
+    if(hold < N3N_FEC_GROUP_US) {
+        hold = N3N_FEC_GROUP_US;
+    }
+    if(hold > FEC_RIDE_HOLD_MAX_US) {
+        hold = FEC_RIDE_HOLD_MAX_US;
+    }
+    if(hold > window) {
+        hold = window;
+    }
+    while(*tail) {
+        tail = &(*tail)->next;
+    }
     for(j = 0; j < p->group_m; j++) {
-        size_t len = p->group_len + N3N_FEC_REPAIR_TRAILER;
-        struct fec_ready *r = malloc(sizeof(*r) + len);
-        uint8_t *t;
+        struct fec_out *r = malloc(sizeof(*r) + p->group_len);
 
         if(!r) {
             break;
         }
-        memcpy(r->mac, p->mac, sizeof(n2n_mac_t));
         memcpy(r->data, p->sums + j * N3N_FEC_SYMBOL_MAX, p->group_len);
-        t = r->data + p->group_len;
-        put16(t, p->group_first);
-        t[2] = p->group_k;
-        t[3] = (uint8_t)j;
-        put16(t + 4, ++p->tx_seq);
-        t[6] = loss_report(p);
-        r->len = len;
+        r->len = p->group_len;
+        r->first = p->group_first;
+        r->k = p->group_k;
+        r->j = (uint8_t)j;
+        r->not_before = now_us + (j + 1) * spacing;
+        r->rides = r->len + N3N_FEC_RIDE_TRAILER + FEC_RIDE_MIN_FRAME <= p->room;
+        r->deadline = r->rides ? r->not_before + hold : r->not_before;
         r->next = NULL;
-        *fec->ready_tail = r;
-        fec->ready_tail = &r->next;
+        *tail = r;
+        tail = &r->next;
+        fec->pending++;
     }
     p->group_open = false;
     fec->open_groups--;
@@ -476,17 +501,21 @@ static void group_add (struct fec_peer *p, const uint8_t *frame, size_t len) {
 
 int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
                   const uint8_t *frame, size_t len,
-                  uint8_t *out, size_t out_size, size_t *out_len,
+                  uint8_t *out, size_t out_size, size_t room, size_t *out_len,
                   uint64_t now_us) {
 
     struct fec_peer *p;
+    struct fec_out **rp;
     int scheme = N3N_FEC_SEQ;
-    bool groups = (mode == N3N_FEC_MODE_AUTO) || (mode == N3N_FEC_MODE_ALWAYS);
     bool groupable = len + 2 <= N3N_FEC_SYMBOL_MAX;
     size_t n = len;
 
-    if(!fec || (mode == N3N_FEC_MODE_NONE) || (len + N3N_FEC_OVERHEAD_MAX > out_size)) {
+    if(!fec || (mode == N3N_FEC_MODE_NONE) || (len + N3N_FEC_SEQ_TRAILER > out_size)) {
         return N3N_FEC_NONE;
+    }
+    // a repair rides along only where both fit, in the PACKET and in out
+    if(room > out_size) {
+        room = out_size;
     }
 
     fec_lock(fec);
@@ -495,6 +524,7 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
         fec_unlock(fec);
         return N3N_FEC_NONE;
     }
+    p->room = room;
 
     // the time between frames, for how many a group takes
     if(p->tx_us) {
@@ -512,10 +542,10 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
 
     // a group's frames have seqs in a row: one that cannot be part of it,
     // or one after its time, closes it first
-    if(p->group_open && (!groupable || !groups || (now_us - p->group_us >= N3N_FEC_GROUP_US))) {
-        group_close(fec, p);
+    if(p->group_open && (!groupable || (now_us - p->group_us >= N3N_FEC_GROUP_US))) {
+        group_close(fec, p, now_us);
     }
-    if(groups && groupable && !p->group_open) {
+    if(groupable && !p->group_open) {
         group_open(fec, p, mode, now_us);
     }
 
@@ -523,30 +553,35 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
     if(p->group_open) {
         group_add(p, frame, len);
         scheme = N3N_FEC_GROUP;
-    } else if((mode == N3N_FEC_MODE_COPY) && (len <= N3N_FEC_REPEAT_MAX) && p->prev_len
-              && (now_us - p->prev_us <= FEC_REPEAT_AGE_US)
-              && repeat_wanted(p, now_us)) {
-        memcpy(out + n, p->prev, p->prev_len);
-        n += p->prev_len;
-        put16(out + n, p->prev_len);
-        n += 2;
-        scheme = N3N_FEC_REPEAT;
     }
+
+    // the first repair whose time has come, and which fits, rides along
+    for(rp = &p->out; *rp; rp = &(*rp)->next) {
+        struct fec_out *r = *rp;
+
+        if(r->rides && (now_us >= r->not_before)
+           && (n + r->len + N3N_FEC_RIDE_TRAILER <= room)) {
+            memcpy(out + n, r->data, r->len);
+            n += r->len;
+            put16(out + n, r->len);
+            put16(out + n + 2, r->first);
+            out[n + 4] = r->k;
+            out[n + 5] = r->j;
+            n += 6;
+            scheme = N3N_FEC_RIDE;
+            *rp = r->next;
+            free(r);
+            fec->pending--;
+            break;
+        }
+    }
+
     put16(out + n, ++p->tx_seq);
     n += 2;
     out[n++] = loss_report(p);
 
     if(p->group_open && (p->group_k >= p->group_kt)) {
-        group_close(fec, p);
-    }
-
-    // the next one may carry this one
-    if((mode == N3N_FEC_MODE_COPY) && (len <= N3N_FEC_REPEAT_MAX)) {
-        memcpy(p->prev, frame, len);
-        p->prev_len = len;
-        p->prev_us = now_us;
-    } else {
-        p->prev_len = 0;
+        group_close(fec, p, now_us);
     }
     fec_unlock(fec);
 
@@ -565,7 +600,7 @@ static void groups_due (struct n3n_fec *fec, uint64_t now_us) {
     }
     HASH_ITER(hh, fec->peers, p, tmp) {
         if(p->group_open && (now_us - p->group_us >= N3N_FEC_GROUP_US)) {
-            group_close(fec, p);
+            group_close(fec, p, now_us);
         }
     }
 }
@@ -574,7 +609,7 @@ static void groups_due (struct n3n_fec *fec, uint64_t now_us) {
 int n3n_fec_repair (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
                     uint8_t *out, size_t out_size, size_t *out_len) {
 
-    struct fec_ready *r;
+    struct fec_peer *p, *tmp;
     int got = 0;
 
     if(!fec) {
@@ -582,19 +617,35 @@ int n3n_fec_repair (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
     }
     fec_lock(fec);
     groups_due(fec, now_us);
-    while(!got && fec->ready) {
-        r = fec->ready;
-        fec->ready = r->next;
-        if(!fec->ready) {
-            fec->ready_tail = &fec->ready;
+    if(fec->pending) {
+        HASH_ITER(hh, fec->peers, p, tmp) {
+            struct fec_out **rp;
+
+            for(rp = &p->out; *rp && !got; rp = &(*rp)->next) {
+                struct fec_out *r = *rp;
+
+                if(now_us < r->deadline) {
+                    continue;
+                }
+                if(r->len + N3N_FEC_REPAIR_TRAILER <= out_size) {
+                    memcpy(out, r->data, r->len);
+                    put16(out + r->len, r->first);
+                    out[r->len + 2] = r->k;
+                    out[r->len + 3] = r->j;
+                    out[r->len + 4] = loss_report(p);
+                    *out_len = r->len + N3N_FEC_REPAIR_TRAILER;
+                    memcpy(peer, p->mac, sizeof(n2n_mac_t));
+                    got = 1;
+                }
+                *rp = r->next;
+                free(r);
+                fec->pending--;
+                break;
+            }
+            if(got) {
+                break;
+            }
         }
-        if(r->len <= out_size) {
-            memcpy(out, r->data, r->len);
-            memcpy(peer, r->mac, sizeof(n2n_mac_t));
-            *out_len = r->len;
-            got = 1;
-        }
-        free(r);
     }
     fec_unlock(fec);
     return got;
@@ -610,18 +661,20 @@ int64_t n3n_fec_due_us (struct n3n_fec *fec, uint64_t now_us) {
         return -1;
     }
     fec_lock(fec);
-    if(fec->ready) {
-        due = 0;
-    } else if(fec->open_groups) {
+    if(fec->open_groups || fec->pending) {
         HASH_ITER(hh, fec->peers, p, tmp) {
             if(p->group_open) {
                 int64_t left = (int64_t)(p->group_us + N3N_FEC_GROUP_US) - (int64_t)now_us;
 
-                if(left < 0) {
-                    left = 0;
-                }
                 if((due < 0) || (left < due)) {
-                    due = left;
+                    due = left < 0 ? 0 : left;
+                }
+            }
+            for(struct fec_out *r = p->out; r; r = r->next) {
+                int64_t left = (int64_t)r->deadline - (int64_t)now_us;
+
+                if((due < 0) || (left < due)) {
+                    due = left < 0 ? 0 : left;
                 }
             }
         }
@@ -633,7 +686,7 @@ int64_t n3n_fec_due_us (struct n3n_fec *fec, uint64_t now_us) {
 
 // Start counting the peer's PACKETs anew at seq: what came before it is
 // not counted as lost, and still taken where it comes late - out of order,
-// or from a copy or repairs.
+// or from repairs.
 static void rx_start (struct fec_peer *p, uint16_t seq) {
 
     p->rx_started = true;
@@ -748,7 +801,13 @@ static void rx_decode (struct fec_peer *p, uint16_t first, uint8_t k,
     uint8_t a[N3N_FEC_M_MAX][N3N_FEC_M_MAX];
     int e = 0, n = 0, i, r, c;
     uint16_t len = 0;
+    int16_t d = (int16_t)(first + k - 1 - p->top);
 
+    // a repair tells that the group's frames went, up to its last: those
+    // not seen yet are missing - lost, or still on the way
+    if((d > 0) && (d <= FEC_WINDOW)) {
+        out->lost += rx_advance(p, d);
+    }
     if((rx_bit(p, first) < 0) || (rx_bit(p, (uint16_t)(first + k - 1)) < 0)) {
         rx_drop_group(p, first);
         return;
@@ -863,69 +922,120 @@ static void rx_retry (struct fec_peer *p, uint16_t seq, uint8_t *scratch,
 }
 
 
+// A repair, kept until its group is undone - in a free place, else the
+// oldest one's - unless the same came before; and the group undone, if
+// it can be now
+static void rx_repair (struct fec_peer *p, const uint8_t *repair, size_t rlen,
+                       uint16_t first, uint8_t k, uint8_t j, uint64_t now_us,
+                       uint8_t *scratch, struct n3n_fec_frames *out) {
+
+    int r, use = 0;
+
+    if(!p->repair_data) {
+        return;
+    }
+    for(r = 0; r < FEC_RX_REPAIRS; r++) {
+        struct fec_rx_repair *rp = &p->repair[r];
+
+        if(rp->valid && (rp->first == first) && (rp->k == k) && (rp->j == j)) {
+            return;
+        }
+    }
+    for(r = 0; r < FEC_RX_REPAIRS; r++) {
+        if(p->repair[r].valid && (now_us - p->repair[r].us > FEC_RX_REPAIR_US)) {
+            p->repair[r].valid = false;
+        }
+        if(!p->repair[r].valid) {
+            use = r;
+            break;
+        }
+        if(p->repair[r].us < p->repair[use].us) {
+            use = r;
+        }
+    }
+    memcpy(p->repair_data + use * N3N_FEC_SYMBOL_MAX, repair, rlen);
+    p->repair[use].valid = true;
+    p->repair[use].first = first;
+    p->repair[use].k = k;
+    p->repair[use].j = j;
+    p->repair[use].len = (uint16_t)rlen;
+    p->repair[use].us = now_us;
+    rx_decode(p, first, k, scratch, out);
+}
+
+
 int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
                     uint8_t *buf, size_t size, uint64_t now_us,
                     uint8_t *scratch, struct n3n_fec_frames *out) {
 
     struct fec_peer *p;
-    size_t n, copy_len = 0;
+    size_t n = 0, t, rlen = 0;
+    uint8_t *repair = NULL;
     uint16_t seq, first = 0;
     uint8_t loss, k = 0, j = 0;
+    bool frame;
     int16_t d;
     int i;
 
     memset(out, 0, sizeof(*out));
 
+    // the trailer: where the frame ends, where a repair is, seq and loss
     switch(scheme) {
         case N3N_FEC_SEQ:
-        case N3N_FEC_REPEAT:
         case N3N_FEC_GROUP:
-            if(size < 3) {
+            if(size < N3N_FEC_SEQ_TRAILER) {
                 return -1;
             }
-            n = size - 3;
+            t = size - N3N_FEC_SEQ_TRAILER;
+            n = t;
             break;
         case N3N_FEC_REPAIR:
             if(size < N3N_FEC_REPAIR_TRAILER) {
                 return -1;
             }
-            n = size - N3N_FEC_REPAIR_TRAILER;
-            first = get16(buf + n);
-            k = buf[n + 2];
-            j = buf[n + 3];
-            if((k < 1) || (k > N3N_FEC_K_MAX) || (j >= N3N_FEC_M_MAX)
-               || (n < 2 + ETH_FRAMESIZE) || (n > N3N_FEC_SYMBOL_MAX)) {
+            rlen = size - N3N_FEC_REPAIR_TRAILER;
+            repair = buf;
+            first = get16(buf + rlen);
+            k = buf[rlen + 2];
+            j = buf[rlen + 3];
+            // no seq: t at loss, less the seq's two bytes
+            t = rlen + 2;
+            break;
+        case N3N_FEC_RIDE:
+            if(size < N3N_FEC_RIDE_TRAILER) {
                 return -1;
             }
-            n += 4;
+            t = size - N3N_FEC_RIDE_TRAILER;
+            rlen = get16(buf + t);
+            first = get16(buf + t + 2);
+            k = buf[t + 4];
+            j = buf[t + 5];
+            if(rlen > t) {
+                return -1;
+            }
+            n = t - rlen;
+            repair = buf + n;
+            t += 6;
             break;
         default:
             return -1;
     }
-    seq = get16(buf + n);
-    loss = buf[n + 2];
-    if(scheme == N3N_FEC_REPAIR) {
-        n -= 4;
-    } else if(scheme == N3N_FEC_REPEAT) {
-        if(n < 2) {
-            return -1;
-        }
-        n -= 2;
-        copy_len = get16(buf + n);
-        if((copy_len < ETH_FRAMESIZE) || (copy_len > n)) {
-            return -1;
-        }
-        n -= copy_len;
-    }
-    if((scheme != N3N_FEC_REPAIR) && (n < ETH_FRAMESIZE)) {
+    seq = (scheme == N3N_FEC_REPAIR) ? 0 : get16(buf + t);
+    loss = buf[t + 2];
+    frame = scheme != N3N_FEC_REPAIR;
+    if(frame && (n < ETH_FRAMESIZE)) {
         return -1;
     }
-    if((scheme == N3N_FEC_GROUP) && (n + 2 > N3N_FEC_SYMBOL_MAX)) {
+    if(((scheme == N3N_FEC_GROUP) || (scheme == N3N_FEC_RIDE)) && (n + 2 > N3N_FEC_SYMBOL_MAX)) {
+        return -1;
+    }
+    if(repair && ((k < 1) || (k > N3N_FEC_K_MAX) || (j >= N3N_FEC_M_MAX)
+                  || (rlen < 2 + ETH_FRAMESIZE) || (rlen > N3N_FEC_SYMBOL_MAX))) {
         return -1;
     }
 
     if(!fec) {
-        if(scheme != N3N_FEC_REPAIR) {
+        if(frame) {
             out->frame[0] = buf;
             out->len[0] = n;
             out->count = 1;
@@ -937,7 +1047,7 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
     if(!p) {
         // no telling what came before: the frame, as without
         fec_unlock(fec);
-        if(scheme != N3N_FEC_REPAIR) {
+        if(frame) {
             out->frame[0] = buf;
             out->len[0] = n;
             out->count = 1;
@@ -948,6 +1058,15 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
     if(loss <= 100) {
         p->reported = loss;
         p->reported_us = now_us;
+    }
+
+    if(!frame) {
+        // a repair on its own: no seq, nothing to count
+        if(p->rx_started) {
+            rx_repair(p, repair, rlen, first, k, j, now_us, scratch, out);
+        }
+        fec_unlock(fec);
+        return 0;
     }
 
     if(!p->rx_started || (now_us - p->rx_us > FEC_RX_IDLE_US)) {
@@ -981,15 +1100,7 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
     p->delivered |= (uint64_t)1 << i;
     p->dups = 0;
 
-    if(copy_len && (i + 1 < FEC_WINDOW) && !(p->delivered & ((uint64_t)1 << (i + 1)))) {
-        p->delivered |= (uint64_t)1 << (i + 1);
-        out->frame[out->count] = buf + n;
-        out->len[out->count] = copy_len;
-        out->count++;
-        out->undone++;
-    }
-
-    if(((scheme == N3N_FEC_GROUP) || (scheme == N3N_FEC_REPAIR)) && !p->slot_data) {
+    if((scheme != N3N_FEC_SEQ) && !p->slot_data) {
         p->slot_data = malloc(FEC_WINDOW * N3N_FEC_SYMBOL_MAX);
         p->repair_data = malloc(FEC_RX_REPAIRS * N3N_FEC_SYMBOL_MAX);
         if(!p->slot_data || !p->repair_data) {
@@ -1000,7 +1111,9 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         }
     }
 
-    if((scheme == N3N_FEC_GROUP) && p->slot_data) {
+    // the frame of a group, kept for undoing others of it - and they may
+    // be undone now
+    if(((scheme == N3N_FEC_GROUP) || (scheme == N3N_FEC_RIDE)) && p->slot_data) {
         struct fec_slot *s = &p->slot[seq % FEC_WINDOW];
 
         memcpy(p->slot_data + (seq % FEC_WINDOW) * N3N_FEC_SYMBOL_MAX, buf, n);
@@ -1010,33 +1123,11 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         rx_retry(p, seq, scratch, out);
     }
 
-    if((scheme == N3N_FEC_REPAIR) && p->repair_data) {
-        // a place for it: a free one, else the oldest
-        int r, use = 0;
-
-        for(r = 0; r < FEC_RX_REPAIRS; r++) {
-            if(p->repair[r].valid && (now_us - p->repair[r].us > FEC_RX_REPAIR_US)) {
-                p->repair[r].valid = false;
-            }
-            if(!p->repair[r].valid) {
-                use = r;
-                break;
-            }
-            if(p->repair[r].us < p->repair[use].us) {
-                use = r;
-            }
-        }
-        memcpy(p->repair_data + use * N3N_FEC_SYMBOL_MAX, buf, n);
-        p->repair[use].valid = true;
-        p->repair[use].first = first;
-        p->repair[use].k = k;
-        p->repair[use].j = j;
-        p->repair[use].len = (uint16_t)n;
-        p->repair[use].us = now_us;
-        rx_decode(p, first, k, scratch, out);
+    if(repair) {
+        rx_repair(p, repair, rlen, first, k, j, now_us, scratch, out);
     }
 
-    if(scheme != N3N_FEC_REPAIR) {
+    if(frame) {
         out->frame[out->count] = buf;
         out->len[out->count] = n;
         out->count++;

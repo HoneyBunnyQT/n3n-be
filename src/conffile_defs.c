@@ -49,10 +49,6 @@ static struct n3n_conf_str2id_data fec_mode_data[] = {
         .id = N3N_FEC_MODE_ALWAYS,
         .name = "always",
     },
-    {
-        .id = N3N_FEC_MODE_COPY,
-        .name = "copy",
-    },
     {},
 };
 
@@ -85,19 +81,18 @@ static struct n3n_conf_option section_community[] = {
         .str2id_data = fec_mode_data,
         .offset = offsetof(struct n3n_conf_community, fec),
         .desc = "Forward error correction: frames lost undone",
-        .help = "none, auto, always or copy.  With auto, the frames to a "
-                "peer go in groups - of up to 32, or 10 ms - and after each "
-                "group as many repair PACKETs as the loss on the way to "
-                "that peer asks for (a Reed-Solomon code): any of the "
-                "group's frames lost, up to as many as there are repairs, "
-                "are undone by the receiving edge.  always sends a repair "
-                "per group at least, whatever the loss; copy sends a copy "
-                "of each small frame (up to 400 bytes) in the next PACKET "
-                "instead, while there is loss.  The edges count the "
-                "PACKETs from each other for that, and tell; every edge of "
-                "the community needs to know it (n3n-be of 2026-10 on): one "
-                "that does not drops such PACKETs.  "
-                "See docs/advanced/FEC.md",
+        .help = "none, auto or always.  With auto, the frames to a peer "
+                "go in groups - of up to 32, or 10 ms - and after each group "
+                "as many repairs as the loss on the way to that peer asks "
+                "for (a Reed-Solomon code), riding along in the next "
+                "PACKETs where they fit, else in PACKETs of their own: any "
+                "of the group's frames lost, up to as many as there are "
+                "repairs, are undone by the receiving edge.  always sends "
+                "a repair per group at least, whatever the loss.  The "
+                "edges count the PACKETs from each other for that, and "
+                "tell; every edge of the community needs to know it "
+                "(n3n-be of 2026-10 on): one that does not drops such "
+                "PACKETs.  See docs/advanced/FEC.md",
     },
     {
         .name = "header_encryption",
