@@ -118,7 +118,7 @@ do not agree, and the stricter one wins: a supernode passes each
 registration on to the others of its federation, holds its answer - with
 the header keys - for as long as a refusal from them would take (twice
 the round trip to the farthest of them that is up, as it measures it, and
-20 ms more; half a second for one not measured yet, a second at most; not
+50 ms more; half a second for one not measured yet, a second at most; not
 at all where it is the only one up), and drops the edge, and the answer,
 when one of them refuses it.  So
 

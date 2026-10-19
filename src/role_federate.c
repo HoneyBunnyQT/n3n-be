@@ -323,7 +323,7 @@ void sn_rx_register_super_nak (struct n3n_runtime_data *sss, struct pdu_ctx *c) 
 
             // and not the answer to that registration, if it is still
             // held back: no header keys for the edge
-            if(sn_held_acks_drop(sss, c->comm->community, nak.srcMac, nak.cookie)) {
+            if(sn_held_acks_drop(sss, c->comm->community, nak.srcMac)) {
                 traceEvent(TRACE_INFO, "%s refused by another supernode: not answered",
                            macaddr_str(mac_buf, nak.srcMac));
             }

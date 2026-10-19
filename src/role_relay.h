@@ -31,12 +31,12 @@ int update_edge (struct n3n_runtime_data *sss,
 bool community_appends_hash (const struct sn_community *comm);
 // The REGISTER_SUPER_ACKs held back for the federation to refuse first:
 // sent once due, how long until the next is, -1 for none; dropped where
-// a refusal came for that edge's registration (the community's, its MAC
-// and cookie), or all
+// a refusal came for the edge (the community's, its MAC): all its answers
+// held, of both families; or all of them
 void sn_held_acks_send (struct n3n_runtime_data *sss, uint64_t now_us);
 int64_t sn_held_acks_due_us (struct n3n_runtime_data *sss, uint64_t now_us);
 bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
-                        const n2n_mac_t mac, uint32_t cookie);
+                        const n2n_mac_t mac);
 void sn_held_acks_free (struct n3n_runtime_data *sss);
 
 // The handlers of the PDUs from the edges, see sn_pdu_handlers; also of a

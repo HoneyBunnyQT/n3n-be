@@ -751,17 +751,19 @@ void sn_rx_register_ack (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
  * had the time to refuse it: it passes the registration on to them, and
  * holds the REGISTER_SUPER_ACK for twice the longest round trip to one of
  * them that is up (of their REGISTER_SUPER_ACKs, which takes the way a
- * refusal takes), and SN_ACK_HOLD_US more; SN_ACK_HOLD_UNKNOWN_US for one
+ * refusal takes), and SN_ACK_HOLD_US more, for a supernode that is busy; SN_ACK_HOLD_UNKNOWN_US for one
  * not measured yet; at most SN_ACK_HOLD_MAX_US - and not at all where no
  * other is up.  The mainloop wakes for it (sn_held_acks_due_us()), busy or
  * not.  A refusal that comes back meanwhile (sn_rx_register_super_nak())
- * drops it, and goes on to the edge instead.  So a user deleted at one
+ * drops it, and goes on to the edge instead - and with it the answer to
+ * the edge's registration of its other family (N3N_REG_SUPER_OTHER_FAMILY),
+ * which brings the keys too, but is not passed on to be refused.  So a user deleted at one
  * supernode gets no keys from another that still has it - and once the
  * deleting supernode's reload changed the keys, that user's edges are
  * out.  Nothing new on the wire: only the answer comes later, and any
  * supernode refuses so.  A refusal later than that still drops the edge,
  * as before. */
-#define SN_ACK_HOLD_US          (20 * 1000)
+#define SN_ACK_HOLD_US          (50 * 1000)
 #define SN_ACK_HOLD_UNKNOWN_US  (500 * 1000)
 #define SN_ACK_HOLD_MAX_US      (1000 * 1000)
 // more are not held: they go at once
@@ -897,8 +899,10 @@ int64_t sn_held_acks_due_us (struct n3n_runtime_data *sss, uint64_t now_us) {
 }
 
 
-bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
-                        const n2n_mac_t mac, uint32_t cookie) {
+// The answers held for the edge (mac) of community: to its registration
+// of cookie, or with any_cookie to all of them
+static bool held_acks_drop (struct n3n_runtime_data *sss, const char *community,
+                            const n2n_mac_t mac, uint32_t cookie, bool any_cookie) {
 
     struct sn_held_ack **hp = &sss->relay.held_acks;
     bool dropped = false;
@@ -907,7 +911,7 @@ bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
         struct sn_held_ack *h = *hp;
 
         if(!strncmp((const char *)h->community, community, N2N_COMMUNITY_SIZE)
-           && !memcmp(h->mac, mac, sizeof(n2n_mac_t)) && (h->cookie == cookie)) {
+           && !memcmp(h->mac, mac, sizeof(n2n_mac_t)) && (any_cookie || (h->cookie == cookie))) {
             *hp = h->next;
             free(h);
             sss->relay.held_acks_count--;
@@ -917,6 +921,13 @@ bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
         hp = &h->next;
     }
     return dropped;
+}
+
+
+bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
+                        const n2n_mac_t mac) {
+
+    return held_acks_drop(sss, community, mac, 0, true);
 }
 
 
@@ -956,7 +967,7 @@ static bool hold_ack (struct n3n_runtime_data *sss, struct sn_community *comm,
     }
     // the answer to a registration the edge sent again meanwhile replaces
     // the one before
-    sn_held_acks_drop(sss, comm->community, mac, cookie);
+    held_acks_drop(sss, comm->community, mac, cookie, false);
     h->due_us = n3n_monotonic_us() + hold;
     memcpy(h->community, comm->community, sizeof(h->community));
     memcpy(h->user, user->public_key, sizeof(n2n_private_public_key_t));
@@ -1213,8 +1224,10 @@ void sn_rx_register_super (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
                    macaddr_str(mac_buf, reg.edgeMac),
                    sock_to_cstr(sockbuf, &c->sender));
         ack.num_sn = 0;
+        // held as the answer to its registration, which a refusal of that
+        // drops too
         send_register_super_ack(sss, c->comm, user, &cmn2, &ack, payload_buf, c->socket_fd, c->sender_sock,
-                                NULL, 0);
+                                user ? reg.edgeMac : NULL, reg.cookie);
         return;
     }
 

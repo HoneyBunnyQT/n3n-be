@@ -297,16 +297,18 @@ report.
       `userpw-lockout`).  Now (2026-10-19) it holds the answer for twice
       the round trip to the farthest supernode of the federation that is
       up (measured with its REGISTER_SUPER_ACKs: the way a refusal
-      takes) and 20 ms, 500 ms while not measured, at most 1 s, none
-      where it is the only one; a refusal drops it.  Encrypted when it
+      takes) and 50 ms, 500 ms while not measured, at most 1 s, none
+      where it is the only one; a refusal drops it - and the answer to
+      the edge's registration of its other family, which brings the keys
+      too (CI, with IPv6, saw b get them so).  Encrypted when it
       goes, not when held: an edge takes no time stamp older than one it
       saw (failover-userpw lost its edges so); not for the supernode's own
       edge (supernode.tap, over the local link).  No change on the
       wire, so also with older supernodes and edges (an older edge takes
       a refusal only before the answer - which it now is).  The edge
       takes header keys only where they changed, and logs that.  The
-      lab: 23 ms held; b gets no new keys after sn1's reload, a does.
-      For `fixes` it would need porting to upstream's sn_utils.c
+      lab: about 50 ms held; b gets no new keys after sn1's reload, a
+      does.  Not for `fixes`
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while
