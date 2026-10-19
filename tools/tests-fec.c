@@ -690,7 +690,7 @@ static int duplex (const char *name, size_t size, uint64_t gap_us, int secs,
     n3n_fec_peer_info(a, mac_b, &info);
     failed |= s.wrong || (s.n * 1000LL < (long long)min_permille * sent);
     failed |= (scale_below > 0) ? (info.scale8 >= scale_below) : (info.scale8 != 8);
-    printf("%-26s %6d frames, %5.1f %% arrive, %5.1f %% repairs, loss told %2d %%, residual %d, margin %.2f, scale %d/8: %s\n",
+    printf("%-26s %6d frames, %5.1f %% arrive, %5.1f %% repairs, loss told %2d %%, residual %d, margin %.3f, scale %d/8: %s\n",
            name, sent, 100.0 * s.n / sent, 100.0 * repairs / sent, info.loss, info.residual,
            info.margin8 / 8.0, info.scale8, failed ? "FAIL" : "ok");
 
