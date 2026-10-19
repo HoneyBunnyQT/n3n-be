@@ -173,7 +173,7 @@ static int lost_in_bursts (int percent, int burst4) {
 // sends them after each frame, and those left after the last
 static int tell_burst4;
 
-static void tell (struct n3n_fec *a, int tell_pct, uint64_t now) {
+static void tell_a (struct n3n_fec *a, int tell_pct, uint64_t now) {
 
     if(tell_burst4) {
         tell_more(a, mac_b, (uint8_t)tell_pct, (uint8_t)tell_pct, (uint8_t)tell_burst4, 0, now);
@@ -191,7 +191,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
     int n = 0;
 
     if(tell_pct >= 0) {
-        tell(a, tell_pct, *now);
+        tell_a(a, tell_pct, *now);
     }
     for(int i = 0; (i < count) && (n < max); i++) {
         struct pdu *p = &pdus[n++];
@@ -200,7 +200,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
         *now += gap_us;
         // b keeps telling, as its own traffic would
         if((tell_pct >= 0) && (i % 50 == 0)) {
-            tell(a, tell_pct, *now);
+            tell_a(a, tell_pct, *now);
         }
         p->scheme = n3n_fec_wrap(a, mode, mac_b, frame, len, p->buf, sizeof(p->buf),
                                  room, &p->len, *now);
