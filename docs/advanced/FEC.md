@@ -187,18 +187,19 @@ about one repair for two frames.
 The PACKET's compression byte says how its payload is to be undone; its
 upper half (the high nibble) now says the forward error correction - the
 scheme - the lower half the compression as before (1 none, 2 LZO, 3
-ZSTD).  So a PACKET without is what it always was: 0x01 is an
-uncompressed one, 0x21 an uncompressed frame of a group, 0x22 one
-compressed with LZO; a repair on its own goes uncompressed, 0x31.  The payload, decrypted and decompressed, is the
-frame with a trailer, by the scheme:
+ZSTD).  So a PACKET without is what it always was: `0x01` is an
+uncompressed one, `0x21` an uncompressed frame of a group, `0x22` one
+compressed with LZO; a repair on its own goes uncompressed, `0x31`.  The
+payload, decrypted and decompressed, is the frame with a trailer, by the
+scheme:
 
-| scheme (high nibble) | byte, uncompressed | payload |
+| scheme (high nibble) | byte (`.`: the compression) | payload |
 |---|---|---|
-| 0 | 0x01 | the frame, as ever |
-| 1 | 0x11 | frame, sequence number (16 bits), report |
-| 2 | 0x21 | a frame of a group: as 1 |
-| 3 | 0x31 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
-| 4 | 0x41 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
+| 0 | `0x0.` | the frame, as ever |
+| 1 | `0x1.` | frame, sequence number (16 bits), report |
+| 2 | `0x2.` | a frame of a group: as 1 |
+| 3 | `0x3.` | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
+| 4 | `0x4.` | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
 
 The report, at the very end, is what the sender sees of the PACKETs from
 the one it sends to: one byte where nothing is lost - 0, or 0x7f while
