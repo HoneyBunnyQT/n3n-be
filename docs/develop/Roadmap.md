@@ -216,9 +216,21 @@ report.
             under development).  Pings over 10 % each way: 393-398 of
             400 answered, at no extra PACKETs; 2000 big frames one way:
             all arrive
-      - [ ] SIMD for gf256_muladd: SSSE3/AVX2 PSHUFB, NEON, GFNI,
-            chosen at run time as the ciphers', checked against plain C;
-            a benchmark item first
+      - [x] SIMD for gf256_muladd (2026-10-19): SSSE3, AVX2, AVX-512
+            (the products of a byte's halves by the byte shuffle), GFNI
+            with SSE, AVX2 and AVX-512 (gf2p8mulb: why the polynomial is
+            AES's), NEON (tbl; vtbl2 twice on 32 bit ARM, taken by
+            default, unlike Speck's) - src/gf256_x86.c, gf256_neon.c,
+            chosen at runtime as the ciphers' (GFNI asked of cpuid, older
+            compilers not knowing it in __builtin_cpu_supports).
+            tests-fec holds each to plain C for every c, at lengths
+            around the vectors' and any alignment, the bytes around
+            untouched (AVX-512 masks the rest); the benchmark item
+            fec_repair (a repair of 8 frames of 512 bytes) to its
+            output computed elsewhere (Python).  On a Sapphire Rapids
+            Xeon: plain C 1 GB/s, SSSE3 10, GFNI 15, AVX2 17, AVX-512
+            24, GFNI/AVX2 32, GFNI/AVX-512 36.  Tested: x86-64, i386,
+            arm64 and armhf (qemu), ASan/UBSan, MinGW builds
       - [ ] One loss measure: the receiver's count of the seqs (one way,
             the path in use, the data itself) beside the probes' (round
             trip, direct path only, about both ways added); the receiver

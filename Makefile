@@ -146,6 +146,8 @@ OBJS=\
 	src/embed.o \
 	src/fec.o \
 	src/gf256.o \
+	src/gf256_neon.o \
+	src/gf256_x86.o \
 	src/header_encryption.o \
 	src/hexdump.o \
 	src/initfuncs.o \

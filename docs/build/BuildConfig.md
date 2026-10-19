@@ -189,6 +189,7 @@ AES:               AES-NI, ARMv8 Cryptography Extension - chosen at runtime
 ChaCha20:          SSE2, SSSE3, AVX2, AVX512, NEON - chosen at runtime
 SPECK:             SSE2, SSSE3, AVX2, AVX512, (NEON) - chosen at runtime
 Twofish:           AVX512 (VBMI, GFNI; decryption) - chosen at runtime
+FEC (GF(2^8)):     SSSE3, GFNI, AVX2, AVX512, NEON - chosen at runtime
 Random Numbers:    RDSEED, RDRND (not faster but more random seed)
 ```
 
@@ -206,15 +207,20 @@ there are VBMI and GFNI too.  `n3n-edge help transform` names the one
 taken and those there are, and `n3n-edge test benchmark speck_encr
 aes_encr cc20_encr` (and `_decr`, and `tf_decr`) measures each of them,
 slowest first.  `community.cipher = AES/plain C` asks for
-one of them instead (see [Options](../configure/Options.md)).  On Windows,
+one of them instead (see [Options](../configure/Options.md)).  The same
+holds for the arithmetic of the forward error correction (see
+[FEC](../advanced/FEC.md#the-arithmetic)), measured by `n3n-edge test
+benchmark fec_repair`; its variants all give the same, so there is
+nothing to choose.  On Windows,
 AVX2 and AVX-512 are left out: GCC does not align its stack there for
 their vectors (GCC bug 54412).
 
 ## ARM
 
-On aarch64, NEON is always there, and ChaCha20 uses it without further
-ado (OpenSSL's, where built with it).  On 32 bit ARM it needs to be asked
-for, e.g. with `-mfpu=neon`.
+On aarch64, NEON is always there, and ChaCha20 and the forward error
+correction use it without further ado (ChaCha20 OpenSSL's, where built
+with it).  On 32 bit ARM it needs to be asked for, e.g. with
+`-mfpu=neon`.
 
 AES uses the AES instructions of ARMv8 (the Cryptography Extension) where
 the CPU has them: on aarch64 they are built in any case and taken when the

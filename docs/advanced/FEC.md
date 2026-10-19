@@ -144,5 +144,38 @@ with a Cauchy matrix for the repairs, its first row all ones (the first
 repair is the XOR of the frames).  What is coded of each frame is its
 length (16 bits) and the frame, padded with zeros to the longest of the
 group.  See `src/fec.h` and `src/gf256.h`, and the
-[Roadmap](../develop/Roadmap.md) for what is to come (SIMD for the
-arithmetic, losses in bursts, backing off under congestion).
+[Roadmap](../develop/Roadmap.md) for what is to come (losses in bursts,
+backing off under congestion).
+
+## The arithmetic
+
+Making a repair, and undoing a frame, is the same work: each byte of k
+frames multiplied in GF(2^8) and added up.  It has variants, chosen at
+runtime as the ciphers' are - the fastest one the CPU has:
+
+- plain C: a table of products, a byte at a time
+- SSSE3, AVX2, AVX-512, NEON: the products of the two halves of a
+  byte, looked up 16, 32 or 64 bytes at a time
+- GFNI, with SSE, AVX2 or AVX-512: the CPU multiplies in GF(2^8) itself,
+  with AES's polynomial - which is why it is ours (Intel from Ice Lake
+  and the Atoms from Tremont, AMD from Zen 4)
+
+They all give the same, byte for byte, so edges with different ones
+understand each other.  `n3n-edge test benchmark fec_repair` measures
+each of them, making a repair of 8 frames of 512 bytes:
+
+| variant | MB/s of frames | a repair takes |
+|---|---|---|
+| plain C | about 1,000 | 4 µs |
+| SSSE3 | 10,000 | 0.4 µs |
+| GFNI | 15,000 | 0.3 µs |
+| AVX2 | 17,000 | 0.25 µs |
+| AVX-512 | 24,000 | 0.17 µs |
+| GFNI/AVX2 | 32,000 | 0.13 µs |
+| GFNI/AVX-512 | 36,000 | 0.11 µs |
+
+(a Xeon of the Sapphire Rapids kind at 2.1 GHz, shared, so give or take
+a quarter).  The sender multiplies each frame into each of its group's m
+repairs: at 1 Gbit/s and 5 repairs a group, that is 625 MB/s - more than
+half a core in plain C, a few percent with GFNI.  The receiver works only
+where a frame is lost.

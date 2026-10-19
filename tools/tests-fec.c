@@ -237,6 +237,48 @@ static int test_gf (void) {
 }
 
 
+// Every variant of gf256_muladd() this CPU has, as plain C byte by byte:
+// for every c, lengths around their vectors' and a symbol's, at any
+// alignment - and not a byte before or after touched
+static int test_variants (void) {
+
+    const struct gf256_impl *impl[16];
+    static const size_t lens[] = { 0, 1, 2, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 129, 514, N3N_FEC_SYMBOL_MAX };
+    uint8_t src[N3N_FEC_SYMBOL_MAX + 8], dst[N3N_FEC_SYMBOL_MAX + 16], want[sizeof(dst)];
+    uint32_t r = 1;
+    int failed = 0;
+    int n = gf256_impls(impl, 16);
+
+    for(size_t i = 0; i < sizeof(src); i++) {
+        r = r * 1103515245 + 12345;
+        src[i] = (uint8_t)(r >> 16);
+    }
+    for(int v = 0; v < n; v++) {
+        for(int c = 0; c < 256; c++) {
+            for(size_t l = 0; l < sizeof(lens) / sizeof(lens[0]); l++) {
+                size_t len = lens[l];
+                size_t so = (size_t)c % 4, d = 4 + (size_t)c % 3;
+
+                for(size_t i = 0; i < sizeof(dst); i++) {
+                    dst[i] = want[i] = (uint8_t)(i * 7 + c);
+                }
+                for(size_t i = 0; i < len; i++) {
+                    want[d + i] ^= gf256_mul((uint8_t)c, src[so + i]);
+                }
+                impl[v]->muladd(dst + d, src + so, (uint8_t)c, len);
+                if(memcmp(dst, want, sizeof(dst))) {
+                    printf("gf256 variant %s: wrong for c %d, len %zu\n", impl[v]->name, c, len);
+                    failed = 1;
+                }
+            }
+        }
+    }
+    // what the CPU has differs, so not which ones
+    printf("%-26s %s\n", "gf256 variants", failed ? "FAIL" : "ok");
+    return failed;
+}
+
+
 // The repairs a group gets, by its size and the loss
 static void show_m (void) {
 
@@ -496,6 +538,7 @@ int main (int argc, char * argv[]) {
     int failed = 0;
 
     failed |= test_gf();
+    failed |= test_variants();
     show_m();
 
     // voice (a frame each 20 ms, groups of 1, its repair riding along with

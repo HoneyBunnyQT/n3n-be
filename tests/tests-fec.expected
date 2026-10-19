@@ -1,4 +1,5 @@
 gf256                      ok
+gf256 variants             ok
 m by k (rows) and loss % (columns):
         0   1   2   5  10  20  50
    1    0   1   1   1   1   1   1

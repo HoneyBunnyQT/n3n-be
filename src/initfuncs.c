@@ -10,6 +10,7 @@ void n3n_initfuncs_benchmark_basics ();
 void n3n_initfuncs_benchmark_packet ();
 void n3n_initfuncs_conffile_defs ();
 void n3n_initfuncs_curve25519 ();
+void n3n_initfuncs_gf256 ();
 void n3n_initfuncs_mainloop ();
 void n3n_initfuncs_metrics ();
 void n3n_initfuncs_pearson ();
@@ -43,6 +44,7 @@ void n3n_initfuncs () {
     n3n_initfuncs_benchmark_packet();
     n3n_initfuncs_conffile_defs();
     n3n_initfuncs_curve25519();
+    n3n_initfuncs_gf256();
     n3n_initfuncs_mainloop();
     n3n_initfuncs_metrics();
     n3n_initfuncs_pearson();
