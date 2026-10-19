@@ -192,6 +192,22 @@ report.
             freed with the peer; a scratch frame per thread.  GF(2^8)
             multiply-add with tables ~1 cycle/byte, with PSHUFB/NEON
             nibble tables a tenth of it (ISA-L, klauspost/reedsolomon)
+      - [ ] Decided (2026-10-19): repair as PACKETs of their own (a
+            repair is as long as the group's longest frame: no room in a
+            full one), riding on the next data PACKET where it fits -
+            which is phase 1's copy, RS with k=1 piggybacked, so scheme 2
+            goes once that works; one code path.  GF(2^8) with the
+            polynomial 0x11B, AES's, so that GFNI (gf2p8mulb) can do it;
+            plain C first (a 256-byte row of the multiplication table per
+            coefficient), then SSSE3/AVX2 PSHUFB, NEON and GFNI as
+            variants chosen at run time like the ciphers', checked
+            against plain C in tests-fec and `n3n-edge test`
+      - [ ] One loss measure: the receiver's count of the seqs (one way,
+            the path in use, the data itself) beside the probes' (round
+            trip, direct path only, about both ways added); the receiver
+            tells raw loss (for m) and what stayed lost after decoding
+            (whether m was enough - closing the loop where losses come in
+            bursts); p2p_max_loss may take the data's loss while direct
       - [ ] The adaption: k from the rate and T, m such that losing more
             than m of k+m stays below a target (0.1 %; binomial for
             independent losses, Gilbert-Elliott where they come in bursts
@@ -219,6 +235,13 @@ report.
             probes' `loss` of the direct path
       - [ ] Not against congestion loss, which more bytes make worse:
             cap the copies (a share of what goes to the peer)
+- [ ] A supernode answers an edge's REGISTER_SUPER at once - with the
+      header keys, with user/password - and passes it on to the
+      federation: a user deleted at one supernode is refused everywhere,
+      but keeps getting the keys from one that still has it, and peers
+      that know its edges still reach them (found with netns
+      `userpw-lockout`, 2026-10-19; documented).  Hand out the keys only
+      once no other supernode refused, or let a refusal rotate them
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while
