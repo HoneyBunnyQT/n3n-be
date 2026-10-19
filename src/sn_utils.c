@@ -353,14 +353,15 @@ int load_allowed_sn_community (struct n3n_runtime_data *sss) {
             continue;
         }
 
+        // remove all edge associations (with other supernodes) - also of
+        // a community with no edge here
+        HASH_ITER(hh, comm->assoc, assoc, tmp_assoc) {
+            HASH_DEL(comm->assoc, assoc);
+            free(assoc);
+        }
+
         // remove all edges from community
         HASH_ITER(hh, comm->edges, edge, tmp_edge) {
-            // remove all edge associations (with other supernodes)
-            HASH_ITER(hh, comm->assoc, assoc, tmp_assoc) {
-                HASH_DEL(comm->assoc, assoc);
-                free(assoc);
-            }
-
             // close TCP connections, if any (also causes reconnect)
             // and delete edge from list
             remove_edge(sss, comm, edge);
