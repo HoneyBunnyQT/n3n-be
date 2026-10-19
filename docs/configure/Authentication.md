@@ -109,7 +109,8 @@ user out (evilrabbit, or a stolen laptop), delete it.  Then `n3nctl reload`
 again; `n3nctl reload_communities` reads only the file.  A reload also
 changes the community's header keys, which every edge then gets anew from
 its supernode - but a locked out one gets none: it cannot reach the other
-edges directly any more either.
+edges directly any more either, once it is out at every supernode (see
+below).
 
 With several supernodes, each needs the same users: there is no syncing
 built in, so copy the configuration or the file to all of them
@@ -118,11 +119,15 @@ do not agree, and the stricter one wins: a supernode passes each
 registration on to the others of its federation, and drops the edge when
 one of them refuses it.  So
 
-- a user deleted at one supernode is out at all of them at once - its
-  edges log `authentication error, username or password not recognized by
-  another supernode of the federation` - but only while that supernode is
-  up and in the federation: delete the user everywhere, the others need
-  not follow at once;
+- a user deleted at one supernode is refused at all of them at once -
+  its edges log `authentication error, username or password not
+  recognized by another supernode of the federation`, no supernode relays
+  for them or tells peers about them - but only while that supernode is
+  up and in the federation.  And not quite out: a supernode that still
+  has the user answers its edges' registrations at once, with the header
+  keys, before the refusal comes back, so a peer that already knows such
+  an edge can still reach it directly.  Delete the user everywhere: that
+  cuts it off;
 - a new user, or a new password, has to be at every supernode before the
   user's edges come with it: one that does not know it refuses them for
   all.

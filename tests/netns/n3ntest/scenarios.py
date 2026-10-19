@@ -522,7 +522,8 @@ SCENARIOS = [
         "user/password, a at sn1, b at sn2; then user b's line goes from "
         "sn1's community file only, and sn1 reloads: b is refused all over "
         "the federation (sn2 passes sn1's refusal of b's forwarded "
-        "registration on); then the line comes back, and b gets in",
+        "registration on); then from sn2's too: b is cut off from a; then "
+        "the line comes back, and b gets in",
         Site(["easy-kept"], supernodes=["sn1"]),
         Site(["easy-changed"], supernodes=["sn2"]),
         "direct", auth="userpw", lockout=("sn1",),

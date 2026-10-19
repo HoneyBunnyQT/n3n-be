@@ -1763,7 +1763,7 @@ class Run:
         for name in names:
             sn = self.supernodes[name]
             path = sn["community_file"]
-            if not back:
+            if "community_lines" not in sn:
                 with open(path) as f:
                     sn["community_lines"] = f.read().splitlines(True)
             lines = sn["community_lines"]
@@ -1775,7 +1775,8 @@ class Run:
             sn["daemon"].proc.send_signal(signal.SIGHUP)
 
     def lockout_phase(self):
-        """sc.lockout: user b deleted at those supernodes, then back"""
+        """sc.lockout: user b deleted at those supernodes, then at the
+        others too, then back at all"""
         b = self.edges["b"]
         interval = self.st.register_interval
         self._user_b(self.sc.lockout, back=False)
@@ -1798,9 +1799,13 @@ class Run:
                        entries, took))
         a_at = self._sn_entries(self.edges["a"]["mac"])
         self.check("lockout: a stays", bool(a_at), "a at {}".format(a_at))
-        # the header keys changed with the reload: b, which is to get the
-        # new ones from no supernode, cannot reach a directly either - once
-        # a has them, at its next registration at sn1
+        # The supernodes that still have the user answer b's registrations
+        # first - with the header keys - and pass them on, so b keeps the
+        # keys, and a peer that knows it can still reach it directly.
+        # Gone from all of them, it gets the keys from none: cut off, once
+        # a has the new ones from its next registration
+        rest = sorted(n for n in self.supernodes if n not in self.sc.lockout)
+        self._user_b(rest, back=False)
         t = time.monotonic()
         got = None
 
@@ -1810,9 +1815,10 @@ class Run:
             return got == 0 or None
         wait_for(cut_off, 10 + 3 * interval, interval=0.5)
         self.check("lockout: cut off", got == 0,
-                   "{} of 3 pings from a to b answered, {}s after".format(
+                   "out at all supernodes: {} of 3 pings from a to b "
+                   "answered, {}s after".format(
                        got, round(time.monotonic() - t, 1)))
-        self._user_b(self.sc.lockout, back=True)
+        self._user_b(sorted(self.supernodes), back=True)
         t = time.monotonic()
         ok = wait_for(lambda: bool(self._sn_entries(b["mac"])) or None,
                       30 + 6 * interval, interval=0.5)
