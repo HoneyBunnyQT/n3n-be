@@ -219,7 +219,7 @@ direct path however bad it gets.
 Nothing of it is on the wire: the probes are REGISTERs, which every
 version of n3n and n2n answers.  The way through the supernode is not
 measured itself; where the loss is on the edge's own line, it loses there
-too.
+too - for that, see [Forward Error Correction](FEC.md).
 
 ## Federation
 

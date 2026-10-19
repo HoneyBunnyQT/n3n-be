@@ -30,6 +30,7 @@ nav:
   - Advanced Topics:
       - Overview: advanced/index.md
       - NAT Traversal: advanced/NatTraversal.md
+      - Forward Error Correction: advanced/FEC.md
       - Threads: advanced/Threads.md
       - Routing: advanced/Routing.md
       - Bridging: advanced/Bridging.md

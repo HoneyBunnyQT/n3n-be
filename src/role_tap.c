@@ -27,6 +27,7 @@
 
 #include "config.h"
 #include "edge_utils.h"
+#include "fec.h"              // for n3n_fec_wrap, n3n_fec_unwrap
 #include "header_encryption.h"
 #include "ipv6.h"              // for n3n_ipv6_address
 #include "minmax.h"
@@ -198,7 +199,6 @@ static int tap_deliver (struct n3n_runtime_data *eee,
     ssize_t data_sent_len;
     ipstr_t ip_buf;
 
-
     if(is_link_local_frame(eth_payload, eth_size)) {
         traceEvent(TRACE_INFO, "dropping RX link-local frame");
         STATS_INC(eee, rx_multicast_drop);
@@ -319,7 +319,9 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
     size_t eth_size;
 
     n2n_transform_t rx_transop_id = (n2n_transform_t)pkt->transform;
-    uint8_t rx_compression_id = pkt->compression;
+    // the upper half says the FEC scheme, see fec.h
+    uint8_t rx_compression_id = N3N_FEC_COMPRESSION(pkt->compression);
+    uint8_t fec_scheme = N3N_FEC_SCHEME(pkt->compression);
 
     if(rx_transop_id != eee->conf.community.transop_id) {
         traceEvent(
@@ -349,6 +351,11 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
     }
     eth_size = decoded;
 
+    if(fec_scheme > N3N_FEC_SCHEME_MAX) {
+        traceEvent(TRACE_WARNING, "decompression: failed: unsupported %i", pkt->compression);
+        return -1;
+    }
+
     /* decompress if necessary */
     size_t deflate_len;
 
@@ -373,7 +380,7 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
             traceEvent(
                 TRACE_WARNING,
                 "decompression: failed: unsupported %i",
-                rx_compression_id
+                pkt->compression
             );
             return(-1); // cannot handle it
     }
@@ -394,6 +401,30 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
         );
         eth_payload = deflate_buf;
         eth_size = deflate_len;
+    }
+
+    if(fec_scheme != N3N_FEC_NONE) {
+        struct n3n_fec_frames f;
+
+        if(n3n_fec_unwrap(eee->client.fec, fec_scheme, pkt->srcMac,
+                          eth_payload, eth_size, n3n_monotonic_us(), &f) < 0) {
+            traceEvent(TRACE_INFO, "dropped a PACKET from %s with a broken FEC trailer",
+                       macaddr_str(mac_buf, pkt->srcMac));
+            return -1;
+        }
+        while(f.lost--) {
+            STATS_INC(eee, rx_fec_lost);
+        }
+        if(f.copy) {
+            // the frame before, lost on the way
+            STATS_INC(eee, rx_fec_copy);
+            tap_deliver(eee, pkt, orig_sender, f.copy, f.copy_len, now);
+        }
+        if(!f.frame) {
+            // came already, from a copy
+            return 0;
+        }
+        eth_size = f.frame_len;
     }
 
     return tap_deliver(eee, pkt, orig_sender, eth_payload, eth_size, now);
@@ -595,13 +626,16 @@ static int send_packet (struct n3n_runtime_data * eee,
  *
  * Returns the length of that header, or 0 if the frame is not to be sent. On
  * success, *enc_src and *enc_len say what the transform has to encode: the
- * frame itself, or compression_buf if it was worth compressing.
+ * frame itself, or with forward error correction the frame and its trailer
+ * in fec_buf, or compression_buf if that was worth compressing.  fec_buf
+ * and compression_buf have compression_buf_size bytes.
  */
 static inline __attribute__((always_inline))
 size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
                                 uint8_t *tap_pkt, size_t len,
                                 uint8_t *pktbuf,
                                 n2n_mac_t out_destMac,
+                                uint8_t *fec_buf,
                                 uint8_t *compression_buf,
                                 size_t compression_buf_size,
                                 const uint8_t **enc_src,
@@ -672,8 +706,28 @@ size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
     // compression needs to be tried before encode_PACKET is called for compression indication gets encoded there
     pkt.compression = N2N_COMPRESSION_ID_NONE;
 
+    // forward error correction first, to a peer: the compression takes
+    // the copy in too, and the sequence number
+    int fec_scheme = N3N_FEC_NONE;
+    if(eee->conf.community.fec && !is_multi_broadcast(out_destMac)) {
+        size_t fec_len;
+
+        fec_scheme = n3n_fec_wrap(eee->client.fec, eee->conf.community.fec, out_destMac,
+                                  tap_pkt, len, fec_buf, compression_buf_size, &fec_len,
+                                  n3n_monotonic_us());
+        if(fec_scheme != N3N_FEC_NONE) {
+            if(fec_scheme == N3N_FEC_REPEAT) {
+                STATS_INC(eee, tx_fec_copy);
+            }
+            tap_pkt = fec_buf;
+            len = fec_len;
+            *enc_src = tap_pkt;
+            *enc_len = len;
+        }
+    }
+
     if(eee->conf.community.compression) {
-        int32_t compression_len;
+        int32_t compression_len = 0;
 
         switch(eee->conf.community.compression) {
             case N2N_COMPRESSION_ID_LZO:
@@ -712,6 +766,8 @@ size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
             *enc_len = compression_len;
         }
     }
+
+    pkt.compression = N3N_FEC_BYTE(fec_scheme, pkt.compression);
 
     idx = 0;
     encode_PACKET(pktbuf, &idx, &cmn, &pkt);
@@ -763,6 +819,7 @@ size_t edge_encode_packet (struct n3n_runtime_data *eee,
                            uint8_t *pktbuf, size_t pktbuf_size,
                            n2n_mac_t out_destMac) {
 
+    uint8_t fec_buf[N2N_PKT_BUF_SIZE];
     uint8_t compression_buf[N2N_PKT_BUF_SIZE];
     const uint8_t *enc_src;
     size_t enc_len;
@@ -770,7 +827,7 @@ size_t edge_encode_packet (struct n3n_runtime_data *eee,
     size_t idx;
 
     headerIdx = edge_encode_packet_head(eee, tap_pkt, len, pktbuf, out_destMac,
-                                        compression_buf, sizeof(compression_buf),
+                                        fec_buf, compression_buf, sizeof(compression_buf),
                                         &enc_src, &enc_len);
     if(!headerIdx) {
         return 0;
@@ -1012,6 +1069,7 @@ struct edge_tx_batch {
     int count;
     struct edge_tx_slot {
         uint8_t frame[N2N_PKT_BUF_SIZE];     /* as read from the tap device */
+        uint8_t fec[N2N_PKT_BUF_SIZE];       /* the frame with its FEC trailer, if it gets one */
         uint8_t comp[N2N_PKT_BUF_SIZE];      /* the frame compressed, if that paid off */
         uint8_t pdu[N2N_PKT_BUF_SIZE];       /* header and transformed payload */
         size_t len;                          /* of the frame */
@@ -1113,7 +1171,7 @@ int edge_read_from_tap_batch (struct n3n_runtime_data * eee, int max) {
         }
 
         s->head = edge_encode_packet_head(eee, s->frame, s->len, s->pdu, s->dest,
-                                          s->comp, sizeof(s->comp),
+                                          s->fec, s->comp, sizeof(s->comp),
                                           &enc_src, &enc_len);
         if(!s->head) {
             continue;

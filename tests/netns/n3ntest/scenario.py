@@ -195,7 +195,8 @@ class Scenario:
                  direct_ok=None, sn_peer_family=4, sn_start_gap=0,
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
-                 multicast=False, lossy=0, spoof=False, lockout=False):
+                 multicast=False, lossy=0, spoof=False, lockout=False,
+                 fec_loss=0):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -227,6 +228,11 @@ class Scenario:
         # (at site a): the edges are to send through the supernode, and
         # once the loss stops, directly again (connection.p2p_max_loss)
         self.lossy = lossy
+        # After the warm-up, the direct path between the edges loses this
+        # many percent each way (at site a), and the edges stay on it: of
+        # pings over it, with community.fec in conf, those lost alone are
+        # undone by the copy in the next PACKET, see fec_phase()
+        self.fec_loss = fec_loss
         # After the warm-up, another edge of a user of the community (b's,
         # with b's password) comes up with a's MAC: the supernodes are to
         # refuse it, and to keep a where it is (auth="userpw")
@@ -1675,6 +1681,60 @@ class Run:
             for p in trickle:
                 p.stop()
 
+    def _fec_stats(self, name):
+        """An edge's FEC counters: copies sent, frames undone from
+        copies, PACKETs found lost"""
+        rows = self.edges[name]["daemon"].mgmt.try_call("get_packetstats")
+        out = {"sent": 0, "undone": 0, "lost": 0}
+        for row in rows or []:
+            if row.get("type") == "fec_copy":
+                out["sent"] = row.get("tx_pkt", 0)
+                out["undone"] = row.get("rx_pkt", 0)
+            elif row.get("type") == "fec_lost":
+                out["lost"] = row.get("rx_pkt", 0)
+        return out
+
+    def fec_phase(self):
+        """The direct path between a and b loses sc.fec_loss percent each
+        way, and the edges stay on it: pings from a to b, small frames, are
+        to be lost only where two in a row are (community.fec auto: once
+        the edges see the loss, a copy of each goes with the next)"""
+        _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+        peer = (row or {}).get("sockaddr", "").rsplit(":", 1)[0]
+        if not peer or ":" in peer:
+            return self.check("fec", False, "no IPv4 address of b at a "
+                              "({!r})".format(peer))
+        count = 400
+        self.lab.nft(self.edges["a"]["ns"],
+                     LOSSY.format(peer=peer, pct=self.sc.fec_loss), "lossy")
+        try:
+            # for the edges to see the loss and tell each other
+            self._ping("a", "b", count=40, interval=0.05)
+            before = {n: self._fec_stats(n) for n in ("a", "b")}
+            got = self._ping("a", "b", count=count, interval=0.02)
+            after = {n: self._fec_stats(n) for n in ("a", "b")}
+        finally:
+            run(["nft", "delete", "table", "inet", "lossy"],
+                ns=self.edges["a"]["ns"])
+        stats = {n: {k: after[n][k] - before[n][k] for k in after[n]}
+                 for n in after}
+        # without: (1 - loss)^2 of them answered, about 81% at 10%; with,
+        # a request or answer is lost only with the one after it, some 2%
+        # (1-5% seen): a third of what is lost without, at most
+        alone = (1 - self.sc.fec_loss / 100) ** 2
+        want = 1 - (1 - alone) / 3
+        self.result["fec"] = {"answered": got, "of": count,
+                              "without": round(100 * alone), "edges": stats}
+        self.check("fec", got >= want * count and stats["a"]["undone"]
+                   and stats["b"]["undone"],
+                   "{} of {} pings answered (without FEC some {}%), "
+                   "undone a {undone_a}/lost {lost_a}, b {undone_b}/{lost_b}"
+                   .format(got, count, round(100 * alone),
+                           undone_a=stats["a"]["undone"],
+                           lost_a=stats["a"]["lost"],
+                           undone_b=stats["b"]["undone"],
+                           lost_b=stats["b"]["lost"]))
+
     def _sn_entries(self, mac):
         """{supernode: the address its entry for the MAC has}"""
         out = {}
@@ -1684,13 +1744,14 @@ class Run:
                     out[name] = row.get("sockaddr")
         return out
 
-    def _ping(self, src, dst, count=3):
+    def _ping(self, src, dst, count=3, interval=0.3):
         """Pings over the tunnel from src to dst's overlay address: how
         many were answered"""
         p = subprocess.run(["ip", "netns", "exec", self.edges[src]["ns"],
-                            "ping", "-c", str(count), "-i", "0.3", "-W", "1",
-                            self.edges[dst]["overlay"]],
-                           capture_output=True, text=True, timeout=30)
+                            "ping", "-c", str(count), "-i", str(interval),
+                            "-W", "1", self.edges[dst]["overlay"]],
+                           capture_output=True, text=True,
+                           timeout=30 + count * interval)
         for line in p.stdout.splitlines():
             if " received" in line:
                 return int(line.split(",")[1].split()[0])
@@ -2171,6 +2232,8 @@ class Run:
                 self.udp_lost_phase()
             if self.sc.lossy and self.check_alive("warm-up"):
                 self.lossy_phase()
+            if self.sc.fec_loss and self.check_alive("warm-up"):
+                self.fec_phase()
             if self.sc.spoof and self.check_alive("warm-up"):
                 self.spoof_phase()
             if self.sc.lockout and self.check_alive("warm-up"):

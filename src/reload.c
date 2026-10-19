@@ -46,6 +46,7 @@ static volatile sig_atomic_t requested;
 // What can change while running: set on the running configuration by its
 // option, some with more to do, see apply()
 static const char *const live_options[] = {
+    "community.fec",
     "community.supernode",
     "connection.allow_p2p",
     "connection.description",

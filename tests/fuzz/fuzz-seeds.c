@@ -16,6 +16,7 @@
 #include <string.h>              // for memset, memcpy, strncpy
 #include <sys/stat.h>            // for mkdir
 #include "config.h"              // for HAVE_LIBZSTD
+#include "fec.h"                 // for n3n_fec_wrap
 #include "fuzz.h"
 #include "header_encryption.h"   // for packet_header_encrypt, packet_header_setup_key
 #include "n2n.h"                 // for the message structs, transops
@@ -337,6 +338,19 @@ static void transops (void) {
         }
         ops[i].deinit(&ops[i]);
     }
+
+    // the forward error correction's trailers: a small frame with its
+    // seq, then the next with a copy of it
+    struct n3n_fec *fec = n3n_fec_new();
+    for(i = 0; i < 2; i++) {
+        size_t n;
+        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_ALWAYS, mac, in, 100,
+                                  out + 1, sizeof(out) - 1, &n, 1000000 * (i + 1));
+
+        out[0] = 0xf0 | scheme;
+        put("transop", scheme == N3N_FEC_REPEAT ? "fec-repeat" : "fec-seq", out, n + 1);
+    }
+    n3n_fec_free(fec);
 }
 
 // Requests to the management interface, for the mgmt target: a byte for

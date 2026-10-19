@@ -45,6 +45,7 @@
 #include "auth.h"                    // for generate_private_key, generate_shared_secret, ...
 #include "config.h"                  // for HAVE_LIBZSTD
 #include "edge_utils.h"
+#include "fec.h"                     // for n3n_fec_new, n3n_fec_free
 #include "header_encryption.h"       // for packet_header_encrypt, packet_he...
 #include "management.h"              // for mgmt_event_post
 #include "n2n_wire.h"                // for fill_sockaddr, decod...
@@ -146,6 +147,21 @@ static struct n3n_metrics_items_llu32 edge_utils_metrics_items2 = {
             .val1 = "rx",
             .val2 = "multicast_drop",
             .offset = offsetof(struct n2n_edge_stats, rx_multicast_drop),
+        },
+        {
+            .val1 = "tx",
+            .val2 = "fec_copy",
+            .offset = offsetof(struct n2n_edge_stats, tx_fec_copy),
+        },
+        {
+            .val1 = "rx",
+            .val2 = "fec_copy",
+            .offset = offsetof(struct n2n_edge_stats, rx_fec_copy),
+        },
+        {
+            .val1 = "rx",
+            .val2 = "fec_lost",
+            .offset = offsetof(struct n2n_edge_stats, rx_fec_lost),
         },
         { },
     },
@@ -625,6 +641,14 @@ struct n3n_runtime_data* edge_init (const n2n_edge_conf_t *conf, int *rv) {
     rc = n2n_transop_zstd_init(&eee->conf, &eee->client.transop_zstd);
     if(rc) goto edge_init_error; /* error message is printed in zstd_init */
 #endif
+
+    // forward error correction is read always, as the compressions
+    eee->client.fec = n3n_fec_new();
+    if(!eee->client.fec) {
+        traceEvent(TRACE_ERROR, "cannot allocate memory");
+        rc = -1;
+        goto edge_init_error;
+    }
 
     /* Set active transop */
     switch(transop_id) {
@@ -1741,6 +1765,7 @@ void edge_term (struct n3n_runtime_data * eee) {
     }
 #endif
 
+    n3n_fec_free(eee->client.fec);
     eee->client.transop.deinit(&eee->client.transop);
     eee->client.transop_lzo.deinit(&eee->client.transop_lzo);
 #ifdef HAVE_LIBZSTD

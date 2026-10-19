@@ -147,32 +147,45 @@ report.
       scenario `userpw-spoof`; on `fixes` too (2026-10-19)
 - [ ] FEC for a lossy line of the edge's own, where the supernode's way
       loses as much as the direct one (and TCP would only turn losses
-      into stalls) - n2n#186, n42n/n3n#22, never concluded.  Worth it
-      now that the loss to each peer is measured (`p2p_max_loss`'s
-      probes): even TCP inside the tunnel gains, as it reads loss as
-      congestion (1 % at 100 ms caps a flow at a few Mbit/s).  As a
-      compression ID (idea of 2026-10-19): the PACKET's compression byte
-      already says per packet how its payload is to be undone, the
-      compressions get the peer's MAC (state per peer), and zstd sets the
-      precedent that a peer has to know the ID (an old one drops such
-      PACKETs, "decompression: unsupported"), so no new packet type and
-      nothing else on the wire.  One packet in, one out, but with state
-      it reaches across packets:
-      - redundancy (RFC 2198): a small frame carries the one before it
-        too; any single loss undone a packet later (20 ms for voice), the
-        size doubled - for VoIP and games
-      - XOR parity in slices: the parity of a group of k frames, cut in
-        k slices, rides on the next group's packets, 1/k bigger each;
-        one loss a group undone, a group later - for bulk
-      - the receiver keeps a short window per peer (hashes of what came)
-        to tell what is missing and drop what came twice
-      Loss-adaptive by peer: none up to a percent or so, redundancy for
-      small frames, k smaller as the loss grows; the sender picks per
-      packet, the ID tells the receiver.  Enabled per community, all of
-      whose edges then have to know it (as with zstd), or later found out
-      per peer.  The inner compression (LZO, zstd) goes into the trailer.
-      Not against congestion loss, which more bytes make worse: the
-      measured loss decides, capped.  An idea, to decide on
+      into stalls) - n2n#186, n42n/n3n#22, never concluded.  Even TCP
+      inside the tunnel gains, as it reads loss as congestion (1 % at
+      100 ms caps a flow at a few Mbit/s).  Under development on main:
+      free to change, wire format included, until a release has it.
+      - [x] Phase 1 (2026-10-19): the upper half of the PACKET's
+            compression byte is the FEC scheme, chosen per frame, the
+            lower half the compression as before - not a compression ID
+            of its own, so that a scheme goes with any compression, and
+            the compression takes the copy in too.  An old edge drops
+            such PACKETs ("unsupported"), so `community.fec` is for all
+            edges of a community at once, as zstd.  Scheme 1 is a
+            trailer of seq (16 bits, per pair of edges) and the loss the
+            sender sees of the peer's PACKETs (EWMA over the receiver's
+            window of 64, told back in percent); scheme 2 adds a copy of
+            the frame before, for frames up to 400 bytes (RFC 2198 style):
+            one lost alone is undone a packet later.  `auto` sends copies
+            while the peer tells of 1 % or more, `always` always.  The
+            window drops what came twice; three such in a row is a peer
+            started anew just below its old seq.  src/fec.c, tests-fec,
+            fuzz-transop (0xf0 + scheme), netns `fec-lossy(-threads)`:
+            10 % each way, 97-98 % of pings answered, 82 % without.
+            docs/advanced/FEC.md
+      - [ ] Phase 2: the big frames - XOR parity in slices: the parity
+            of a group of k frames, cut in k slices, rides on the next
+            group's PACKETs, 1/k bigger each; one loss a group undone, a
+            group later.  Or Reed-Solomon over a group for more than one;
+            k smaller as the loss grows.  Its own scheme, next to 2:
+            small frames keep their copies, the sender picks by size and
+            measured loss
+      - [ ] Edges that do not tell (one-way traffic, or `none` on the
+            other side) leave `auto` without a loss to go by: take the
+            probes' loss of the direct path (`p2p_max_loss`'s) then
+      - [ ] Per peer instead of per community: an edge that learns a
+            peer reads FEC (a flag in its REGISTER, or from a PACKET of a
+            scheme) sends it to that one only - mixed communities
+      - [ ] The loss per peer in `get_edges` and on the page, beside the
+            probes' `loss` of the direct path
+      - [ ] Not against congestion loss, which more bytes make worse:
+            cap the copies (a share of what goes to the peer)
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while
@@ -738,6 +751,14 @@ while `main` keeps getting what does not touch the wire, merged into
   all, it comes in by `git cherry-pick -x`, with its author, as upstream's
   maintainer asked - and only where its licence allows (see above).
   Fixes of ours that help upstream still go to `fixes`, as before.
+- 2026-10-19: forward error correction goes in the upper half of the
+  PACKET's compression byte, not in compression IDs of its own: it is a
+  layer under the compression (which takes the copies in too), each
+  scheme goes with each compression, and a PACKET without stays v3 to the
+  bit.  The cost: compression IDs above 15 are gone, which nobody uses.
+  Old edges drop such PACKETs as any unknown compression, hence the
+  setting per community.  Developed on main, open to change until a
+  release has it.
 
 ## Scratchpad
 

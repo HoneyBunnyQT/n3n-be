@@ -3,16 +3,19 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Fuzz target: the payload of a PACKET as the transforms take it apart -
- * the ciphers' and the compressions' rev().  The first byte picks the
- * transform, the rest is its input.  See README.md.
+ * the ciphers' and the compressions' rev(), and the forward error
+ * correction's trailer.  The first byte picks the transform, or from 0xf0
+ * on the FEC scheme in its lower half (of one peer, whose state goes on
+ * from input to input); the rest is its input.  See README.md.
  */
 
 #include <n3n/edge.h>        // for edge_init_conf_defaults
 #include <n3n/initfuncs.h>   // for n3n_initfuncs
 #include <n3n/logging.h>     // for setTraceLevel
 #include <stdlib.h>          // for strdup
-#include <string.h>          // for strncpy
+#include <string.h>          // for strncpy, memcpy
 #include "config.h"          // for HAVE_LIBZSTD
+#include "fec.h"             // for n3n_fec_unwrap
 #include "fuzz.h"
 #include "n2n.h"             // for n2n_transop_*_init, N2N_PKT_BUF_SIZE
 
@@ -26,6 +29,7 @@
 #define FUZZ_KEY "fuzz-secret"
 
 static n2n_trans_op_t ops[NOPS];
+static struct n3n_fec *fec;
 
 int LLVMFuzzerInitialize (int *argc, char ***argv) {
 
@@ -48,6 +52,7 @@ int LLVMFuzzerInitialize (int *argc, char ***argv) {
 #ifdef HAVE_LIBZSTD
     n2n_transop_zstd_init(&conf, &ops[6]);
 #endif
+    fec = n3n_fec_new();
     return 0;
 }
 
@@ -58,6 +63,18 @@ int LLVMFuzzerTestOneInput (const uint8_t *data, size_t size) {
     n2n_trans_op_t *op;
 
     if(size < 1) {
+        return 0;
+    }
+    if(data[0] >= 0xf0) {
+        struct n3n_fec_frames f;
+        static uint64_t now_us;
+
+        if(size - 1 > sizeof(out)) {
+            return 0;
+        }
+        memcpy(out, data + 1, size - 1);
+        now_us += 20000;
+        n3n_fec_unwrap(fec, data[0] & 0x0f, mac, out, size - 1, now_us, &f);
         return 0;
     }
     op = &ops[data[0] % NOPS];

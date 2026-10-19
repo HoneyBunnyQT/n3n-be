@@ -63,6 +63,14 @@ none, lzo, or zstd (only in a build with zstd; n3n-edge help transform lists tho
 
 Default: `none`
 
+### community.fec
+
+Forward error correction: frames lost undone.
+
+none, auto or always. With auto, a small frame (up to 400 bytes: voice, games, pings, TCP's acknowledgements) also goes in the next PACKET to the same peer, while that peer sees PACKETs lost - so one lost alone is undone at once. always sends the copies whatever the loss. The edges count the PACKETs from each other for that, and tell; every edge of the community needs to know it (n3n of 2026-10 on): one that does not drops such PACKETs. See docs/advanced/FEC.md
+
+Default: `none`
+
 ### community.header_encryption
 
 Enable header encryption.

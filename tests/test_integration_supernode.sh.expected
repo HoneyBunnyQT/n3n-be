@@ -54,6 +54,15 @@
         "type": "multicast_drop"
     },
     {
+        "rx_pkt": 0,
+        "tx_pkt": 0,
+        "type": "fec_copy"
+    },
+    {
+        "rx_pkt": 0,
+        "type": "fec_lost"
+    },
+    {
         "tx_pkt": 0,
         "type": "sn_fwd"
     },
@@ -102,6 +111,15 @@
         "rx_pkt": 0,
         "tx_pkt": 0,
         "type": "multicast_drop"
+    },
+    {
+        "rx_pkt": 0,
+        "tx_pkt": 0,
+        "type": "fec_copy"
+    },
+    {
+        "rx_pkt": 0,
+        "type": "fec_lost"
     },
     {
         "tx_pkt": 0,

@@ -50,3 +50,4 @@ tests-ipv6.exe
 tests-tun.exe
 tests-speck.exe
 tests-tf.exe
+tests-fec

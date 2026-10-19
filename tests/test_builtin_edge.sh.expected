@@ -7,6 +7,7 @@ OK
 [auth]
 
 [community]
+fec=none
 header_encryption=unknown
 network=0.0.0.0/0
 #supernode=
@@ -73,6 +74,7 @@ mtu=0
 [community]
 cipher=AES
 compression=none
+fec=none
 header_encryption=false
 key=secret1
 name=main
@@ -82,6 +84,7 @@ network=0.0.0.0/0
 [community home]
 cipher=null
 compression=none
+fec=none
 header_encryption=false
 key=secret2
 name=home
@@ -90,6 +93,7 @@ network=10.77.0.0/16
 [community lab-2.x]
 cipher=null
 compression=none
+fec=none
 header_encryption=true
 name=my-lab.net
 network=0.0.0.0/0
@@ -103,6 +107,7 @@ community_regex=lab[a-z]+
 [community]
 cipher=AES
 compression=none
+fec=none
 header_encryption=false
 key=secret1
 name=main
@@ -112,6 +117,7 @@ network=0.0.0.0/0
 [community home]
 cipher=null
 compression=none
+fec=none
 header_encryption=false
 key=secret2
 name=home
@@ -120,6 +126,7 @@ network=10.78.0.0/16
 [community lab-2.x]
 cipher=null
 compression=none
+fec=none
 header_encryption=true
 name=my-lab.net
 network=0.0.0.0/0
@@ -130,6 +137,7 @@ user=carol nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
 [community new.net]
 cipher=Speck
 compression=none
+fec=none
 header_encryption=false
 key=secret3
 name=new.net

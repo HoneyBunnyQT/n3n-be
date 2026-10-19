@@ -243,10 +243,12 @@ static void counters (strbuf_t **b, const struct n3n_runtime_data *rt, bool rela
                     "<tr><td>through the supernode</td><td class=num>%u</td><td class=num>%u</td></tr>\n"
                     "<tr><td>broadcast through the supernode</td><td class=num>%u</td><td class=num>%u</td></tr>\n"
                     "<tr><td>multicast dropped</td><td class=num>%u</td><td class=num>%u</td></tr>\n"
-                    "<tr><td>TAP device errors</td><td class=num>%u</td><td class=num></td></tr>\n",
+                    "<tr><td>TAP device errors</td><td class=num>%u</td><td class=num></td></tr>\n"
+                    "<tr><td>copies sent / lost ones undone (FEC)</td><td class=num>%u</td><td class=num>%u</td></tr>\n"
+                    "<tr><td>lost on the way here (FEC)</td><td class=num></td><td class=num>%u</td></tr>\n",
                     s.transop_tx, s.transop_rx, s.tx_p2p, s.rx_p2p, s.tx_sup, s.rx_sup,
                     s.tx_sup_broadcast, s.rx_sup_broadcast, s.tx_multicast_drop, s.rx_multicast_drop,
-                    s.tx_tuntap_error);
+                    s.tx_tuntap_error, s.tx_fec_copy, s.rx_fec_copy, s.rx_fec_lost);
     } else {
         sb_reprintf(b,
                     "<tr><td>relayed between edges</td><td class=num>%u</td><td class=num></td></tr>\n"

@@ -12,6 +12,7 @@
 #include <stdlib.h>             // for calloc, free
 #include <string.h>             // for strlen, strcpy
 
+#include "fec.h"                // for N3N_FEC_MODE_NONE, ...
 #include "n2n_define.h"
 
 
@@ -33,6 +34,22 @@ static struct n3n_conf_option section_auth[] = {
     },
     // TODO: the connection.description is repurposed as a username for auth
     {.name = NULL},
+};
+
+static struct n3n_conf_str2id_data fec_mode_data[] = {
+    {
+        .id = N3N_FEC_MODE_NONE,
+        .name = "none",
+    },
+    {
+        .id = N3N_FEC_MODE_AUTO,
+        .name = "auto",
+    },
+    {
+        .id = N3N_FEC_MODE_ALWAYS,
+        .name = "always",
+    },
+    {},
 };
 
 static struct n3n_conf_option section_community[] = {
@@ -57,6 +74,22 @@ static struct n3n_conf_option section_community[] = {
         .desc = "Compress outgoing data packets",
         .help = "none, lzo, or zstd (only in a build with zstd; "
                 "n3n-edge help transform lists those built in).",
+    },
+    {
+        .name = "fec",
+        .type = n3n_conf_str2id,
+        .str2id_data = fec_mode_data,
+        .offset = offsetof(struct n3n_conf_community, fec),
+        .desc = "Forward error correction: frames lost undone",
+        .help = "none, auto or always.  With auto, a small frame (up to "
+                "400 bytes: voice, games, pings, TCP's acknowledgements) "
+                "also goes in the next PACKET to the same peer, while that "
+                "peer sees PACKETs lost - so one lost alone is undone at "
+                "once.  always sends the copies whatever the loss.  The "
+                "edges count the PACKETs from each other for that, and "
+                "tell; every edge of the community needs to know it (n3n "
+                "of 2026-10 on): one that does not drops such PACKETs.  "
+                "See docs/advanced/FEC.md",
     },
     {
         .name = "header_encryption",

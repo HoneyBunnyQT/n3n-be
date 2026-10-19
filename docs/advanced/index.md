@@ -7,6 +7,8 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 - [NAT Traversal](NatTraversal.md): how edges reach each other directly, and
   when they cannot
+- [Forward Error Correction](FEC.md): frames lost on a bad line undone
+  by the receiving edge
 - [Threads](Threads.md): handling packets on several cores
 - [Routing](Routing.md): reaching networks behind an edge, or the
   internet through one

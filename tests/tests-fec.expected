@@ -1,0 +1,11 @@
+always, single losses        scheme 2, 40 delivered, 4 from copies, 4 lost: ok
+always, losses in a row      scheme 2, 37 delivered, 2 from copies, 5 lost: ok
+always, big frames           scheme 1, 38 delivered, 0 from copies, 1 lost: ok
+auto, nothing told yet       scheme 1, 39 delivered, 0 from copies, 1 lost: ok
+always, all twice            scheme 2, 40 delivered, 0 from copies, 0 lost: ok
+always, reordered            scheme 2, 40 delivered, 3 from copies, 0 lost: ok
+auto, B tells A              first copy with frame 6, 19 lost, 19 from copies: ok
+copies of recent frames      ok
+restarted sender, idle       ok
+restarted sender, seq below  28 delivered: ok
+broken trailers              ok

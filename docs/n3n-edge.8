@@ -294,6 +294,9 @@ While frames go to a peer directly, the edge measures what that path loses
 with REGISTERs to the peer; where it loses too many, the frames go through
 the supernode until it is good again (\fBconnection.p2p_max_loss\fR).
 See docs/advanced/NatTraversal.md for details.
+Where the edge's own line loses packets, which neither path avoids,
+\fBcommunity.fec\fR=auto on all edges of the community has small frames
+lost alone undone by a copy in the next packet; see docs/advanced/FEC.md.
 
 .SH TRANSPORT
 The edge reaches its supernodes over UDP.  When none of them answers, for a

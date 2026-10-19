@@ -532,6 +532,7 @@ struct n3n_conf_community {
         struct n3n_conf_cipher cipher;               /**< it (.id), and the variant asked for: community.cipher */
     };
     uint8_t compression;                             /**< Compress outgoing data packets before encryption */
+    int fec;                                         /**< Forward error correction sent, N3N_FEC_MODE_*, see fec.h */
     char                     *encrypt_key;
     // only on a supernode
     n2n_ip_subnet_t network;                         /**< for the auto ip address service, network byte order; 0 to choose one */
@@ -599,6 +600,9 @@ struct n2n_edge_stats {
     uint32_t sn_drop;
     uint32_t transop_tx;        /* Payloads encoded by the transform. */
     uint32_t transop_rx;        /* Payloads decoded by the transform. */
+    uint32_t tx_fec_copy;       /* Frames sent again, as a copy in the next PACKET, see fec.h */
+    uint32_t rx_fec_copy;       /* Frames written to the device from such a copy: lost, and undone */
+    uint32_t rx_fec_lost;       /* PACKETs of the peers found missing by their seq */
 };
 
 // one slot of counters per packet thread, see stats.h - the same number as
@@ -716,6 +720,7 @@ struct n3n_rt_client {
     n2n_trans_op_t transop;                                              /**< The transop to use when encoding */
     n2n_trans_op_t transop_lzo;                                          /**< The transop for LZO  compression */
     n2n_trans_op_t transop_zstd;                                         /**< The transop for ZSTD compression */
+    struct n3n_fec *fec;                                                 /**< what forward error correction keeps per peer, see fec.h */
     uint64_t sn_selection_criterion_common_data;
 
     /* supernode socket is in        eee->client.curr_sn->sock (of type n3n_sock_t) */

@@ -577,6 +577,27 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", lossy=30, conf={"daemon": {"threads": 3}}),
     Scenario(
+        "fec-lossy",
+        "edges behind easy NATs, direct, with community.fec auto; then their "
+        "direct path loses 10% each way, and they stay on it "
+        "(p2p_max_loss 0): of pings over it, only those lost with the one "
+        "after them are to stay lost - some 2% instead of 19%",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", fec_loss=10,
+        conf={"community": {"fec": "auto"},
+              "connection": {"p2p_max_loss": 0}}),
+    Scenario(
+        "fec-lossy-threads",
+        "as fec-lossy, the edges with packet threads, which share what FEC "
+        "keeps of each peer",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", fec_loss=10,
+        conf={"community": {"fec": "auto"},
+              "connection": {"p2p_max_loss": 0},
+              "daemon": {"threads": 3}}),
+    Scenario(
         "tcp-fallback-userpw",
         "as tcp-fallback-back, with user/password authentication",
         Site(["easy-kept"], block_udp=True),

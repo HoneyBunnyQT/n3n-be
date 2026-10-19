@@ -224,6 +224,11 @@ So a PACKET has 38 bytes of header, 46 when a supernode relays it and adds
 where it came from (the dashed fields). For a 1500 byte ethernet packet this
 is roughly 3%.
 
+The compression byte's upper half is the forward error correction's
+scheme, which adds a trailer to the frame inside the payload; 0 for none,
+as from every edge without `community.fec`.  See
+[Forward Error Correction](../advanced/FEC.md#on-the-wire).
+
 Socket flags provides support for IPv6. In this case the PACKET message ends as
 follows:
 
