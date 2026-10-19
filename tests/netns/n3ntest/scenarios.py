@@ -95,7 +95,10 @@ SCENARIOS = [
         "easy-wide",
         "a NAT with random ports from the whole range stays relayed",
         Site(["easy-kept"]), Site(["hard-wide"]),
-        "relayed"),
+        "relayed",
+        direct_ok="a REGISTER from the wide NAT's side may meet the port "
+        "the easy NAT keeps by chance, as with two hard NATs (seen once "
+        "in 18 s, under ASan)"),
     Scenario(
         "no-punch",
         "easy and hard NAT with port guessing turned off stays relayed",
