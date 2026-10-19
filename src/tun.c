@@ -369,15 +369,16 @@ size_t tun_to_frame (struct n3n_runtime_data *eee, uint8_t *buf, size_t len) {
             }
             if(!arp_find(eee, hop, dst)) {
                 struct n3n_tun_arp *e = arp_slot(eee, hop);
-                time_t now = time(NULL);
+                uint64_t now = n3n_monotonic_us();
 
-                // ask, at most once a second for an address
-                if((e->ip == hop) && (now - e->asked < 1)) {
+                // ask, at most once a second for an address - a second, not
+                // until time() goes on, which may be at once
+                if((e->ip == hop) && (now - e->asked_us < 1000000)) {
                     return 0;
                 }
                 e->ip = hop;
                 e->known = false;
-                e->asked = now;
+                e->asked_us = now;
                 return arp_frame(buf, broadcast_mac, 1, own, own_ip, (const uint8_t *)"\0\0\0\0\0\0", hop);
             }
         }
@@ -415,15 +416,15 @@ size_t tun_to_frame (struct n3n_runtime_data *eee, uint8_t *buf, size_t len) {
             }
         } else if(!nd_find(eee, ip6, dst)) {
             struct n3n_tun_nd *e = nd_slot(eee, ip6);
-            time_t now = time(NULL);
+            uint64_t now = n3n_monotonic_us();
 
-            // ask, at most once a second for an address
-            if(!memcmp(e->ip6, ip6, 16) && (now - e->asked < 1)) {
+            // ask, at most once a second for an address, as for IPv4
+            if(!memcmp(e->ip6, ip6, 16) && (now - e->asked_us < 1000000)) {
                 return 0;
             }
             memcpy(e->ip6, ip6, 16);
             e->known = false;
-            e->asked = now;
+            e->asked_us = now;
             return nd_frame(eee, buf, ND_SOLICIT, NULL, NULL, ip6, 0);
         }
         eth_header(buf, dst, own, ETH_P_IPV6);

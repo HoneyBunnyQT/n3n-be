@@ -494,7 +494,7 @@ struct n3n_tun_arp {
     uint32_t ip;                    /* network order, 0: unused */
     n2n_mac_t mac;
     bool known;                     /* else only asked for */
-    time_t asked;                   /* the last ARP request for it */
+    uint64_t asked_us;              /* the last ARP request for it, n3n_monotonic_us() */
 };
 
 /* With a TUN device and IPv6: who has an IPv6 address, as tun_arp, see tun.c */
@@ -503,7 +503,7 @@ struct n3n_tun_nd {
     uint8_t ip6[16];
     n2n_mac_t mac;
     bool known;                     /* else only asked for */
-    time_t asked;                   /* the last neighbour solicitation for it */
+    uint64_t asked_us;              /* the last neighbour solicitation for it, n3n_monotonic_us() */
 };
 
 /* The communities, the federation, the addresses handed out: the relay role */
