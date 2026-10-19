@@ -145,13 +145,34 @@ report.
       registered with: any user could take over another's MAC or address,
       and unregister it.  Now the key has to be the entry's; netns
       scenario `userpw-spoof`; on `fixes` too (2026-10-19)
-- [ ] Real-time traffic over a lossy line of the edge's own, where the
-      supernode's way loses as much as the direct one (and TCP would only
-      turn losses into stalls): small frames sent twice, directly and
-      through the supernode (or twice a few ms apart), the duplicate
-      dropped by the application (RTP) - a lost frame only where both are.
-      An option per edge, perhaps by size or DSCP; nothing on the wire.
-      An idea (2026-10-19)
+- [ ] FEC for a lossy line of the edge's own, where the supernode's way
+      loses as much as the direct one (and TCP would only turn losses
+      into stalls) - n2n#186, n42n/n3n#22, never concluded.  Worth it
+      now that the loss to each peer is measured (`p2p_max_loss`'s
+      probes): even TCP inside the tunnel gains, as it reads loss as
+      congestion (1 % at 100 ms caps a flow at a few Mbit/s).  As a
+      compression ID (idea of 2026-10-19): the PACKET's compression byte
+      already says per packet how its payload is to be undone, the
+      compressions get the peer's MAC (state per peer), and zstd sets the
+      precedent that a peer has to know the ID (an old one drops such
+      PACKETs, "decompression: unsupported"), so no new packet type and
+      nothing else on the wire.  One packet in, one out, but with state
+      it reaches across packets:
+      - redundancy (RFC 2198): a small frame carries the one before it
+        too; any single loss undone a packet later (20 ms for voice), the
+        size doubled - for VoIP and games
+      - XOR parity in slices: the parity of a group of k frames, cut in
+        k slices, rides on the next group's packets, 1/k bigger each;
+        one loss a group undone, a group later - for bulk
+      - the receiver keeps a short window per peer (hashes of what came)
+        to tell what is missing and drop what came twice
+      Loss-adaptive by peer: none up to a percent or so, redundancy for
+      small frames, k smaller as the loss grows; the sender picks per
+      packet, the ID tells the receiver.  Enabled per community, all of
+      whose edges then have to know it (as with zstd), or later found out
+      per peer.  The inner compression (LZO, zstd) goes into the trailer.
+      Not against congestion loss, which more bytes make worse: the
+      measured loss decides, capped.  An idea, to decide on
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while
