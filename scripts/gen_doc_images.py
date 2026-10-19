@@ -571,6 +571,118 @@ def bridging():
 PICTURES["bridging.svg"] = bridging()
 
 
+def fec_timeline():
+    """The PACKETs to a peer over time, with forward error correction: a
+    stream in groups, its repairs spread out after them, and voice, each
+    repair riding along in the next PACKET"""
+    w, h = 720, 480
+    body = []
+    pw, gap = 30, 4             # a PACKET of the stream, and between two
+    top = 84
+
+    def lost(x, y, r=9):
+        body.append(path("M {} {} L {} {} M {} {} L {} {}".format(
+            x - r, y - r, x + r, y + r, x + r, y - r, x - r, y + r), "drop"))
+
+    # a stream: group 1 (frames 1-8, two of them lost), then its three
+    # repairs, each on its own, among the frames of group 2
+    body.append(text(20, 24, "A stream: groups of frames, their repairs "
+                     "spread out after them", "title", "start"))
+    items = [("1", 1), ("2", 1), ("3", 1), ("4", 1), ("5", 1), ("6", 1),
+             ("7", 1), ("8", 1), ("9", 2), ("R1", 0), ("10", 2), ("11", 2),
+             ("R2", 0), ("12", 2), ("13", 2), ("R3", 0), ("14", 2),
+             ("15", 2), ("16", 2)]
+    xs = []
+    for k, (label, group) in enumerate(items):
+        x = 24 + k * (pw + gap) + (8 if k >= 8 else 0)
+        xs.append(x)
+        body.append(rect(x, top, pw, 34, "hi" if group == 0 else
+                         "box" if group == 1 else "opt", 4))
+        body.append(text(x + pw / 2, top + 22, label, "small"))
+        body.append(text(x + pw / 2, top + 50, "3" if group == 0 else "2",
+                         "mono"))
+    lost(xs[2] + pw / 2, top + 17)
+    lost(xs[5] + pw / 2, top + 17)
+    # what is which
+    x0, x1 = xs[0], xs[7] + pw
+    body.append(path("M {0} {1} L {0} {2} L {3} {2} L {3} {1}".format(
+        x0, top + 60, top + 66, x1)))
+    body.append(text((x0 + x1) / 2, top + 82, "group 1: frames 1-8, "
+                     "sent at once, as they are", "small"))
+    body.append(text((x0 + x1) / 2, top + 96, "frames 3 and 6 lost on the "
+                     "way", "small"))
+    xr = [xs[9], xs[12], xs[15]]
+    for x in xr:
+        body.append(path("M {0} {1} L {0} {2}".format(x + pw / 2, top + 60,
+                                                      top + 70)))
+    body.append(path("M {} {} L {} {}".format(xr[0] + pw / 2, top + 70,
+                                              xr[2] + pw / 2, top + 70)))
+    body.append(text((xr[0] + xr[2] + pw) / 2, top + 86, "its 3 repairs, "
+                     "in PACKETs of their own,", "small"))
+    body.append(text((xr[0] + xr[2] + pw) / 2, top + 100, "between "
+                     "group 2's frames (dashed)", "small"))
+    # the repairs undo the lost frames
+    for xl in (xs[2], xs[5]):
+        body.append(path("M {} {} C {} {}, {} {}, {} {}".format(
+            xr[1] + pw / 2, top - 2, xr[1] + pw / 2, top - 34, xl + pw / 2,
+            top - 34, xl + pw / 2, top - 6), "relay"))
+        body.append(arrowhead(xl + pw / 2, top - 4, xl + pw / 2, top - 24))
+    body.append(text(xr[1] + pw + 8, top - 24, "frames 3 and 6 undone from "
+                     "the repairs -", "small", "start"))
+    body.append(text(xr[1] + pw + 8, top - 10, "any 3 of these 11 may get "
+                     "lost", "small", "start"))
+    body.append(text(20, top + 128, "Not right after the group: a burst of "
+                     "loss would take frames and repairs together.  "
+                     "Spread out, a few ms apart,", "small", "start"))
+    body.append(text(20, top + 144, "the repairs miss the burst - and the "
+                     "frames go at once: only a lost one waits for "
+                     "its repairs.", "small", "start"))
+
+    # voice: a frame each 20 ms, a group of one; its repair, a copy of it,
+    # rides along in the next PACKET
+    vtop = 290
+    body.append(text(20, vtop - 24, "Voice: a frame each 20 ms - its "
+                     "repair rides along in the next PACKET", "title",
+                     "start"))
+    for k in range(4):
+        x = 24 + k * 172
+        body.append(rect(x, vtop, 58, 34, "box", 4))
+        body.append(text(x + 29, vtop + 22, "frame " + str(k + 1), "small"))
+        if k:
+            body.append(rect(x + 58, vtop, 58, 34, "hi", 4))
+            body.append(text(x + 87, vtop + 22, "copy of " + str(k),
+                             "small"))
+        body.append(text(x + (58 if k else 29), vtop + 50, "4" if k else "2",
+                         "mono"))
+    lost(24 + 172 + 58, vtop + 17, 15)
+    body.append(path("M {} {} C {} {}, {} {}, {} {}".format(
+        24 + 2 * 172 + 87, vtop + 36, 24 + 2 * 172 + 87, vtop + 76,
+        24 + 172 + 29, vtop + 76, 24 + 172 + 29, vtop + 40), "relay"))
+    body.append(arrowhead(24 + 172 + 29, vtop + 40, 24 + 172 + 29,
+                          vtop + 70))
+    body.append(text(24 + 2 * 172 - 40, vtop + 92, "PACKET 2 lost: frame 2 "
+                     "from the next one, 20 ms late", "small"))
+    body.append(arrow(24, vtop + 116, 24 + 172, vtop + 116, both=True))
+    body.append(text(24 + 86, vtop + 132, "20 ms", "small"))
+    body.append(text(400, vtop + 132, "no PACKET more: the copies ride "
+                     "along, where both fit in a full frame's size",
+                     "small"))
+    body.append(text(20, h - 12, "Under each PACKET its scheme, the upper "
+                     "half of its compression byte: 2 a frame of a group, "
+                     "3 a repair, 4 a frame with a repair", "small",
+                     "start"))
+    return svg(w, h, "Forward error correction over time",
+               "A stream: frames 1 to 8 go as a group, frames 3 and 6 get "
+               "lost; the group's three repairs follow in PACKETs of their "
+               "own, spread out between the next group's frames, and undo "
+               "the two lost frames.  Voice: one frame every 20 ms, each "
+               "PACKET carrying a copy of the frame before; PACKET 2 is "
+               "lost, and frame 2 comes out of PACKET 3.", body)
+
+
+PICTURES["fec-timeline.svg"] = fec_timeline()
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

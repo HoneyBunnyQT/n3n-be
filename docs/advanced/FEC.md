@@ -65,6 +65,8 @@ So a small frame's repair at a low rate - voice, a game, pings - is a
 copy of it in the next PACKET, at no extra PACKETs; the repairs of big
 frames - a download - go on their own.
 
+![A stream: a group of 8 frames, 2 of them lost, its 3 repairs spread out among the next group's frames; voice: each PACKET carries a copy of the frame before](../images/fec-timeline.svg)
+
 How many repairs a group gets follows the loss: each edge counts the
 frames it gets from each peer (they carry sequence numbers), and tells
 the peer, in the PACKETs it sends to it, what it sees lost - and, where
@@ -133,6 +135,29 @@ bytes on a full line lose more - which is why `auto` sends none while
 nothing is lost, at most half as many as frames, and fewer where they
 fill the line (see above).
 
+## Why more packets can carry more
+
+Repairs take a share of the line - so how can a download get faster
+with them?  Because what holds TCP back on a lossy line is not the line,
+but the loss: TCP takes every lost packet for a sign of congestion and
+halves its pace, and it waits a round trip or more for what it sends
+again.  As a rule of thumb (Mathis et al.), TCP gets at most
+
+    1.22 x segment size / (round trip x square root of the loss)
+
+so with segments of 1400 bytes and a round trip of 50 ms, about 2.7
+Mbit/s at 1 % lost - over a line of 100 Mbit/s as over one of 10.  The
+repairs undo the losses at the receiving edge, before TCP sees them: of
+1 % lost, 0.1 % left gives TCP 8.6 Mbit/s, 0.01 % 27 Mbit/s.  The line
+spends a tenth or a fifth on repairs that TCP was not using anyway, and
+TCP gets several times what it got.  For voice, a game, a video call, a
+packet sent again comes too late in any case: only a repair that is
+already there helps.
+
+That holds where the line has room to spare, and the loss is not its
+being full: there, the repairs make it fuller, and lose more - which is
+why `auto` backs off then (see above).
+
 ## Seeing it work
 
 `n3nctl get_packetstats`:
@@ -160,17 +185,20 @@ about one repair for two frames.
 ## On the wire
 
 The PACKET's compression byte says how its payload is to be undone; its
-upper half now says the forward error correction, the lower half the
-compression as before - so a PACKET without is what it always was.  The
-payload, decrypted and decompressed, is the frame with a trailer:
+upper half (the high nibble) now says the forward error correction - the
+scheme - the lower half the compression as before (1 none, 2 LZO, 3
+ZSTD).  So a PACKET without is what it always was: 0x01 is an
+uncompressed one, 0x21 an uncompressed frame of a group, 0x22 one
+compressed with LZO; a repair on its own goes uncompressed, 0x31.  The payload, decrypted and decompressed, is the
+frame with a trailer, by the scheme:
 
-| scheme | payload |
-|--------|---------|
-| 0 | the frame, as ever |
-| 1 | frame, sequence number (16 bits), report |
-| 2 | a frame of a group: as 1 |
-| 3 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
-| 4 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
+| scheme (high nibble) | byte, uncompressed | payload |
+|---|---|---|
+| 0 | 0x01 | the frame, as ever |
+| 1 | 0x11 | frame, sequence number (16 bits), report |
+| 2 | 0x21 | a frame of a group: as 1 |
+| 3 | 0x31 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
+| 4 | 0x41 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
 
 The report, at the very end, is what the sender sees of the PACKETs from
 the one it sends to: one byte where nothing is lost - 0, or 0x7f while
