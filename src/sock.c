@@ -323,9 +323,11 @@ static int offload_probe (void) {
 
 // Whether a run can go with GSO on this socket: if GSO works here, and
 // the socket has not refused it (see gso_off())
+static bool gso_allowed = true;
+
 static bool gso_usable (SOCKET sock) {
 
-    if(offload_probe() < OFFLOAD_GSO) {
+    if(!gso_allowed || (offload_probe() < OFFLOAD_GSO)) {
         return false;
     }
     for(int i = 0; i < SOCK_GSO_SOCKS; i++) {
@@ -450,6 +452,13 @@ static void tx_flush (void) {
     tx->count = 0;
 }
 #endif
+
+
+void sock_gso_allow (bool allow) {
+#ifdef SOCK_GSO
+    gso_allowed = allow;
+#endif
+}
 
 
 void sock_batch_begin (void) {

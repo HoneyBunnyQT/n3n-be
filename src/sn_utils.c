@@ -309,6 +309,7 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
     conf->mgmt_port = N2N_SN_MGMT_PORT;
 #endif
     conf->mgmt_password = strdup(N3N_MGMT_PASSWORD);
+    conf->udp_gso = true;
 
     /* Random auth token */
     conf->client.auth.scheme = n2n_auth_simple_id;
@@ -985,6 +986,7 @@ static void sn_tick (struct n3n_runtime_data *sss, time_t now) {
 int run_sn_loop (struct n3n_runtime_data *sss) {
 
     sss->start_time = time(NULL);
+    sock_gso_allow(sss->conf.udp_gso);
 
     // the mainloop reads the sockets of connection.bind, and accepts TCP
     // connections on them

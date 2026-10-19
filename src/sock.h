@@ -14,6 +14,7 @@
 #ifndef N3N_SOCK_H
 #define N3N_SOCK_H
 
+#include <stdbool.h>         // for bool
 #include <stddef.h>          // for size_t
 #include <stdint.h>          // for uint8_t
 #include <sys/types.h>       // for ssize_t
@@ -55,6 +56,10 @@ ssize_t sendto_bind (struct n3n_runtime_data *rt, int i, const void *buf,
 // no sendmmsg() (other systems than Linux), each goes at once as before.
 void sock_batch_begin (void);
 void sock_batch_end (void);
+
+// Whether runs of a batch for one destination may go as one with UDP GSO,
+// where the system has it (connection.udp_gso); they may by default
+void sock_gso_allow (bool allow);
 
 struct n3n_pktbuf;
 // A role's read of one datagram off sock, as n3n_role_ops.read_udp: 1 if

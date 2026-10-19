@@ -1492,6 +1492,8 @@ static void edge_register_ticks (struct n3n_runtime_data *rt) {
 
 int run_edge_loop (struct n3n_runtime_data *eee) {
 
+    sock_gso_allow(eee->conf.udp_gso);
+
 #ifdef _WIN32
     struct tunread_arg arg;
     arg.eee = eee;
@@ -1989,6 +1991,7 @@ void edge_init_conf_defaults (n2n_edge_conf_t *conf, char *sessionname) {
     conf->mgmt_port = N2N_EDGE_MGMT_PORT;
 #endif
     conf->threads = 1;
+    conf->udp_gso = true;
 
     edge_conf_role_defaults(conf);
 

@@ -191,6 +191,14 @@ This can reduce fragmentation but causes connections to stall if not properly su
 
 Default: `false`
 
+### connection.udp_gso
+
+Send runs of datagrams with UDP GSO.
+
+Defaulting to true: on Linux, the datagrams that go to one address one after the other, of one size, are handed to the kernel as one (UDP GSO), which cuts them apart again only on their way out - the route, the firewall and the queues are passed once for them all. false sends them one by one: for a network card whose offloading fails, or for a firewall that is to see each datagram (as the netns tests that lose datagrams on purpose).
+
+Default: `true`
+
 ### connection.punch_ports
 
 Ports to try per round towards a peer behind a hard NAT.

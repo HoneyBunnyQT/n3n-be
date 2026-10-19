@@ -307,6 +307,20 @@ static struct n3n_conf_option section_connection[] = {
                 "not supported)",
     },
     {
+        .name = "udp_gso",
+        .type = n3n_conf_bool,
+        .offset = offsetof(n2n_edge_conf_t, udp_gso),
+        .desc = "Send runs of datagrams with UDP GSO",
+        .help = "Defaulting to true: on Linux, the datagrams that go to one "
+                "address one after the other, of one size, are handed to "
+                "the kernel as one (UDP GSO), which cuts them apart again "
+                "only on their way out - the route, the firewall and the "
+                "queues are passed once for them all.  false sends them one "
+                "by one: for a network card whose offloading fails, or for "
+                "a firewall that is to see each datagram (as the netns "
+                "tests that lose datagrams on purpose).",
+    },
+    {
         .name = "punch_ports",
         .type = n3n_conf_uint32,
         .offset = offsetof(n2n_edge_conf_t, client.punch_ports),

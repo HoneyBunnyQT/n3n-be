@@ -554,6 +554,7 @@ typedef struct n2n_edge_conf {
 
     // What all roles use: sockets, the management interface, the daemon
     bool pmtu_discovery;                             /**< Enable the Path MTU discovery. */
+    bool udp_gso;                                    /**< connection.udp_gso: runs of datagrams sent with UDP GSO, see sock.c */
     uint32_t tos;                                    /** TOS for sent packets */
     struct n3n_bind *bind_address;                   /**< connection.bind, if given: an array ended by family 0 */
     bool enable_debug_pages;
