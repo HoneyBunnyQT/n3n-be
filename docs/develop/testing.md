@@ -58,7 +58,8 @@ the alignment check for it.
 ### Coverage
 
 ```
-./configure --enable-pthread CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage"
+./configure --enable-pthread CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
+    LDFLAGS="--coverage"
 make -j4 all fuzz
 make test.units test.builtin test.fuzz test.integration
 sudo tests/netns/run.py --keep-root && sudo chown -R "$(id -u)" .

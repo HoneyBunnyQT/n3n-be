@@ -39,8 +39,11 @@ jobs:
           ./autogen.sh
           ./configure
           make build-dep
+          # atomic counters: the packet threads count at once, and plain
+          # ones went astray (gcov's "taken -1")
           ./configure --enable-pthread \
-            CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage"
+            CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
+            LDFLAGS="--coverage"
           make -j4 all fuzz
 
       - name: Unit, builtin and integration tests, the fuzz corpus
@@ -59,10 +62,12 @@ jobs:
 
       - name: Report
         run: |
+          set -o pipefail
           # configure's test programs leave counts of their own
           rm -f ./*conftest*.gcno ./*conftest*.gcda
           mkdir -p coverage
           gcovr --root . --filter 'src/' --filter 'apps/' \
+            --gcov-ignore-parse-errors=negative_hits.warn_once_per_file \
             --print-summary --xml coverage.xml \
             --html-details coverage/index.html \
             | tee -a "$GITHUB_STEP_SUMMARY"
