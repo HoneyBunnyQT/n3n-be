@@ -222,8 +222,11 @@ CLEAN_FILES+=$(DEPS)
 src/management.o: src/management_script.js.h
 CLEAN_FILES+=src/management_script.js.h
 
+# made anew each time: "ar r" only adds and replaces, and an object whose
+# source is gone would stay in, and may be linked instead of its successor
 src/libn3n.a: $(OBJS)
 	@echo "  AR      $@"
+	@rm -f $@
 	@$(AR) rcs $@ $^
 SUBDIR_LIBS+=src/libn3n.a
 
