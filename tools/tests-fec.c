@@ -101,7 +101,7 @@ static int unwrap (struct n3n_fec *fec, const n2n_mac_t from,
 
 // Tell fec that its PACKETs to peer are lost at percent: a frame of
 // scheme SEQ from peer, with the loss it sees
-static void tell (struct n3n_fec *fec, const n2n_mac_t peer, uint8_t percent, uint64_t now) {
+static void tell_loss (struct n3n_fec *fec, const n2n_mac_t peer, uint8_t percent, uint64_t now) {
 
     struct pdu p;
     struct seen s;
@@ -140,7 +140,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
     int n = 0;
 
     if(tell_pct >= 0) {
-        tell(a, mac_b, (uint8_t)tell_pct, *now);
+        tell_loss(a, mac_b, (uint8_t)tell_pct, *now);
     }
     for(int i = 0; (i < count) && (n < max); i++) {
         struct pdu *p = &pdus[n++];
@@ -149,7 +149,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
         *now += gap_us;
         // b keeps telling, as its own traffic would
         if((tell_pct >= 0) && (i % 50 == 0)) {
-            tell(a, mac_b, (uint8_t)tell_pct, *now);
+            tell_loss(a, mac_b, (uint8_t)tell_pct, *now);
         }
         p->scheme = n3n_fec_wrap(a, mode, mac_b, frame, len, p->buf, sizeof(p->buf),
                                  room, &p->len, *now);
@@ -446,7 +446,7 @@ static int test_spacing (void) {
     int failed = 0;
     size_t len = make_frame(frame, 0, 100);
 
-    tell(a, mac_b, 10, now);
+    tell_loss(a, mac_b, 10, now);
     // a frame, its group of one closes at once
     failed |= n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
                            ROOM, &p.len, now) != N3N_FEC_GROUP;
