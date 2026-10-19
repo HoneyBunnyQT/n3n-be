@@ -1897,8 +1897,12 @@ class Run:
         where = self._sn_entries(b["mac"])
         self.check("lockout: back in", bool(ok),
                    "b at {} after {}s".format(where, took))
-        # a round of registrations for the peers to find each other again
-        time.sleep(2 * interval)
+        # the peers find each other again: direct both ways, before the
+        # frames are counted
+        a = self.edges["a"]
+        wait_for(lambda: (a["daemon"].peer(b["mac"])[0] == "p2p"
+                          and b["daemon"].peer(a["mac"])[0] == "p2p")
+                 or None, 30 + 6 * interval, interval=0.5)
 
     def spoof_phase(self):
         """sc.spoof: an edge of user b, in b's namespace, with a's MAC"""
