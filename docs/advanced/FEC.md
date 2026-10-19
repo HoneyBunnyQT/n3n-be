@@ -67,11 +67,12 @@ frames - a download - go on their own.
 
 How many repairs a group gets follows the loss: each edge counts the
 frames it gets from each peer (they carry sequence numbers), and tells
-the peer, in the PACKETs it sends to it, what it sees lost.  The sender
-takes the fewest repairs that leave at most 0.1 % of the frames lost -
-given the loss it is told, half as much again for safety, and losses
-taken as coming independently - but at most half as many as the group has
-frames (one for one, for a group of one):
+the peer, in the PACKETs it sends to it, what it sees lost - and, where
+something is lost, how long the bursts of loss are, and how many frames
+stayed lost although repairs came.  The sender takes the fewest repairs
+that leave at most 0.1 % of the frames lost - given the loss it is told,
+half as much again for safety - but at most half as many as the group has
+frames (one for one, for a group of one).  Where losses come one by one:
 
 | loss told | group of 10 | group of 32 |
 |---|---|---|
@@ -86,9 +87,26 @@ Where no edge tells (traffic one way only), the sender goes by what it
 sees lost of the peer's PACKETs to it, as if the loss were the same both
 ways.
 
-What it costs: 3 bytes in each PACKET to a peer, and the repairs, each
-as long as the longest frame of its group: in a PACKET of its own (5
-bytes more), or riding along (9 bytes more).  A group waits 10 ms at
+**Bursts.** Many lines lose several packets in a row - a radio fading, a
+queue overflowing - and a burst takes several frames of a group, which
+go in a row.  With the mean burst it is told, the sender reckons with
+that (a Gilbert model: a packet lost after one that was lost is likelier
+than after one that came; the repairs, spread out after the group, lost
+one by one).  Reckoning with 2 % lost (the margin included), a group of
+20 frames gets 3 repairs where the losses come one by one, 7 where they
+come in pairs, 10 where they come in fours.  In the unit tests, of 2000 big frames over a line losing 3 %
+in bursts of 4, 33 stay lost where the sender takes the losses as coming
+one by one, 6 where it knows of the bursts.
+
+**What stayed lost.** Where frames stay lost all the same, the sender
+adds to its margin - a quarter more of the loss told each second, up to
+four times it - and takes it back slowly while none do.
+
+What it costs: 3 bytes in each PACKET to a peer (6 where something is
+lost), and the repairs, each as long as the longest frame of its group: in
+a PACKET of its own (5 or 8 bytes more), or riding along (9 or 12 bytes
+more).  On a line that loses nothing, there are no repairs, only the 3
+bytes.  A group waits 10 ms at
 most, its repairs some more, up to a frame and a half at the rate of the
 frames to the peer for one that rides; a frame undone comes that much
 later, or less.  Broadcast and multicast go without.
@@ -105,6 +123,12 @@ nothing is lost, and at most half as many as frames.
 - `fec`: `tx_pkt` repairs sent, `rx_pkt` frames undone
 - `fec_lost`: `rx_pkt` frames from peers found missing by their sequence
   numbers, whether undone or not - the loss of the way in
+
+`n3nctl get_edges --raw` shows, for each peer, `fec`: what the peer
+tells of the way to it (`loss`, `burst`, `residual`), what the edge makes
+of it (`margin`, and `k` and `m` of its last group), and what it
+sees of the way from the peer (`rx_loss`, `rx_burst`, `rx_residual`), see
+[the management API](../internals/ManagementAPI.md).
 
 The same on the metrics page (`packets`, events `fec_redundant`,
 `fec_undone` and `fec_lost`) and the management page.
@@ -126,17 +150,23 @@ payload, decrypted and decompressed, is the frame with a trailer:
 | scheme | payload |
 |--------|---------|
 | 0 | the frame, as ever |
-| 1 | frame, sequence number (16 bits), loss (8 bits) |
+| 1 | frame, sequence number (16 bits), report |
 | 2 | a frame of a group: as 1 |
-| 3 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), loss |
-| 4 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, loss |
+| 3 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
+| 4 | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
+
+The report, at the very end, is what the sender sees of the PACKETs from
+the one it sends to: one byte where nothing is lost - 0, or 0x7f while
+it does not know yet - and four where something is: the loss over longer
+(percent), the mean burst (in quarters of a PACKET, 0 for none yet), what
+stayed lost (per mille), and the loss lately (percent) with the top bit
+set.
 
 The sequence numbers count the frames from one edge to another, from a
 number of chance; a group's have them in a row, and a repair is known by
 its group and its number.  The receiver keeps a window of the last 64,
 to tell what is missing, what came twice (dropped), and what is still to
-be undone.  Loss is what the sender sees lost of the frames coming from
-the one it sends to, in percent, 255 while it does not know yet.
+be undone; a frame that leaves it missing stayed lost.
 
 The code: Reed-Solomon over GF(2^8) with the polynomial
 x^8 + x^4 + x^3 + x + 1 (AES's), systematic - the frames go as they are -
@@ -144,8 +174,7 @@ with a Cauchy matrix for the repairs, its first row all ones (the first
 repair is the XOR of the frames).  What is coded of each frame is its
 length (16 bits) and the frame, padded with zeros to the longest of the
 group.  See `src/fec.h` and `src/gf256.h`, and the
-[Roadmap](../develop/Roadmap.md) for what is to come (losses in bursts,
-backing off under congestion).
+[Roadmap](../develop/Roadmap.md) for what is to come.
 
 ## The arithmetic
 

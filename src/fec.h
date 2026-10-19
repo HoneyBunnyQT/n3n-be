@@ -15,16 +15,28 @@
  *
  * Schemes, the trailer read from the end of the payload:
  *
- *  1 SEQ     frame | seq:16 | loss:8
- *  2 GROUP   frame | seq:16 | loss:8
- *  3 REPAIR  repair | first:16 | k:8 | j:8 | loss:8
- *  4 RIDE    frame | repair | repair_len:16 | first:16 | k:8 | j:8 | seq:16 | loss:8
+ *  1 SEQ     frame | seq:16 | report
+ *  2 GROUP   frame | seq:16 | report
+ *  3 REPAIR  repair | first:16 | k:8 | j:8 | report
+ *  4 RIDE    frame | repair | repair_len:16 | first:16 | k:8 | j:8 | seq:16 | report
  *
  * seq counts the frames from one edge to another, and lets the receiver
- * tell what is missing, what came twice, and how many are lost on the way
- * (loss); a repair is known by its group and its number instead.  It sends that back in its own trailers, as loss: what it sees
- * of the PACKETs from the one it sends to, in percent, 255 for not known
- * yet - so the sender knows the loss of the way out.
+ * tell what is missing, what came twice, and how many are lost on the way;
+ * a repair is known by its group and its number instead.  The receiver
+ * sends what it sees back in its own trailers, as the report - so the
+ * sender knows the way out:
+ *
+ *  loss:8                                  nothing lost: 0 (or loss, the
+ *                                          same lately and over longer);
+ *                                          0x7f: not known yet
+ *  slow:8 | burst:8 | residual:8 | 0x80 | fast:7
+ *                                          where something is lost: the
+ *                                          loss over longer and lately,
+ *                                          in percent; the mean length of
+ *                                          a burst of loss, in quarters
+ *                                          (0: not known); what stayed
+ *                                          lost when repairs were done, in
+ *                                          per mille
  *
  * GROUP and REPAIR are a Reed-Solomon code over GF(2^8) (gf256.h): the
  * frames of a group - k of them, of the seqs first .. first + k - 1 - go
@@ -46,6 +58,10 @@
  * PACKET (RIDE, its frame taken as one of a group), on its own (REPAIR)
  * where they do not, or where no frame comes for long.  A small frame's
  * repair at a low rate - voice - is then a copy of it in the next PACKET.
+ *
+ * m follows the loss and how it comes - in bursts, it takes more (see
+ * n3n_fec_m_burst()); and where frames stay lost all the same, the sender
+ * adds a margin until they do not.
  *
  * Sender and receiver keep what they need per peer, by MAC, here.  The
  * threads that handle packets share it, under a lock of its own.
@@ -83,10 +99,13 @@
 #define N3N_FEC_M_MAX           12
 // a group closes after so long, its repairs go then
 #define N3N_FEC_GROUP_US        10000
-// the trailers: of a frame, of a repair, of a frame with a repair
+// the trailers: of a frame, of a repair, of a frame with a repair - each
+// with a report of one byte, or of 1 + N3N_FEC_REPORT_MORE where
+// something is lost
 #define N3N_FEC_SEQ_TRAILER     3
 #define N3N_FEC_REPAIR_TRAILER  5
 #define N3N_FEC_RIDE_TRAILER    9
+#define N3N_FEC_REPORT_MORE     3
 // the loss to a peer, in percent, from which MODE_AUTO sends repairs
 #define N3N_FEC_AUTO_MIN_LOSS   1
 
@@ -139,5 +158,29 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
 // that leave at most 0.1 % of its frames lost, independent losses taken,
 // and at most half as many as frames (but one for one)
 int n3n_fec_m (int k, int percent);
+
+// The same where losses come in bursts of burst4 / 4 on average (0: not
+// known, taken as independent) - a Gilbert model for the frames, which go
+// in a row: a PACKET lost after one that was lost is more likely than
+// after one that came; the repairs, spread out, lost independently
+int n3n_fec_m_burst (int k, int percent, int burst4);
+
+// What there is of a peer: the way to it, as it told, and what the sender
+// makes of that; and the way from it, as this edge tells it
+struct n3n_fec_info {
+    // to the peer
+    int loss;                   // percent, -1 for not known
+    int burst4;                 // mean burst in quarters, 0 for not known
+    int residual;               // per mille, -1 for not known
+    int margin8;                // the loss times margin8 / 8 for m
+    int k, m;                   // of the last group
+    // from the peer: the loss over longer
+    int rx_loss;
+    int rx_burst4;
+    int rx_residual;
+};
+
+// 0 with info, -1 for a peer not known
+int n3n_fec_peer_info (struct n3n_fec *fec, const n2n_mac_t peer, struct n3n_fec_info *info);
 
 #endif

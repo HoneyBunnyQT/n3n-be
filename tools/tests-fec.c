@@ -117,9 +117,41 @@ static void tell_loss (struct n3n_fec *fec, const n2n_mac_t peer, uint8_t percen
 }
 
 
+// Tell fec more of the loss of its PACKETs to peer: lately and over
+// longer (percent), the mean burst (quarters) and what stayed lost (per
+// mille) - the report of four bytes
+static void tell_more (struct n3n_fec *fec, const n2n_mac_t peer, uint8_t fast, uint8_t slow,
+                       uint8_t burst4, uint8_t residual, uint64_t now) {
+
+    struct pdu p;
+    struct seen s;
+    size_t n = make_frame(p.buf, 0, 60);
+
+    p.buf[n++] = 0;
+    p.buf[n++] = 7;
+    p.buf[n++] = slow;
+    p.buf[n++] = burst4;
+    p.buf[n++] = residual;
+    p.buf[n++] = 0x80 | fast;
+    p.len = n;
+    p.scheme = N3N_FEC_SEQ;
+    memset(&s, 0, sizeof(s));
+    unwrap(fec, peer, &p, now, &s, 60);
+}
+
+
 // a way that loses: a PDU is lost where the next of a fixed sequence of
-// numbers says so, at percent
+// numbers says so, at percent - independently, or in bursts of burst4 / 4
+// on average (Gilbert: lost after one lost with 1 - r, after one that
+// came with q)
 static uint32_t lcg;
+static int bad;
+
+static double next_random (void) {
+
+    lcg = lcg * 1103515245 + 12345;
+    return ((lcg >> 8) & 0xffffff) / (double)0x1000000;
+}
 
 static int lost_on_the_way (int percent) {
 
@@ -127,10 +159,29 @@ static int lost_on_the_way (int percent) {
     return (int)((lcg >> 16) % 100) < percent;
 }
 
+static int lost_in_bursts (int percent, int burst4) {
+
+    double p = percent / 100.0, r = 4.0 / burst4, q = p * r / (1.0 - p);
+
+    bad = next_random() < (bad ? 1.0 - r : q);
+    return bad;
+}
+
 
 // The PDUs of count frames from a to b, one every gap_us, mode at a, b
 // telling a loss of tell_pct (or none for -1), the repairs as the edge
 // sends them after each frame, and those left after the last
+static int tell_burst4;
+
+static void tell (struct n3n_fec *a, int tell_pct, uint64_t now) {
+
+    if(tell_burst4) {
+        tell_more(a, mac_b, (uint8_t)tell_pct, (uint8_t)tell_pct, (uint8_t)tell_burst4, 0, now);
+    } else {
+        tell_loss(a, mac_b, (uint8_t)tell_pct, now);
+    }
+}
+
 static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
                    uint64_t gap_us, int tell_pct, size_t room, uint64_t *now) {
 
@@ -140,7 +191,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
     int n = 0;
 
     if(tell_pct >= 0) {
-        tell_loss(a, mac_b, (uint8_t)tell_pct, *now);
+        tell(a, tell_pct, *now);
     }
     for(int i = 0; (i < count) && (n < max); i++) {
         struct pdu *p = &pdus[n++];
@@ -149,7 +200,7 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
         *now += gap_us;
         // b keeps telling, as its own traffic would
         if((tell_pct >= 0) && (i % 50 == 0)) {
-            tell_loss(a, mac_b, (uint8_t)tell_pct, *now);
+            tell(a, tell_pct, *now);
         }
         p->scheme = n3n_fec_wrap(a, mode, mac_b, frame, len, p->buf, sizeof(p->buf),
                                  room, &p->len, *now);
@@ -177,7 +228,10 @@ static int stream (struct pdu *pdus, int max, int mode, size_t size, int count,
 
 
 // count frames from a to b, one every gap_us, mode at a, b telling a loss
-// of tell_pct (or none for -1), the way losing loss_pct of all PDUs
+// of tell_pct (or none for -1), the way losing loss_pct of all PDUs - in
+// bursts of burst4 / 4 where burst4 is not 0
+static int burst4_way;
+
 static int run (const char *name, int mode, size_t size, int count,
                 uint64_t gap_us, int tell_pct, int loss_pct,
                 int max_lost_permille, int max_alone) {
@@ -193,10 +247,11 @@ static int run (const char *name, int mode, size_t size, int count,
     n = stream(pdus, max, mode, size, count, gap_us, tell_pct, ROOM, &now);
     failed |= n < 0;
     lcg = 1;
+    bad = 0;
     for(int x = 0; x < n; x++) {
         alone += pdus[x].scheme == N3N_FEC_REPAIR;
         ride += pdus[x].scheme == N3N_FEC_RIDE;
-        if(!lost_on_the_way(loss_pct)) {
+        if(!(burst4_way ? lost_in_bursts(loss_pct, burst4_way) : lost_on_the_way(loss_pct))) {
             unwrap(b, mac_a, &pdus[x], now, &s, size);
         }
     }
@@ -296,6 +351,31 @@ static void show_m (void) {
             printf("%4i", n3n_fec_m(ks[r], pcts[c]));
         }
         printf("\n");
+    }
+}
+
+
+// The same where losses come in bursts: at 2 and 5 %, by the mean burst
+static void show_m_burst (void) {
+
+    int ks[] = {1, 4, 10, 20, 32};
+    int bursts[] = {0, 6, 8, 12, 16, 24};
+
+    printf("m by k (rows) and mean burst (columns), at 2 %% | 5 %%:\n     ");
+    for(int x = 0; x < 2; x++) {
+        for(unsigned c = 0; c < sizeof(bursts) / sizeof(bursts[0]); c++) {
+            printf("%5.2f", bursts[c] / 4.0);
+        }
+        printf(x ? "\n" : " |");
+    }
+    for(unsigned r = 0; r < sizeof(ks) / sizeof(ks[0]); r++) {
+        printf("  %2i ", ks[r]);
+        for(int x = 0; x < 2; x++) {
+            for(unsigned c = 0; c < sizeof(bursts) / sizeof(bursts[0]); c++) {
+                printf("%5i", n3n_fec_m_burst(ks[r], x ? 5 : 2, bursts[c]));
+            }
+            printf(x ? "\n" : " |");
+        }
     }
 }
 
@@ -483,6 +563,140 @@ static int test_spacing (void) {
 }
 
 
+// What the receiver sees and tells of a way that loses 10 % in bursts of
+// 3: the loss, the mean burst, and - without repairs - what stayed lost,
+// the same; told back in four bytes
+static int test_measure (void) {
+
+    struct n3n_fec *a = n3n_fec_new();
+    struct n3n_fec *b = n3n_fec_new();
+    struct n3n_fec_info info;
+    uint8_t frame[N2N_PKT_BUF_SIZE];
+    struct pdu p;
+    struct seen s;
+    uint64_t now = 1000 * SEC;
+    int failed = 0;
+    size_t len = make_frame(frame, 0, 100);
+
+    memset(&s, 0, sizeof(s));
+    lcg = 7;
+    bad = 0;
+    for(int i = 0; i < 20000; i++) {
+        now += 1000;
+        // none told: no repairs, the frames as they are
+        p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                ROOM, &p.len, now);
+        if(!lost_in_bursts(10, 12)) {
+            unwrap(b, mac_a, &p, now, &s, 100);
+        }
+    }
+    failed |= n3n_fec_peer_info(b, mac_a, &info) != 0;
+    failed |= (info.rx_loss < 8) || (info.rx_loss > 12);
+    failed |= (info.rx_burst4 < 10) || (info.rx_burst4 > 18);
+    failed |= (info.rx_residual < 70) || (info.rx_residual > 130);
+    printf("%-26s loss %d %%, bursts %.2f, %d per mille stayed lost", "measured, 10 % in bursts",
+           info.rx_loss, info.rx_burst4 / 4.0, info.rx_residual);
+
+    // b to a: the report rides along, a knows it then
+    p.scheme = n3n_fec_wrap(b, N3N_FEC_MODE_AUTO, mac_a, frame, len, p.buf, sizeof(p.buf),
+                            ROOM, &p.len, now);
+    failed |= p.len != len + N3N_FEC_SEQ_TRAILER + N3N_FEC_REPORT_MORE;
+    unwrap(a, mac_b, &p, now, &s, 100);
+    failed |= n3n_fec_peer_info(a, mac_b, &info) != 0;
+    failed |= (info.loss < 8) || (info.burst4 < 10) || (info.burst4 > 18);
+    printf(", told: %s\n", failed ? "FAIL" : "ok");
+
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    return failed;
+}
+
+
+// a sends frames of size to b, one every gap_us, for secs seconds; b one
+// of 60 bytes to a every millisecond, its report riding along.  The way
+// from a to b loses pct at random, in bursts of burst4 / 4 (0: one by
+// one), and - where cap_pps is not 0 - what does not fit: it takes cap_pps
+// PDUs a second, keeping 30 waiting at most.  The share of the frames
+// that arrive (per mille) is to be min_permille at least
+static int duplex (const char *name, size_t size, uint64_t gap_us, int secs,
+                   int pct, int burst4, int cap_pps, int min_permille) {
+
+    struct n3n_fec *a = n3n_fec_new();
+    struct n3n_fec *b = n3n_fec_new();
+    struct n3n_fec_info info;
+    uint8_t frame[N2N_PKT_BUF_SIZE];
+    struct pdu p;
+    struct seen s, back;
+    uint64_t now = 1000 * SEC, end = now + secs * SEC, next_frame = now, next_back = now;
+    uint64_t service = cap_pps ? SEC / cap_pps : 0, link = now;
+    int sent = 0, repairs = 0, failed = 0;
+    n2n_mac_t to;
+
+    memset(&s, 0, sizeof(s));
+    memset(&back, 0, sizeof(back));
+    lcg = 3;
+    bad = 0;
+    while(now < end) {
+        int64_t due = n3n_fec_due_us(a, now);
+        uint64_t next = next_frame < next_back ? next_frame : next_back;
+        bool is_repair = false;
+
+        if((due >= 0) && (now + due < next)) {
+            now += due;
+            if(!n3n_fec_repair(a, now, to, p.buf, sizeof(p.buf), &p.len)) {
+                continue;
+            }
+            p.scheme = N3N_FEC_REPAIR;
+            is_repair = true;
+            repairs++;
+        } else if(next_back <= next_frame) {
+            now = next_back;
+            next_back += 1000;
+            size_t len = make_frame(frame, 0, 60);
+            p.scheme = n3n_fec_wrap(b, N3N_FEC_MODE_AUTO, mac_a, frame, len, p.buf, sizeof(p.buf),
+                                    ROOM, &p.len, now);
+            unwrap(a, mac_b, &p, now, &back, 60);
+            continue;
+        } else {
+            now = next_frame;
+            next_frame += gap_us;
+            size_t len = make_frame(frame, sent % FRAMES, size);
+            p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                    ROOM, &p.len, now);
+            if(p.scheme == N3N_FEC_NONE) {
+                memcpy(p.buf, frame, len);
+                p.len = len;
+            }
+            sent++;
+        }
+        (void)is_repair;
+        // the way: at random, then what does not fit
+        if(burst4 ? lost_in_bursts(pct, burst4) : lost_on_the_way(pct)) {
+            continue;
+        }
+        if(service) {
+            if(link < now) {
+                link = now;
+            }
+            if(link - now > 30 * service) {
+                continue;
+            }
+            link += service;
+        }
+        unwrap(b, mac_a, &p, now, &s, size);
+    }
+    n3n_fec_peer_info(a, mac_b, &info);
+    failed |= s.wrong || (s.n * 1000LL < (long long)min_permille * sent);
+    printf("%-26s %6d frames, %5.1f %% arrive, %5.1f %% repairs, loss told %2d %%, residual %d, margin %.2f: %s\n",
+           name, sent, 100.0 * s.n / sent, 100.0 * repairs / sent, info.loss, info.residual,
+           info.margin8 / 8.0, failed ? "FAIL" : "ok");
+
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    return failed;
+}
+
+
 // A group that could not be undone leaves its repairs behind; once the
 // seqs wrapped, a group of the same seqs comes, missing a frame - which is
 // not to be undone with the old group's repairs, but with its own
@@ -624,6 +838,7 @@ int main (int argc, char * argv[]) {
     failed |= test_gf();
     failed |= test_variants();
     show_m();
+    show_m_burst();
 
     // voice (a frame each 20 ms, groups of 1, its repair riding along with
     // the next), bulk (one each 100 us, groups of 32, their repairs too
@@ -639,6 +854,19 @@ int main (int argc, char * argv[]) {
     failed |= run("auto, mixed, 20 % (capped)", N3N_FEC_MODE_AUTO, 0, FRAMES, 300, 20, 20, 120, -1);
     failed |= run("always, no loss", N3N_FEC_MODE_ALWAYS, 0, FRAMES, 300, 0, 0, 0, -1);
     failed |= run("none", N3N_FEC_MODE_NONE, 0, 500, 300, 10, 10, 150, 0);
+
+    // in bursts: told as independent, then as they are
+    burst4_way = 16;
+    failed |= run("bulk, 3 % in bursts of 4", N3N_FEC_MODE_AUTO, 1400, FRAMES, 100, 3, 3, 30, -1);
+    tell_burst4 = 16;
+    failed |= run("... told the bursts", N3N_FEC_MODE_AUTO, 1400, FRAMES, 100, 3, 3, 5, -1);
+    tell_burst4 = 0;
+    burst4_way = 0;
+
+    failed |= test_measure();
+    // both ways, the receiver telling what it sees: at random, in bursts
+    failed |= duplex("duplex, 10 %", 1000, 200, 30, 10, 0, 0, 995);
+    failed |= duplex("duplex, 5 % in bursts of 3", 1000, 200, 30, 5, 12, 0, 995);
 
     failed |= test_any();
     failed |= test_reorder();

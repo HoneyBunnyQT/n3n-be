@@ -8,6 +8,13 @@ m by k (rows) and loss % (columns):
   10    0   1   2   3   5   5   5
   20    0   2   3   5   8  10  10
   32    0   2   3   6  10  12  12
+m by k (rows) and mean burst (columns), at 2 % | 5 %:
+      0.00 1.50 2.00 3.00 4.00 6.00 | 0.00 1.50 2.00 3.00 4.00 6.00
+   1     1    1    1    1    1    1 |    1    1    1    1    1    1
+   4     2    2    2    2    2    2 |    2    2    2    2    2    2
+  10     2    4    5    5    5    5 |    3    5    5    5    5    5
+  20     3    5    7   10   10   10 |    5    7   10   10   10   10
+  32     3    6    8   12   12   12 |    6    9   11   12   12   12
 auto, no loss told          500 frames, repairs    0 alone    0 riding,   0 lost,   0 undone,   0 missing: ok
 auto, nothing told          500 frames, repairs    0 alone    0 riding,  44 lost,   0 undone,  44 missing: ok
 auto, voice, 5 %           2000 frames, repairs    1 alone 1999 riding,  97 lost,  91 undone,   6 missing: ok
@@ -19,6 +26,11 @@ auto, mixed, 10 %          2000 frames, repairs  753 alone    7 riding, 199 lost
 auto, mixed, 20 % (capped) 2000 frames, repairs  753 alone    7 riding, 385 lost, 338 undone,  47 missing: ok
 always, no loss            2000 frames, repairs   62 alone    6 riding,   0 lost,   0 undone,   0 missing: ok
 none                        500 frames, repairs    0 alone    0 riding,   0 lost,   0 undone,  44 missing: ok
+bulk, 3 % in bursts of 4   2000 frames, repairs  385 alone    0 riding,  56 lost,  23 undone,  33 missing: ok
+... told the bursts        2000 frames, repairs  763 alone    0 riding,  72 lost,  66 undone,   6 missing: ok
+measured, 10 % in bursts   loss 11 %, bursts 3.75, 98 per mille stayed lost, told: ok
+duplex, 10 %               150000 frames, 100.0 % arrive,  37.5 % repairs, loss told 16 %, residual 0, margin 1.50: ok
+duplex, 5 % in bursts of 3 150000 frames,  99.8 % arrive,  37.3 % repairs, loss told  9 %, residual 4, margin 1.75: ok
 any m of k + m lost        k 10, m 5, 6 ways: ok
 backwards, twice           26 PDUs, 20 frames came out: ok
 spacing, riding            ok

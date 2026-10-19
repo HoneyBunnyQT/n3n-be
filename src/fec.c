@@ -48,7 +48,24 @@
 #define FEC_LOSS_SHIFT          4
 #define FEC_LOSS_SLOW_SHIFT     8
 #define FEC_LOSS_ONE            65536
-#define FEC_LOSS_UNKNOWN        255
+// the report: not known yet; four bytes, not one
+#define FEC_LOSS_UNKNOWN        0x7f
+#define FEC_REPORT_LONG         0x80
+// what stayed lost, a weight of 1/1024 for each frame - slow, as it is to
+// tell 0.1 % from more - of a finer one than FEC_LOSS_ONE, so that it goes
+// down to 0 (the steps of 1/1024 of what there is would end at 1024)
+#define FEC_RESIDUAL_SHIFT      10
+#define FEC_RESIDUAL_ONE        (1 << 24)
+// the mean burst, of 256ths, a weight of 1/32 for each burst
+#define FEC_BURST_SHIFT         5
+#define FEC_BURST_ONE           256
+// the margin on the loss told for m, in eighths: from 1.5 on, up by a
+// quarter while the receiver tells of more than 0.3 % stayed lost, down
+// by an eighth while none, once a second
+#define FEC_MARGIN_MIN          12
+#define FEC_MARGIN_MAX          32
+#define FEC_MARGIN_US           1000000
+#define FEC_RESIDUAL_HIGH       3
 // the window of seqs the receiver keeps, and the frames of groups in it
 #define FEC_WINDOW              64
 // repairs kept for groups not undone yet, and for how long
@@ -105,7 +122,13 @@ struct fec_peer {
     // sending to it
     uint16_t tx_seq;            // of the last PACKET
     uint8_t reported;           // the loss it sees of ours, FEC_LOSS_UNKNOWN for none
+    uint8_t reported_fast;      // of it: lately
+    uint8_t reported_burst;     // in quarters, 0 for not known
+    uint8_t reported_residual;  // per mille
     uint64_t reported_us;
+    uint8_t margin;             // see FEC_MARGIN_MIN
+    uint64_t margin_us;
+    uint8_t last_k, last_m;     // of the last group
     uint64_t tx_us;             // the last frame
     uint32_t gap_us;            // between frames, averaged
     size_t room;                // what a PACKET's payload may be, as wrap was told
@@ -130,6 +153,10 @@ struct fec_peer {
     uint32_t loss;              // the share of them lost, of FEC_LOSS_ONE, lately
     uint32_t loss_slow;         // the same, over longer
     bool loss_known;
+    uint64_t counted;           // the seqs in the window since the start
+    uint32_t residual;          // the share of them that stayed lost, of FEC_RESIDUAL_ONE
+    uint8_t run;                // lost in a row, so far
+    uint32_t burst;             // the mean of those runs, of FEC_BURST_ONE, 0: none yet
     uint8_t dups;               // that came before already, in a row
     // the frames of groups in the window, by seq % FEC_WINDOW, and repairs
     struct fec_slot slot[FEC_WINDOW];
@@ -154,6 +181,11 @@ struct n3n_fec {
 static uint8_t coef[N3N_FEC_M_MAX][N3N_FEC_K_MAX];
 // m_table[k][percent]: see n3n_fec_m()
 static uint8_t m_table[N3N_FEC_K_MAX + 1][101];
+// the same in bursts, [k][percent][burst4 - 5], burst4 5 .. 32; filled as
+// asked for, 0xff where not yet
+#define FEC_BURST4_MIN          5
+#define FEC_BURST4_MAX          32
+static uint8_t m_burst_table[N3N_FEC_K_MAX + 1][101][FEC_BURST4_MAX - FEC_BURST4_MIN + 1];
 
 
 // The frames a group of k with m repairs leaves lost, as a share of k, at
@@ -179,6 +211,55 @@ static double residual (int k, int m, double p) {
 }
 
 
+// The same where losses come in bursts (Gilbert): after a PACKET that came,
+// the next is lost with q, after one that was lost, it comes with r - so
+// that p of them are lost, in bursts of 1 / r on average (r = 1 - p:
+// independent).  That holds for the k frames of a group, which go in a
+// row; its m repairs go spread out after it, between other PACKETs, and
+// are taken to be lost independently.
+static double residual_burst (int k, int m, double p, double r) {
+
+    double q = p * r / (1.0 - p);
+    double f[2][N3N_FEC_K_MAX + 1], g[2][N3N_FEC_K_MAX + 1];
+    double rep[N3N_FEC_M_MAX + 1];
+    double sum = 0.0;
+    int i, lf, lr;
+
+    // the frames: f[last lost][lost of them], the first lost with p
+    memset(f, 0, sizeof(f));
+    f[0][0] = 1.0 - p;
+    f[1][1] = p;
+    for(i = 1; i < k; i++) {
+        memset(g, 0, sizeof(g));
+        for(lf = 0; lf <= i; lf++) {
+            g[1][lf + 1] += f[0][lf] * q + f[1][lf] * (1.0 - r);
+            g[0][lf] += f[0][lf] * (1.0 - q) + f[1][lf] * r;
+        }
+        memcpy(f, g, sizeof(f));
+    }
+
+    // the repairs: rep[lost of them], binomial
+    memset(rep, 0, sizeof(rep));
+    rep[0] = 1.0;
+    for(i = 0; i < m; i++) {
+        for(lr = i + 1; lr > 0; lr--) {
+            rep[lr] = rep[lr] * (1.0 - p) + rep[lr - 1] * p;
+        }
+        rep[0] *= 1.0 - p;
+    }
+
+    // more than m lost: the frames among them stay lost
+    for(lf = 1; lf <= k; lf++) {
+        for(lr = 0; lr <= m; lr++) {
+            if(lf + lr > m) {
+                sum += (f[0][lf] + f[1][lf]) * rep[lr] * lf / k;
+            }
+        }
+    }
+    return sum;
+}
+
+
 static void fec_tables (void) {
 
     static bool ready;
@@ -199,6 +280,7 @@ static void fec_tables (void) {
         }
     }
 
+    memset(m_burst_table, 0xff, sizeof(m_burst_table));
     for(k = 1; k <= N3N_FEC_K_MAX; k++) {
         int cap = (k == 1) ? 1 : k / 2;
 
@@ -235,6 +317,53 @@ int n3n_fec_m (int k, int percent) {
         percent = 100;
     }
     return m_table[k][percent];
+}
+
+
+int n3n_fec_m_burst (int k, int percent, int burst4) {
+
+    double p, r;
+    uint8_t *m;
+    int cap;
+
+    fec_tables();
+    if(k < 1) {
+        k = 1;
+    }
+    if(k > N3N_FEC_K_MAX) {
+        k = N3N_FEC_K_MAX;
+    }
+    if(percent < 0) {
+        percent = 0;
+    }
+    if(percent > 100) {
+        percent = 100;
+    }
+    if(burst4 > FEC_BURST4_MAX) {
+        burst4 = FEC_BURST4_MAX;
+    }
+    p = percent / 100.0;
+    // bursts no longer than independent losses make them - 1 / (1 - p)
+    // - are taken as independent
+    if((percent == 0) || (percent == 100) || (burst4 < FEC_BURST4_MIN)
+       || (4.0 / burst4 >= 1.0 - p)) {
+        return m_table[k][percent];
+    }
+    m = &m_burst_table[k][percent][burst4 - FEC_BURST4_MIN];
+    if(*m == 0xff) {
+        int n = 0;
+
+        r = 4.0 / burst4;
+        cap = (k == 1) ? 1 : k / 2;
+        if(cap > N3N_FEC_M_MAX) {
+            cap = N3N_FEC_M_MAX;
+        }
+        while((n < cap) && (residual_burst(k, n, p, r) > FEC_RESIDUAL)) {
+            n++;
+        }
+        *m = (uint8_t)n;
+    }
+    return *m;
 }
 
 
@@ -348,6 +477,7 @@ static struct fec_peer *fec_peer (struct n3n_fec *fec, const n2n_mac_t mac, uint
         // where a restarted edge left off does not matter then
         p->tx_seq = (uint16_t)n3n_rand();
         p->reported = FEC_LOSS_UNKNOWN;
+        p->margin = FEC_MARGIN_MIN;
         HASH_ADD(hh, fec->peers, mac, sizeof(n2n_mac_t), p);
     }
     p->last_us = now_us;
@@ -355,16 +485,66 @@ static struct fec_peer *fec_peer (struct n3n_fec *fec, const n2n_mac_t mac, uint
 }
 
 
-// The loss of the peer's PACKETs, as told in the trailer
-static uint8_t loss_report (const struct fec_peer *p) {
+// A share of FEC_LOSS_ONE in percent, or per mille
+static uint32_t share (uint32_t v, uint32_t of) {
 
-    uint32_t percent;
+    uint32_t x = (uint32_t)(((uint64_t)v * of + FEC_LOSS_ONE / 2) / FEC_LOSS_ONE);
+
+    return x > of ? of : x;
+}
+
+
+// The loss of the peer's PACKETs in percent, the larger of lately and
+// over longer: up at once, down slowly, as redundancy wants it
+static uint8_t loss_report (const struct fec_peer *p) {
 
     if(!p->loss_known) {
         return FEC_LOSS_UNKNOWN;
     }
-    percent = ((p->loss > p->loss_slow ? p->loss : p->loss_slow) * 100 + FEC_LOSS_ONE / 2) / FEC_LOSS_ONE;
-    return percent > 100 ? 100 : (uint8_t)percent;
+    return (uint8_t)share(p->loss > p->loss_slow ? p->loss : p->loss_slow, 100);
+}
+
+
+// The mean burst of the peer's PACKETs lost, in quarters, 0 for none
+static uint8_t burst_report (const struct fec_peer *p) {
+
+    uint32_t b = (p->burst * 4 + FEC_BURST_ONE / 2) / FEC_BURST_ONE;
+
+    return b > 255 ? 255 : (uint8_t)b;
+}
+
+
+// What stayed lost of the peer's frames, per mille
+static uint8_t residual_report (const struct fec_peer *p) {
+
+    uint32_t r = (uint32_t)(((uint64_t)p->residual * 1000 + FEC_RESIDUAL_ONE / 2) / FEC_RESIDUAL_ONE);
+
+    return r > 255 ? 255 : (uint8_t)r;
+}
+
+
+// The report of the peer's PACKETs, to out: its length - one byte where
+// nothing is lost, four where something is
+static size_t put_report (uint8_t *out, const struct fec_peer *p) {
+
+    uint8_t fast, slow, residual;
+
+    if(!p->loss_known) {
+        out[0] = FEC_LOSS_UNKNOWN;
+        return 1;
+    }
+    fast = (uint8_t)share(p->loss, 100);
+    slow = (uint8_t)share(p->loss_slow, 100);
+    residual = residual_report(p);
+    if(!fast && !slow && !residual) {
+        out[0] = 0;
+        return 1;
+    }
+    out[0] = slow;
+    out[1] = burst_report(p);
+    out[2] = residual;
+    out[3] = FEC_REPORT_LONG | fast;
+    return 1 + N3N_FEC_REPORT_MORE;
 }
 
 
@@ -380,6 +560,20 @@ static int loss_out (const struct fec_peer *p, uint64_t now_us) {
         return loss_report(p);
     }
     return -1;
+}
+
+
+// The mean burst of loss on the way to the peer, in quarters, 0 for not
+// known: from where loss_out() has it
+static int burst_out (const struct fec_peer *p, uint64_t now_us) {
+
+    if((p->reported != FEC_LOSS_UNKNOWN) && (now_us - p->reported_us <= FEC_REPORT_AGE_US)) {
+        return p->reported_burst;
+    }
+    if(p->loss_known && (now_us - p->rx_us <= FEC_REPORT_AGE_US)) {
+        return burst_report(p);
+    }
+    return 0;
 }
 
 
@@ -425,15 +619,35 @@ static void group_close (struct n3n_fec *fec, struct fec_peer *p, uint64_t now_u
         r->k = p->group_k;
         r->j = (uint8_t)j;
         r->not_before = now_us + (j + 1) * spacing;
-        r->rides = r->len + N3N_FEC_RIDE_TRAILER + FEC_RIDE_MIN_FRAME <= p->room;
+        r->rides = r->len + N3N_FEC_RIDE_TRAILER + N3N_FEC_REPORT_MORE + FEC_RIDE_MIN_FRAME <= p->room;
         r->deadline = r->rides ? r->not_before + hold : r->not_before;
         r->next = NULL;
         *tail = r;
         tail = &r->next;
         fec->pending++;
     }
+    p->last_k = p->group_k;
     p->group_open = false;
     fec->open_groups--;
+}
+
+
+// The margin on the loss told: more while frames stay lost although
+// repairs go, less again while none do
+static void margin_adapt (struct fec_peer *p, uint64_t now_us) {
+
+    if(now_us - p->margin_us < FEC_MARGIN_US) {
+        return;
+    }
+    p->margin_us = now_us;
+    if((p->reported == FEC_LOSS_UNKNOWN) || (now_us - p->reported_us > FEC_REPORT_AGE_US)) {
+        return;
+    }
+    if((p->reported_residual >= FEC_RESIDUAL_HIGH) && p->last_m) {
+        p->margin = p->margin + 2 > FEC_MARGIN_MAX ? FEC_MARGIN_MAX : p->margin + 2;
+    } else if(!p->reported_residual && (p->margin > FEC_MARGIN_MIN)) {
+        p->margin--;
+    }
 }
 
 
@@ -451,12 +665,15 @@ static bool group_open (struct n3n_fec *fec, struct fec_peer *p, int mode, uint6
     if(kt > N3N_FEC_K_MAX) {
         kt = N3N_FEC_K_MAX;
     }
-    // the loss told is an estimate, of the past: half as much again, so
-    // that a group is not short of repairs where it is more just now
-    m = (pct >= N3N_FEC_AUTO_MIN_LOSS) ? n3n_fec_m(kt, pct + (pct + 1) / 2) : 0;
+    margin_adapt(p, now_us);
+    // the loss told is an estimate, of the past: a margin on it, so that
+    // a group is not short of repairs where it is more just now
+    m = (pct >= N3N_FEC_AUTO_MIN_LOSS) ? n3n_fec_m_burst(kt, (pct * p->margin + 7) / 8, burst_out(p, now_us)) : 0;
     if((mode == N3N_FEC_MODE_ALWAYS) && (m < 1)) {
         m = 1;
     }
+    p->last_k = (uint8_t)kt;
+    p->last_m = (uint8_t)m;
     if(!m) {
         return false;
     }
@@ -510,7 +727,7 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
     bool groupable = len + 2 <= N3N_FEC_SYMBOL_MAX;
     size_t n = len;
 
-    if(!fec || (mode == N3N_FEC_MODE_NONE) || (len + N3N_FEC_SEQ_TRAILER > out_size)) {
+    if(!fec || (mode == N3N_FEC_MODE_NONE) || (len + N3N_FEC_SEQ_TRAILER + N3N_FEC_REPORT_MORE > out_size)) {
         return N3N_FEC_NONE;
     }
     // a repair rides along only where both fit, in the PACKET and in out
@@ -560,7 +777,7 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
         struct fec_out *r = *rp;
 
         if(r->rides && (now_us >= r->not_before)
-           && (n + r->len + N3N_FEC_RIDE_TRAILER <= room)) {
+           && (n + r->len + N3N_FEC_RIDE_TRAILER + N3N_FEC_REPORT_MORE <= room)) {
             memcpy(out + n, r->data, r->len);
             n += r->len;
             put16(out + n, r->len);
@@ -578,7 +795,7 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
 
     put16(out + n, ++p->tx_seq);
     n += 2;
-    out[n++] = loss_report(p);
+    n += put_report(out + n, p);
 
     if(p->group_open && (p->group_k >= p->group_kt)) {
         group_close(fec, p, now_us);
@@ -627,13 +844,12 @@ int n3n_fec_repair (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
                 if(now_us < r->deadline) {
                     continue;
                 }
-                if(r->len + N3N_FEC_REPAIR_TRAILER <= out_size) {
+                if(r->len + N3N_FEC_REPAIR_TRAILER + N3N_FEC_REPORT_MORE <= out_size) {
                     memcpy(out, r->data, r->len);
                     put16(out + r->len, r->first);
                     out[r->len + 2] = r->k;
                     out[r->len + 3] = r->j;
-                    out[r->len + 4] = loss_report(p);
-                    *out_len = r->len + N3N_FEC_REPAIR_TRAILER;
+                    *out_len = r->len + 4 + put_report(out + r->len + 4, p);
                     memcpy(peer, p->mac, sizeof(n2n_mac_t));
                     got = 1;
                 }
@@ -694,6 +910,8 @@ static void rx_start (struct fec_peer *p, uint16_t seq) {
     p->top = seq;
     p->arrived = ~(uint64_t)1;
     p->delivered = 0;
+    p->counted = 1;
+    p->run = 0;
     for(int r = 0; r < FEC_RX_REPAIRS; r++) {
         p->repair[r].valid = false;
     }
@@ -709,16 +927,35 @@ static int rx_advance (struct fec_peer *p, int d) {
     while(d--) {
         bool got = (p->arrived >> (FEC_SETTLE - 1)) & 1;
 
+        // the one leaving the window: what is not there by now, stays lost
+        if((p->counted >> (FEC_WINDOW - 1)) & 1) {
+            p->residual -= p->residual >> FEC_RESIDUAL_SHIFT;
+            if(!((p->delivered >> (FEC_WINDOW - 1)) & 1)) {
+                p->residual += FEC_RESIDUAL_ONE >> FEC_RESIDUAL_SHIFT;
+            }
+        }
+
         p->loss -= p->loss >> FEC_LOSS_SHIFT;
         p->loss_slow -= p->loss_slow >> FEC_LOSS_SLOW_SHIFT;
         if(!got) {
             p->loss += FEC_LOSS_ONE >> FEC_LOSS_SHIFT;
             p->loss_slow += FEC_LOSS_ONE >> FEC_LOSS_SLOW_SHIFT;
             lost++;
+            if(p->run < 255) {
+                p->run++;
+            }
+        } else if(p->run) {
+            // a burst ended: into the mean
+            int32_t b = p->run * FEC_BURST_ONE;
+
+            p->burst = p->burst ? (uint32_t)((int32_t)p->burst + (b - (int32_t)p->burst) / (1 << FEC_BURST_SHIFT))
+                       : (uint32_t)b;
+            p->run = 0;
         }
         p->loss_known = true;
         p->arrived <<= 1;
         p->delivered <<= 1;
+        p->counted = (p->counted << 1) | 1;
         p->top++;
     }
     // the repairs of groups that left the window go: once the seqs
@@ -976,59 +1213,79 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
                     uint8_t *scratch, struct n3n_fec_frames *out) {
 
     struct fec_peer *p;
-    size_t n = 0, t, rlen = 0;
+    size_t n = 0, t, rlen = 0, end;
     uint8_t *repair = NULL;
-    uint16_t seq, first = 0;
-    uint8_t loss, k = 0, j = 0;
-    bool frame;
+    uint16_t seq = 0, first = 0;
+    uint8_t fast, slow, burst = 0, residual = 0, k = 0, j = 0;
+    bool frame, told;
     int16_t d;
     int i;
 
     memset(out, 0, sizeof(*out));
 
-    // the trailer: where the frame ends, where a repair is, seq and loss
+    // the report, at the very end
+    if(size < 1) {
+        return -1;
+    }
+    fast = buf[size - 1];
+    if(fast & FEC_REPORT_LONG) {
+        if(size < 1 + N3N_FEC_REPORT_MORE) {
+            return -1;
+        }
+        fast &= ~FEC_REPORT_LONG;
+        slow = buf[size - 4];
+        burst = buf[size - 3];
+        residual = buf[size - 2];
+        if((fast > 100) || (slow > 100)) {
+            return -1;
+        }
+        end = size - 1 - N3N_FEC_REPORT_MORE;
+        told = true;
+    } else {
+        slow = fast;
+        end = size - 1;
+        told = fast <= 100;
+    }
+
+    // the trailer before it: where the frame ends, where a repair is, seq
     switch(scheme) {
         case N3N_FEC_SEQ:
         case N3N_FEC_GROUP:
-            if(size < N3N_FEC_SEQ_TRAILER) {
+            if(end < 2) {
                 return -1;
             }
-            t = size - N3N_FEC_SEQ_TRAILER;
-            n = t;
+            n = end - 2;
+            seq = get16(buf + n);
             break;
         case N3N_FEC_REPAIR:
-            if(size < N3N_FEC_REPAIR_TRAILER) {
+            if(end < 4) {
                 return -1;
             }
-            rlen = size - N3N_FEC_REPAIR_TRAILER;
+            rlen = end - 4;
             repair = buf;
             first = get16(buf + rlen);
             k = buf[rlen + 2];
             j = buf[rlen + 3];
-            // no seq: t at loss, less the seq's two bytes
-            t = rlen + 2;
             break;
         case N3N_FEC_RIDE:
-            if(size < N3N_FEC_RIDE_TRAILER) {
+            if(end < 8) {
                 return -1;
             }
-            t = size - N3N_FEC_RIDE_TRAILER;
+            t = end - 8;
             rlen = get16(buf + t);
             first = get16(buf + t + 2);
             k = buf[t + 4];
             j = buf[t + 5];
+            seq = get16(buf + t + 6);
             if(rlen > t) {
                 return -1;
             }
             n = t - rlen;
             repair = buf + n;
-            t += 6;
             break;
         default:
             return -1;
     }
-    seq = (scheme == N3N_FEC_REPAIR) ? 0 : get16(buf + t);
-    loss = buf[t + 2];
     frame = scheme != N3N_FEC_REPAIR;
     if(frame && (n < ETH_FRAMESIZE)) {
         return -1;
@@ -1062,8 +1319,11 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         return 0;
     }
 
-    if(loss <= 100) {
-        p->reported = loss;
+    if(told) {
+        p->reported = fast > slow ? fast : slow;
+        p->reported_fast = fast;
+        p->reported_burst = burst;
+        p->reported_residual = residual;
         p->reported_us = now_us;
     }
 
@@ -1142,4 +1402,31 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
     fec_unlock(fec);
 
     return 0;
+}
+
+
+int n3n_fec_peer_info (struct n3n_fec *fec, const n2n_mac_t peer, struct n3n_fec_info *info) {
+
+    struct fec_peer *p;
+
+    if(!fec) {
+        return -1;
+    }
+    fec_lock(fec);
+    HASH_FIND(hh, fec->peers, peer, sizeof(n2n_mac_t), p);
+    if(p) {
+        bool told = p->reported != FEC_LOSS_UNKNOWN;
+
+        info->loss = told ? p->reported : -1;
+        info->burst4 = told ? p->reported_burst : 0;
+        info->residual = told ? p->reported_residual : -1;
+        info->margin8 = p->margin;
+        info->k = p->last_k;
+        info->m = p->last_m;
+        info->rx_loss = p->loss_known ? (int)share(p->loss_slow, 100) : -1;
+        info->rx_burst4 = burst_report(p);
+        info->rx_residual = p->loss_known ? residual_report(p) : -1;
+    }
+    fec_unlock(fec);
+    return p ? 0 : -1;
 }

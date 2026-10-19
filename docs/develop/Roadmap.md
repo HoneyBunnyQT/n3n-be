@@ -231,18 +231,29 @@ report.
             Xeon: plain C 1 GB/s, SSSE3 10, GFNI 15, AVX2 17, AVX-512
             24, GFNI/AVX2 32, GFNI/AVX-512 36.  Tested: x86-64, i386,
             arm64 and armhf (qemu), ASan/UBSan, MinGW builds
-      - [ ] One loss measure: the receiver's count of the seqs (one way,
-            the path in use, the data itself) beside the probes' (round
-            trip, direct path only, about both ways added); the receiver
-            tells raw loss (for m) and what stayed lost after decoding
-            (whether m was enough - closing the loop where losses come in
-            bursts); p2p_max_loss may take the data's loss while direct
-      - [ ] The adaption, further (k from the rate, m binomial with a
-            margin and a cap are in since phase 2): losses in bursts
-            (Gilbert-Elliott - the receiver's window gives the mean
-            burst, to tell too), the residual told back (what stayed
-            lost: whether m was enough), backing off when the loss grows
-            with what is sent or with the RTT (congestion), hysteresis
+      - [x] Repairs of a group that could not be undone stayed in the
+            receiver's table; once the seqs wrapped (65536 frames: 13 s
+            at 5000 a second), a group of the same seqs undid a frame
+            with them - wrong bytes to the device.  Found by the two-way
+            simulation below (2026-10-19): the window moving on takes the
+            repairs of the groups it leaves; at 20 % lost, that also
+            undoes 338 instead of 287 of 385 lost
+      - [x] Bursts and what stayed lost (2026-10-19): the receiver
+            measures, beside the loss, the mean burst of loss (runs at the
+            settle point, 1/32 a burst) and what stayed lost (a seq
+            leaving the window missing, 1/1024 a frame), and tells them in
+            a report of four bytes where something is lost (one where
+            not: no more bytes on a clean line).  The sender takes m from
+            a Gilbert model where it is told of bursts - the group's
+            frames in a row bursty, its repairs, spread out, lost
+            independently (both in a row would be far too pessimistic:
+            5 of 10 at 2 % in bursts of 1.5) - and adds to its margin
+            (from 1.5, a quarter a second up to 4) while more than 0.3 %
+            stay lost.  tests-fec: 3 % in bursts of 4,
+            33 of 2000 stay lost taken as independent, 6 told; a two-way
+            simulation (`duplex`, frames one way and the other's reports
+            back, over 30 s).  `get_edges` shows a peer's `fec`.  Left:
+            p2p_max_loss may take the data's loss while direct
       - [ ] Later, maybe: sliding-window coding (RFC 8681's random linear
             codes, Tetrys) - no groups: each repair PACKET is a random
             combination of the last W frames, its coefficients from a
@@ -260,8 +271,8 @@ report.
       - [ ] Per peer instead of per community: an edge that learns a
             peer reads FEC (a flag in its REGISTER, or from a PACKET of a
             scheme) sends it to that one only - mixed communities
-      - [ ] The loss per peer in `get_edges` and on the page, beside the
-            probes' `loss` of the direct path
+      - [x] The loss per peer in `get_edges` (`fec`), beside the probes'
+            `loss` of the direct path; [ ] on the page
       - [ ] Not against congestion loss, which more bytes make worse:
             m is capped at k/2 (phase 2); back off where the loss grows
             with what is sent

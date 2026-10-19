@@ -1744,6 +1744,9 @@ class Run:
             before = {n: self._fec_stats(n) for n in ("a", "b")}
             got = self._ping("a", "b", count=count, interval=0.02)
             after = {n: self._fec_stats(n) for n in ("a", "b")}
+            # what each tells of the other in get_edges, "fec"
+            _, arow = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+            told = (arow or {}).get("fec", {})
             arrived = self._bulk("a", "b", bulk, 1000, 1200)
             last = {n: self._fec_stats(n) for n in ("a", "b")}
         finally:
@@ -1771,6 +1774,17 @@ class Run:
                            lost_a=stats["a"]["lost"],
                            undone_b=stats["b"]["undone"],
                            lost_b=stats["b"]["lost"]))
+        # a's view of b: the loss b tells it of, and the loss a sees of
+        # b's PACKETs, both about sc.fec_loss
+        lo, hi = self.sc.fec_loss / 3, self.sc.fec_loss * 3
+        self.result["fec"]["told"] = told
+        self.check("fec: get_edges", lo <= told.get("loss", -1) <= hi
+                   and lo <= told.get("rx_loss", -1) <= hi,
+                   "a tells of b: loss {} % (bursts {}, residual {} per "
+                   "mille, m {} of k {}), from b {} %".format(
+                       told.get("loss"), told.get("burst"),
+                       told.get("residual"), told.get("m"), told.get("k"),
+                       told.get("rx_loss")))
         # one way: of 1200 byte frames, without FEC 90% at 10%; with, the
         # groups' repairs leave some 0.1%
         self.check("fec: bulk", arrived >= 0.99 * bulk

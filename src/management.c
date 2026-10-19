@@ -27,6 +27,7 @@
 
 #include "base64.h"      // for base64decode
 #include "connslot/strbuf.h"
+#include "fec.h"         // for n3n_fec_peer_info
 #include "local_link.h"  // for local_link_edge
 #include "management.h"
 #include "management_page.h"
@@ -676,8 +677,25 @@ static void jsonrpc_get_communities (char *id, struct n3n_runtime_data *eee, con
     jsonrpc_result_tail(conn, 200);
 }
 
+// What the forward error correction keeps of the peer, as "fec":{...}, -
+// nothing where it keeps nothing (fec.h, struct n3n_fec_info)
+static const char *fec_str (char *buf, size_t size, struct n3n_fec *fec, const n2n_mac_t mac) {
+
+    struct n3n_fec_info i;
+
+    if(n3n_fec_peer_info(fec, mac, &i)) {
+        return "";
+    }
+    snprintf(buf, size,
+             "\"fec\":{\"loss\":%d,\"burst\":%.2f,\"residual\":%d,\"margin\":%.3f,"
+             "\"k\":%d,\"m\":%d,\"rx_loss\":%d,\"rx_burst\":%.2f,\"rx_residual\":%d},",
+             i.loss, i.burst4 / 4.0, i.residual, i.margin8 / 8.0,
+             i.k, i.m, i.rx_loss, i.rx_burst4 / 4.0, i.rx_residual);
+    return buf;
+}
+
 static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, const char *mode, const char *community,
-                                   struct nat_peer *nat_peers) {
+                                   struct nat_peer *nat_peers, struct n3n_fec *fec) {
     macstr_t mac_buf;
     n3n_sock_str_t sockbuf;
     n3n_sock_str_t sockbuf2;
@@ -687,6 +705,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
     char name[JSON_STR_SIZE(N2N_COMMUNITY_SIZE)];
     char desc[JSON_STR_SIZE(N2N_DESC_SIZE)];
     char version[JSON_STR_SIZE(N2N_VERSION_STRING_SIZE)];
+    char fec_buf[200];
     const struct nat_peer *np = nat_peer_find(nat_peers, peer->mac_addr, false);
 
     sb_reprintf(reply,
@@ -709,6 +728,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 "\"time_alloc\":%u,"
                 "\"last_p2p\":%u,"
                 "\"last_sent_query\":%u,"
+                "%s"
                 "\"last_seen\":%u},",
                 mode,
                 json_str(name, community, N2N_COMMUNITY_SIZE),
@@ -730,6 +750,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 (uint32_t)peer->time_alloc,
                 (uint32_t)peer->last_p2p,
                 (uint32_t)peer->last_sent_query,
+                fec_str(fec_buf, sizeof(fec_buf), fec, peer->mac_addr),
                 (uint32_t)peer->last_seen
     );
 
@@ -767,7 +788,8 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
             "pSp",
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
-            eee->client.nat_peers
+            eee->client.nat_peers,
+            eee->client.fec
         );
 
         if(jsonrpc_error_overflow(id, conn, count)) {
@@ -795,7 +817,8 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
             (peer->lossy && eee->conf.client.p2p_max_loss) ? "pSp" : "p2p",
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
-            eee->client.nat_peers
+            eee->client.nat_peers,
+            eee->client.fec
         );
 
         if(jsonrpc_error_overflow(id, conn, count)) {
@@ -825,7 +848,8 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
                 "sn",
                 (community->is_federation) ? "-/-" :
                 mgmt_name_hidden(community->header_encryption, rpc_unlocked) ? MGMT_NAME_HIDDEN : community->community,
-                eee->client.nat_peers
+                eee->client.nat_peers,
+                NULL
             );
 
             if(jsonrpc_error_overflow(id, conn, count)) {
