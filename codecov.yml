@@ -1,0 +1,17 @@
+---
+# Codecov, see .github/workflows/coverage.yml: the report counts src/ and
+# apps/ only, and tells, without failing anything
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+comment: false
+ignore:
+  - "thirdparty"
+  - "libs"
+  - "tests"
+  - "tools"

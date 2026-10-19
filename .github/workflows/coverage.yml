@@ -1,0 +1,83 @@
+---
+name: Coverage
+
+# Which lines of the program the tests reach: the build with --coverage,
+# the unit, builtin and integration tests, the fuzz targets' corpus and
+# the netns scenarios, and a report of src/ and apps/ by gcovr - as an
+# artifact of the run (HTML), and to Codecov where the repository is set
+# up there (OIDC, no token; an upload that fails does not fail the run).
+# See docs/develop/testing.md.
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # the upload to Codecov, tokenless
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Build with --coverage
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y nftables iproute2 iputils-ping gcovr
+          ./autogen.sh
+          ./configure
+          make build-dep
+          ./configure --enable-pthread \
+            CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage"
+          make -j4 all fuzz
+
+      - name: Unit, builtin and integration tests, the fuzz corpus
+        run: |
+          make test.units test.builtin test.fuzz test.integration
+
+      - name: netns scenarios
+        run: |
+          # the daemons keep root: one that dropped its privileges could
+          # not write its counts (*.gcda) into the tree at its exit.
+          # What fails here is for netns.yml to tell; this run is for
+          # the counts
+          sudo python3 tests/netns/run.py --skip-missing -j 4 --keep-root \
+            --retry 1 || true
+          sudo chown -R "$(id -u):$(id -g)" .
+
+      - name: Report
+        run: |
+          # configure's test programs leave counts of their own
+          rm -f ./*conftest*.gcno ./*conftest*.gcda
+          mkdir -p coverage
+          gcovr --root . --filter 'src/' --filter 'apps/' \
+            --print-summary --xml coverage.xml \
+            --html-details coverage/index.html \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the report
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage
+          path: |
+            coverage
+            coverage.xml
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage.xml
+          use_oidc: true
+          fail_ci_if_error: false

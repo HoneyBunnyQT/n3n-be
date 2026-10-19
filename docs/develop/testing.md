@@ -22,6 +22,7 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 | an edge-only build (`./configure --disable-relay`) | the unit and builtin tests | yes |
 | the options reference is up to date | `make options.check` | yes |
 | sanitizers: all of the above but lint and qemu, with AddressSanitizer and UndefinedBehaviorSanitizer built in, every finding fatal | see below | yes, on every push (`sanitizers.yml`), the NAT tests too |
+| coverage: which lines of `src/` and `apps/` the tests reach (unit, builtin, integration, fuzz corpus, NAT tests) | see below | yes, on every push (`coverage.yml`): the report in the run's summary and as an artifact, and on Codecov |
 
 `make test` runs the first five and the quick NAT tests (which skip
 themselves without root).  A change that touches the protocol, NAT
@@ -53,6 +54,26 @@ scenarios with those of `daemon.threads` (`'*-threads'`).  On newer
 kernels it needs `sysctl vm.mmap_rnd_bits=28` first.  The
 bundled minilzo reads unaligned on purpose, so the Makefile leaves out
 the alignment check for it.
+
+### Coverage
+
+```
+./configure --enable-pthread CFLAGS="--coverage -O0 -g" LDFLAGS="--coverage"
+make -j4 all fuzz
+make test.units test.builtin test.fuzz test.integration
+sudo tests/netns/run.py --keep-root && sudo chown -R "$(id -u)" .
+rm -f ./*conftest*.gcno ./*conftest*.gcda      # configure's own
+gcovr --root . --filter src/ --filter apps/ --print-summary \
+    --html-details coverage/index.html
+```
+
+Each program adds its counts to the `*.gcda` files beside the objects
+when it exits, so the daemons keep root (`--keep-root`): one that dropped
+its privileges could not write them.  `coverage.yml` runs this on every
+push, puts the summary on the run's page and the HTML report into an
+artifact, and sends `coverage.xml` to Codecov - tokenless (OIDC), once
+the repository is added at codecov.io; until then the upload fails
+without failing the run.  `codecov.yml` keeps its checks informational.
 
 # Built in Testing and Benchmarking framework
 
