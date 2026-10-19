@@ -1705,7 +1705,8 @@ class Run:
             "recv-" + name, d["ns"],
             [sys.executable, TRAFFIC_PY, "recv", "--bind",
              "{}:{}".format(d["overlay"], port)],
-            stdout_path=os.path.join(self.workdir, "recv-{}.json".format(name)))
+            stdout_path=os.path.join(self.workdir,
+                                     "recv-{}.json".format(name)))
         time.sleep(0.5)
         send = self.lab.spawn(
             "send-" + name, s["ns"],
@@ -1713,7 +1714,8 @@ class Run:
              "--to", "{}:{}".format(d["overlay"], port),
              "--flow", str(FLOW_FEC), "--count", str(count),
              "--rate", str(rate), "--size", str(size)],
-            stdout_path=os.path.join(self.workdir, "send-{}.json".format(name)))
+            stdout_path=os.path.join(self.workdir,
+                                     "send-{}.json".format(name)))
         wait_for(lambda: not send.alive(), 10 + 2 * count / rate)
         send.stop()
         time.sleep(1.0)     # the last ones, and the last group's repairs
