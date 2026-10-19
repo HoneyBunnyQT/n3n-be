@@ -2300,11 +2300,13 @@ void edge_rx_register_super_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c
 void edge_rx_register_super_nak (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
 
     n2n_REGISTER_SUPER_NAK_t nak;
-
-    if(!(eee->client.sn_wait)) {
-        traceEvent(TRACE_DEBUG, "Rx REGISTER_SUPER_NAK with no outstanding REGISTER_SUPER");
-        return;
-    }
+    // A NAK may come after the ACK, too: the supernode answered at once,
+    // and passed the registration on to the others of its federation, one
+    // of which refused it - with user/password, one that does not know the
+    // user (any more).  The supernode then drops the edge, and passes the
+    // refusal on; the cookie below tells that it is about the edge's
+    // registration of now
+    bool late = !eee->client.sn_wait;
 
     if(decode_REGISTER_SUPER_NAK(&nak, &c->cmn, c->buf, &c->rem, &c->idx) < 0) {
         traceEvent(TRACE_INFO, "REGISTER_SUPER_NAK section in N2N_UDP too short");
@@ -2349,7 +2351,8 @@ void edge_rx_register_super_nak (struct n3n_runtime_data *eee, struct pdu_ctx *c
             macaddr_str(buf_src, nak.srcMac)
         );
         if(eee->conf.shared_secret) {
-            traceEvent(TRACE_ERROR, "authentication error, username or password not recognized by supernode");
+            traceEvent(TRACE_ERROR, "authentication error, username or password not recognized by %s",
+                       late ? "another supernode of the federation" : "supernode");
         } else {
             traceEvent(TRACE_ERROR, "authentication error, MAC or IP address already in use or not released yet by supernode");
         }

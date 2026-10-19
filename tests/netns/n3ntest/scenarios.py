@@ -518,6 +518,15 @@ SCENARIOS = [
         Site(on_supernode="sn2"),
         "relayed"),
     Scenario(
+        "userpw-lockout",
+        "user/password, a at sn1, b at sn2; then user b's line goes from "
+        "sn1's community file only, and sn1 reloads: b is refused all over "
+        "the federation (sn2 passes sn1's refusal of b's forwarded "
+        "registration on); then the line comes back, and b gets in",
+        Site(["easy-kept"], supernodes=["sn1"]),
+        Site(["easy-changed"], supernodes=["sn2"]),
+        "direct", auth="userpw", lockout=("sn1",)),
+    Scenario(
         "userpw-spoof",
         "user/password; then an edge of user b, with b's password, comes up "
         "with a's MAC: refused, and the supernodes keep a where it is - "

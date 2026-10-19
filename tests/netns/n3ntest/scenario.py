@@ -195,7 +195,7 @@ class Scenario:
                  direct_ok=None, sn_peer_family=4, sn_start_gap=0,
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
-                 multicast=False, lossy=0, spoof=False):
+                 multicast=False, lossy=0, spoof=False, lockout=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -231,6 +231,11 @@ class Scenario:
         # with b's password) comes up with a's MAC: the supernodes are to
         # refuse it, and to keep a where it is (auth="userpw")
         self.spoof = spoof
+        # After the warm-up, user b's line goes from sn1's community file
+        # (each supernode has its own copy), and sn1 reloads: b is to be
+        # refused all over the federation, also at sn2, where it is
+        # registered; then the line comes back, and b is to get in again
+        self.lockout = lockout
         # The supernodes take UDP on SN_PORT and TCP on this port
         # (connection.bind udp:// and tcp://), and the edges know it
         # (community.supernode tcp://)
@@ -855,8 +860,14 @@ class Run:
                 "logging": [("verbose", self.st.verbose)],
             }
             if community_file:
+                if self.sc.lockout:
+                    # a copy of its own, see lockout
+                    own = "{}-{}".format(community_file, name)
+                    shutil.copyfile(community_file, own)
+                    sn["community_file"] = own
                 sections["supernode"].append(
-                    ("community_file", community_file))
+                    ("community_file", sn.get("community_file",
+                                              community_file)))
             if self.sc.auth and self.sc.community_conf:
                 sections[self._community_section()] = [
                     ("header_encryption", True)
@@ -1673,6 +1684,76 @@ class Run:
                     out[name] = row.get("sockaddr")
         return out
 
+    def _ping(self, src, dst, count=3):
+        """Pings over the tunnel from src to dst's overlay address: how
+        many were answered"""
+        p = subprocess.run(["ip", "netns", "exec", self.edges[src]["ns"],
+                            "ping", "-c", str(count), "-i", "0.3", "-W", "1",
+                            self.edges[dst]["overlay"]],
+                           capture_output=True, text=True, timeout=30)
+        for line in p.stdout.splitlines():
+            if " received" in line:
+                return int(line.split(",")[1].split()[0])
+        return 0
+
+    def _user_b(self, names, back):
+        """User b's line out of (or back into) the community files of
+        those supernodes, each reloading then"""
+        for name in names:
+            sn = self.supernodes[name]
+            path = sn["community_file"]
+            if not back:
+                with open(path) as f:
+                    sn["community_lines"] = f.read().splitlines(True)
+            lines = sn["community_lines"]
+            with open(path, "w") as f:
+                f.writelines(line for line in lines
+                             if back or not line.startswith("* b "))
+            self.log("{}: user b {} its community file, SIGHUP".format(
+                name, "back in" if back else "out of"))
+            sn["daemon"].proc.send_signal(signal.SIGHUP)
+
+    def lockout_phase(self):
+        """sc.lockout: user b deleted at those supernodes, then back"""
+        b = self.edges["b"]
+        interval = self.st.register_interval
+        self._user_b(self.sc.lockout, back=False)
+        t = time.monotonic()
+
+        def out():
+            if not self.check_alive_quiet():
+                return "dead"
+            with open(b["daemon"].proc.log_path, errors="replace") as f:
+                refused = any("authentication error" in line for line in f)
+            return "ok" if refused and not self._sn_entries(b["mac"]) \
+                else None
+        ok = wait_for(out, 30 + 6 * interval, interval=0.5) == "ok"
+        took = round(time.monotonic() - t, 1)
+        entries = self._sn_entries(b["mac"])
+        self.result["lockout"] = {"seconds": took, "entries": entries}
+        self.check("lockout", ok, "b refused, at no supernode, after {}s"
+                   .format(took) if ok else
+                   "b at {} after {}s, refused: not in its log".format(
+                       entries, took))
+        a_at = self._sn_entries(self.edges["a"]["mac"])
+        self.check("lockout: a stays", bool(a_at), "a at {}".format(a_at))
+        # the header keys changed with the reload: b, which is to get the
+        # new ones from no supernode, cannot reach a directly either
+        time.sleep(interval)
+        got = self._ping("a", "b")
+        self.check("lockout: cut off", got == 0,
+                   "{} of 3 pings from a to b answered".format(got))
+        self._user_b(self.sc.lockout, back=True)
+        t = time.monotonic()
+        ok = wait_for(lambda: bool(self._sn_entries(b["mac"])) or None,
+                      30 + 6 * interval, interval=0.5)
+        took = round(time.monotonic() - t, 1)
+        where = self._sn_entries(b["mac"])
+        self.check("lockout: back in", bool(ok),
+                   "b at {} after {}s".format(where, took))
+        # a round of registrations for the peers to find each other again
+        time.sleep(2 * interval)
+
     def spoof_phase(self):
         """sc.spoof: an edge of user b, in b's namespace, with a's MAC"""
         a, b = self.edges["a"], self.edges["b"]
@@ -2092,6 +2173,8 @@ class Run:
                 self.lossy_phase()
             if self.sc.spoof and self.check_alive("warm-up"):
                 self.spoof_phase()
+            if self.sc.lockout and self.check_alive("warm-up"):
+                self.lockout_phase()
             if self.sc.failover and self.check_alive("warm-up"):
                 self.failover()
             if self.sc.udp_lost and self.check_alive("warm-up"):
