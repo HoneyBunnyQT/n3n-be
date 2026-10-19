@@ -1799,11 +1799,19 @@ class Run:
         a_at = self._sn_entries(self.edges["a"]["mac"])
         self.check("lockout: a stays", bool(a_at), "a at {}".format(a_at))
         # the header keys changed with the reload: b, which is to get the
-        # new ones from no supernode, cannot reach a directly either
-        time.sleep(interval)
-        got = self._ping("a", "b")
+        # new ones from no supernode, cannot reach a directly either - once
+        # a has them, at its next registration at sn1
+        t = time.monotonic()
+        got = None
+
+        def cut_off():
+            nonlocal got
+            got = self._ping("a", "b")
+            return got == 0 or None
+        wait_for(cut_off, 10 + 3 * interval, interval=0.5)
         self.check("lockout: cut off", got == 0,
-                   "{} of 3 pings from a to b answered".format(got))
+                   "{} of 3 pings from a to b answered, {}s after".format(
+                       got, round(time.monotonic() - t, 1)))
         self._user_b(self.sc.lockout, back=True)
         t = time.monotonic()
         ok = wait_for(lambda: bool(self._sn_entries(b["mac"])) or None,

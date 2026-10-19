@@ -525,7 +525,11 @@ SCENARIOS = [
         "registration on); then the line comes back, and b gets in",
         Site(["easy-kept"], supernodes=["sn1"]),
         Site(["easy-changed"], supernodes=["sn2"]),
-        "direct", auth="userpw", lockout=("sn1",)),
+        "direct", auth="userpw", lockout=("sn1",),
+        # the supernodes keep root: on SIGHUP they read their files again,
+        # which the user they drop to cannot reach under every workdir
+        # (CI's is in /home/runner)
+        sn_conf={"daemon": {"userid": 0, "groupid": 0}}),
     Scenario(
         "userpw-spoof",
         "user/password; then an edge of user b, with b's password, comes up "
