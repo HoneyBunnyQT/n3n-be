@@ -49,14 +49,23 @@ Each user has a password, from which, together with the user name,
 is given the public keys, the edges their user names and passwords - the
 passwords never leave the edges.
 
+An edge's MAC and IP address stay with the user that registered them:
+another user - evilrabbit, with a password of its own but honeybunny's
+MAC or address - gets the refusal above.  (Up to n3n-be 3.4.8, any user
+of the community could take them over.)
+
 ### 1. Make the keys
 
 For each user, with their password:
 
 ```
-$ n3n-edge tools keygen logan 007
-* logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+$ n3n-edge tools keygen honeybunny cutie
+* honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
+$ n3n-edge tools keygen evilrabbit carrotthief
+* evilrabbit JMhQ8icD-cRekgmAl0ylVJFOMaDIPXuEjIm3ajasHIe
 ```
+
+(Please pick better passwords than honeybunny's.)
 
 and for the federation, with its name (see
 [Federation](Federation.md); give the supernodes one of their own, and
@@ -77,8 +86,8 @@ configuration:
 federation = myFederation
 
 [community netleo]
-user = logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
-user = sister HwHpPrdMft+38tFDDiunUds6927t0+zhCMMkQdJafcC
+user = honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
+user = evilrabbit JMhQ8icD-cRekgmAl0ylVJFOMaDIPXuEjIm3ajasHIe
 ```
 
 or into a community file, as the line from `keygen`, under the
@@ -86,8 +95,8 @@ community's name:
 
 ```
 netleo
-* logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
-* sister HwHpPrdMft+38tFDDiunUds6927t0+zhCMMkQdJafcC
+* honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
+* evilrabbit JMhQ8icD-cRekgmAl0ylVJFOMaDIPXuEjIm3ajasHIe
 ```
 
 See [Communities](Communities.md).  A user's key depends on the user
@@ -95,7 +104,7 @@ name and password only, not on the community, so a user's line can be
 moved to another community as it is.
 
 To change a password, replace the user's line with a new one; to lock a
-user out (a stolen laptop), delete it.  Then `n3nctl reload` (or SIGHUP)
+user out (evilrabbit, or a stolen laptop), delete it.  Then `n3nctl reload` (or SIGHUP)
 makes the supernode read its configuration and community file again;
 `n3nctl reload_communities` reads only the file.
 
@@ -117,10 +126,10 @@ cipher = ChaCha20
 supernode = sn.example.org:7654
 
 [connection]
-description = logan
+description = honeybunny
 
 [auth]
-password = 007
+password = cutie
 pubkey = XhnQB26arLouAf3VXjGoAPTjTRIgEJ01Yi30Fhuqc7K
 ```
 

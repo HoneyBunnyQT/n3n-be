@@ -47,7 +47,7 @@ Each community is a section, with its name after the word `community`:
 
 [community office]
 network = 10.77.0.0/24
-user = logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+user = honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
 header_encryption = true
 
 [supernode]
@@ -81,7 +81,7 @@ The same, as a plain text file with one community a line, given by
 # community.list
 home
 office 10.77.0.0/24
-* logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+* honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
 lab[0-9][0-9]
 ```
 
@@ -149,13 +149,13 @@ For a simple setup, that makes the files needless:
 ```sh
 n3n-supernode start \
     -O community.home.header_encryption=true \
-    -O "community.home.user=logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG"
+    -O "community.home.user=honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa"
 
 n3n-edge start \
     -O community.home.key=secret \
     -O community.home.header_encryption=true \
     -O community.home.supernode=sn.example.org:7654 \
-    -O auth.password=007 -O connection.description=logan
+    -O auth.password=cutie -O connection.description=honeybunny
 ```
 
 An `-O` for a section that is also in the configuration file sets that

@@ -26,7 +26,7 @@ bind=7777
 #
 # [community myCommunity]
 # network = 10.77.0.0/24
-# user = logan nHWum+r42k1qDXdIeH-WFKeylK5UyLStRzxofRNAgpG
+# user = honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
 #
 # [supernode]
 # community_regex = myCommunity[0-9][0-9]
