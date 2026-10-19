@@ -617,9 +617,11 @@ static int test_measure (void) {
 // from a to b loses pct at random, in bursts of burst4 / 4 (0: one by
 // one), and - where cap_pps is not 0 - what does not fit: it takes cap_pps
 // PDUs a second, keeping 30 waiting at most.  The share of the frames
-// that arrive (per mille) is to be min_permille at least
+// that arrive (per mille) is to be min_permille at least; and a is to have
+// backed off to fewer than scale_below eighths of its repairs - not at
+// all, for scale_below 0
 static int duplex (const char *name, size_t size, uint64_t gap_us, int secs,
-                   int pct, int burst4, int cap_pps, int min_permille) {
+                   int pct, int burst4, int cap_pps, int min_permille, int scale_below) {
 
     struct n3n_fec *a = n3n_fec_new();
     struct n3n_fec *b = n3n_fec_new();
@@ -687,9 +689,10 @@ static int duplex (const char *name, size_t size, uint64_t gap_us, int secs,
     }
     n3n_fec_peer_info(a, mac_b, &info);
     failed |= s.wrong || (s.n * 1000LL < (long long)min_permille * sent);
-    printf("%-26s %6d frames, %5.1f %% arrive, %5.1f %% repairs, loss told %2d %%, residual %d, margin %.2f: %s\n",
+    failed |= (scale_below > 0) ? (info.scale8 >= scale_below) : (info.scale8 != 8);
+    printf("%-26s %6d frames, %5.1f %% arrive, %5.1f %% repairs, loss told %2d %%, residual %d, margin %.2f, scale %d/8: %s\n",
            name, sent, 100.0 * s.n / sent, 100.0 * repairs / sent, info.loss, info.residual,
-           info.margin8 / 8.0, failed ? "FAIL" : "ok");
+           info.margin8 / 8.0, info.scale8, failed ? "FAIL" : "ok");
 
     n3n_fec_free(a);
     n3n_fec_free(b);
@@ -864,9 +867,11 @@ int main (int argc, char * argv[]) {
     burst4_way = 0;
 
     failed |= test_measure();
-    // both ways, the receiver telling what it sees: at random, in bursts
-    failed |= duplex("duplex, 10 %", 1000, 200, 30, 10, 0, 0, 995);
-    failed |= duplex("duplex, 5 % in bursts of 3", 1000, 200, 30, 5, 12, 0, 995);
+    // both ways, the receiver telling what it sees: at random, in bursts,
+    // and on a line that is full where repairs are added
+    failed |= duplex("duplex, 10 %", 1000, 200, 30, 10, 0, 0, 995, 0);
+    failed |= duplex("duplex, 5 % in bursts of 3", 1000, 200, 30, 5, 12, 0, 995, 0);
+    failed |= duplex("duplex, full line, 3 %", 1000, 200, 60, 3, 0, 5300, 900, 8);
 
     failed |= test_any();
     failed |= test_reorder();

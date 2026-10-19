@@ -687,9 +687,9 @@ static const char *fec_str (char *buf, size_t size, struct n3n_fec *fec, const n
         return "";
     }
     snprintf(buf, size,
-             "\"fec\":{\"loss\":%d,\"burst\":%.2f,\"residual\":%d,\"margin\":%.3f,"
+             "\"fec\":{\"loss\":%d,\"burst\":%.2f,\"residual\":%d,\"margin\":%.3f,\"scale\":%.3f,"
              "\"k\":%d,\"m\":%d,\"rx_loss\":%d,\"rx_burst\":%.2f,\"rx_residual\":%d},",
-             i.loss, i.burst4 / 4.0, i.residual, i.margin8 / 8.0,
+             i.loss, i.burst4 / 4.0, i.residual, i.margin8 / 8.0, i.scale8 / 8.0,
              i.k, i.m, i.rx_loss, i.rx_burst4 / 4.0, i.rx_residual);
     return buf;
 }

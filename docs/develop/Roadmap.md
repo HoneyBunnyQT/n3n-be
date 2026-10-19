@@ -249,11 +249,27 @@ report.
             independently (both in a row would be far too pessimistic:
             5 of 10 at 2 % in bursts of 1.5) - and adds to its margin
             (from 1.5, a quarter a second up to 4) while more than 0.3 %
-            stay lost.  tests-fec: 3 % in bursts of 4,
+            stay lost, not while backing off tests.  tests-fec: 3 % in bursts of 4,
             33 of 2000 stay lost taken as independent, 6 told; a two-way
             simulation (`duplex`, frames one way and the other's reports
             back, over 30 s).  `get_edges` shows a peer's `fec`.  Left:
             p2p_max_loss may take the data's loss while direct
+      - [x] Backing off where the repairs fill the line (2026-10-19): for
+            streams (groups of 4 frames and more), after 8 s of repairs,
+            half of them for a second; where the loss told lately (the
+            report's fast loss, averaged by the sender over the second
+            before and the second half of the test) goes down to 0.6 of
+            what it was or less (from 2 % on), m is halved (scale), and
+            goes up again by an eighth every 8 s; the next test 8 s
+            later, twice as long apart each time nothing came of it, up
+            to 64 s.  Voice and pings are not tested: their repairs ride
+            along, and halving m = 1 costs much.  duplex: a line of 5300
+            PACKETs a second, frames at 5000, 3 % lost: all repairs
+            (37.5 %) overflow it, 17 % told lost; backing off 17 %
+            repairs, 5 % lost, as many frames arrive.  Left: the RTT as a
+            sign of a full line, and loss from a line that others fill
+            (TCP inside the tunnel does not see the loss FEC hides, and
+            does not slow down)
       - [ ] Later, maybe: sliding-window coding (RFC 8681's random linear
             codes, Tetrys) - no groups: each repair PACKET is a random
             combination of the last W frames, its coefficients from a
@@ -273,9 +289,6 @@ report.
             scheme) sends it to that one only - mixed communities
       - [x] The loss per peer in `get_edges` (`fec`), beside the probes'
             `loss` of the direct path; [ ] on the page
-      - [ ] Not against congestion loss, which more bytes make worse:
-            m is capped at k/2 (phase 2); back off where the loss grows
-            with what is sent
 - [ ] A supernode answers an edge's REGISTER_SUPER at once - with the
       header keys, with user/password - and passes it on to the
       federation: a user deleted at one supernode is refused everywhere,

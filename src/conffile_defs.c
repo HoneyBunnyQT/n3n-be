@@ -85,7 +85,7 @@ static struct n3n_conf_option section_community[] = {
                 "go in groups - of up to 32, or 10 ms - and after each group "
                 "as many repairs as the loss on the way to that peer asks "
                 "for, more where it comes in bursts (a Reed-Solomon code), "
-                "riding along in the next "
+                "fewer where they would fill the line, riding along in the next "
                 "PACKETs where they fit, else in PACKETs of their own: any "
                 "of the group's frames lost, up to as many as there are "
                 "repairs, are undone by the receiving edge.  always sends "

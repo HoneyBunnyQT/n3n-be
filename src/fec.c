@@ -66,6 +66,20 @@
 #define FEC_MARGIN_MAX          32
 #define FEC_MARGIN_US           1000000
 #define FEC_RESIDUAL_HIGH       3
+// backing off: half the repairs for FEC_PROBE_US, every FEC_PROBE_MIN_US,
+// twice as long apart each time the loss did not go down with it, up to
+// FEC_PROBE_MAX_US; where it went down to FEC_PROBE_DROP of what it was
+// (and from at least FEC_PROBE_MIN_LOSS), m is halved (scale8), and goes up
+// again by an eighth every FEC_PROBE_MIN_US
+#define FEC_PROBE_US            1000000
+#define FEC_PROBE_MIN_US        (8 * 1000000ULL)
+#define FEC_PROBE_MAX_US        (64 * 1000000ULL)
+#define FEC_PROBE_DROP          0.6
+#define FEC_PROBE_MIN_LOSS      2
+// only for streams, groups of so many frames at least: the repairs of
+// fewer ride along, or are few PACKETs - nothing to fill a line - and
+// halving them would cost much
+#define FEC_PROBE_MIN_K         4
 // the window of seqs the receiver keeps, and the frames of groups in it
 #define FEC_WINDOW              64
 // repairs kept for groups not undone yet, and for how long
@@ -127,8 +141,17 @@ struct fec_peer {
     uint8_t reported_residual;  // per mille
     uint64_t reported_us;
     uint8_t margin;             // see FEC_MARGIN_MIN
-    uint64_t margin_us;
+    uint64_t margin_us;         // changed last, or a probe ended
     uint8_t last_k, last_m;     // of the last group
+    // backing off, see FEC_PROBE_US
+    uint8_t scale;              // of eighths
+    uint64_t scale_us;          // changed last
+    uint8_t probe;              // 0: not, 1: the loss before it, 2: on, not measuring yet, 3: measuring
+    uint64_t probe_us;          // the next phase from then on
+    uint64_t probe_every_us;
+    uint32_t probe_sum;         // of the fast loss told in this phase
+    uint32_t probe_n;
+    double probe_before;
     uint64_t tx_us;             // the last frame
     uint32_t gap_us;            // between frames, averaged
     size_t room;                // what a PACKET's payload may be, as wrap was told
@@ -478,6 +501,8 @@ static struct fec_peer *fec_peer (struct n3n_fec *fec, const n2n_mac_t mac, uint
         p->tx_seq = (uint16_t)n3n_rand();
         p->reported = FEC_LOSS_UNKNOWN;
         p->margin = FEC_MARGIN_MIN;
+        p->scale = 8;
+        p->probe_every_us = FEC_PROBE_MIN_US;
         HASH_ADD(hh, fec->peers, mac, sizeof(n2n_mac_t), p);
     }
     p->last_us = now_us;
@@ -636,7 +661,12 @@ static void group_close (struct n3n_fec *fec, struct fec_peer *p, uint64_t now_u
 // repairs go, less again while none do
 static void margin_adapt (struct fec_peer *p, uint64_t now_us) {
 
-    if(now_us - p->margin_us < FEC_MARGIN_US) {
+    // not while fewer repairs go to see whether they make the loss: what
+    // stays lost then is the probe's, and for a while after
+    if(p->probe >= 2) {
+        p->margin_us = now_us + FEC_MARGIN_US;
+    }
+    if((int64_t)(now_us - p->margin_us) < FEC_MARGIN_US) {
         return;
     }
     p->margin_us = now_us;
@@ -647,6 +677,77 @@ static void margin_adapt (struct fec_peer *p, uint64_t now_us) {
         p->margin = p->margin + 2 > FEC_MARGIN_MAX ? FEC_MARGIN_MAX : p->margin + 2;
     } else if(!p->reported_residual && (p->margin > FEC_MARGIN_MIN)) {
         p->margin--;
+    }
+}
+
+
+// Whether the repairs make the loss, as on a line that is full - see
+// FEC_PROBE_US: while repairs go (sending), and the peer tells
+static void probe (struct fec_peer *p, bool sending, uint64_t now_us) {
+
+    bool told = (p->reported != FEC_LOSS_UNKNOWN) && (now_us - p->reported_us <= FEC_REPORT_AGE_US);
+
+    // fewer repairs for a while: more, slowly, again
+    if((p->scale < 8) && (now_us - p->scale_us >= FEC_PROBE_MIN_US)) {
+        p->scale++;
+        p->scale_us = now_us;
+    }
+    if(!sending || !told || !p->scale) {
+        // no telling now: later
+        p->probe = 0;
+        p->probe_us = now_us + p->probe_every_us;
+        return;
+    }
+    if(!p->probe_us) {
+        p->probe_us = now_us + p->probe_every_us;
+    }
+    switch(p->probe) {
+        case 0:
+            // the loss before, for a while
+            if(now_us + FEC_PROBE_US >= p->probe_us) {
+                p->probe = 1;
+                p->probe_sum = 0;
+                p->probe_n = 0;
+            }
+            break;
+        case 1:
+            if(now_us >= p->probe_us) {
+                if(p->probe_n) {
+                    p->probe_before = (double)p->probe_sum / p->probe_n;
+                    // half the repairs, the loss told settling first
+                    p->probe = 2;
+                    p->probe_us = now_us + FEC_PROBE_US / 2;
+                } else {
+                    p->probe = 0;
+                    p->probe_us = now_us + p->probe_every_us;
+                }
+            }
+            break;
+        case 2:
+            if(now_us >= p->probe_us) {
+                p->probe = 3;
+                p->probe_sum = 0;
+                p->probe_n = 0;
+                p->probe_us = now_us + FEC_PROBE_US / 2;
+            }
+            break;
+        case 3:
+            if(now_us >= p->probe_us) {
+                double during = p->probe_n ? (double)p->probe_sum / p->probe_n : p->probe_before;
+
+                if((p->probe_before >= FEC_PROBE_MIN_LOSS) && (during <= p->probe_before * FEC_PROBE_DROP)) {
+                    // fewer repairs, less loss: back off, and look again
+                    // soon
+                    p->scale /= 2;
+                    p->scale_us = now_us;
+                    p->probe_every_us = FEC_PROBE_MIN_US;
+                } else if(p->probe_every_us < FEC_PROBE_MAX_US) {
+                    p->probe_every_us *= 2;
+                }
+                p->probe = 0;
+                p->probe_us = now_us + p->probe_every_us;
+            }
+            break;
     }
 }
 
@@ -669,6 +770,12 @@ static bool group_open (struct n3n_fec *fec, struct fec_peer *p, int mode, uint6
     // the loss told is an estimate, of the past: a margin on it, so that
     // a group is not short of repairs where it is more just now
     m = (pct >= N3N_FEC_AUTO_MIN_LOSS) ? n3n_fec_m_burst(kt, (pct * p->margin + 7) / 8, burst_out(p, now_us)) : 0;
+    probe(p, (m > 0) && (kt >= FEC_PROBE_MIN_K), now_us);
+    // fewer where they make the loss
+    m = (m * p->scale + 7) / 8;
+    if(p->probe >= 2) {
+        m /= 2;
+    }
     if((mode == N3N_FEC_MODE_ALWAYS) && (m < 1)) {
         m = 1;
     }
@@ -1325,6 +1432,12 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         p->reported_burst = burst;
         p->reported_residual = residual;
         p->reported_us = now_us;
+        // for backing off: the loss lately, before and while fewer repairs
+        // go
+        if((p->probe == 1) || (p->probe == 3)) {
+            p->probe_sum += fast;
+            p->probe_n++;
+        }
     }
 
     if(!frame) {
@@ -1421,6 +1534,7 @@ int n3n_fec_peer_info (struct n3n_fec *fec, const n2n_mac_t peer, struct n3n_fec
         info->burst4 = told ? p->reported_burst : 0;
         info->residual = told ? p->reported_residual : -1;
         info->margin8 = p->margin;
+        info->scale8 = p->scale;
         info->k = p->last_k;
         info->m = p->last_m;
         info->rx_loss = p->loss_known ? (int)share(p->loss_slow, 100) : -1;

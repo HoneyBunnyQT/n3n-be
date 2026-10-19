@@ -102,6 +102,22 @@ one by one, 6 where it knows of the bursts.
 adds to its margin - a quarter more of the loss told each second, up to
 four times it - and takes it back slowly while none do.
 
+**A full line.** Repairs do not help against loss from congestion: on a
+line that is full, they are what overflows it.  So now and then -
+after 8 seconds of sending repairs, then twice as long apart each time
+nothing came of it, up to a minute - the sender sends half the repairs
+for a second, and where the loss goes down with that, to six tenths of
+what it was or less, it keeps to half as many, halving again at the next
+such test, and adding an eighth of what it took away every 8 seconds.
+That is for streams only (groups of 4 frames or more): the repairs of a
+voice call ride along, and taking them away would cost much.  In the unit
+tests, a line that takes 5300 packets a second, with frames at 5000 a
+second, and 3 % lost besides: with all repairs (37 % of the frames), the
+line overflows and 17 % are lost; backing off, the repairs come down to
+17 %, the loss to 5 %, and as many frames arrive.  On a line that
+loses at random, the tests cost a little: at 10 %, 99.9 % of the frames
+arrive instead of 100 %.
+
 What it costs: 3 bytes in each PACKET to a peer (6 where something is
 lost), and the repairs, each as long as the longest frame of its group: in
 a PACKET of its own (5 or 8 bytes more), or riding along (9 or 12 bytes
@@ -114,7 +130,8 @@ later, or less.  Broadcast and multicast go without.
 It works the same through a supernode: it is between the two edges, inside
 the encryption.  Repairs do not help against loss from congestion - more
 bytes on a full line lose more - which is why `auto` sends none while
-nothing is lost, and at most half as many as frames.
+nothing is lost, at most half as many as frames, and fewer where they
+fill the line (see above).
 
 ## Seeing it work
 
@@ -126,7 +143,7 @@ nothing is lost, and at most half as many as frames.
 
 `n3nctl get_edges --raw` shows, for each peer, `fec`: what the peer
 tells of the way to it (`loss`, `burst`, `residual`), what the edge makes
-of it (`margin`, and `k` and `m` of its last group), and what it
+of it (`margin`, `scale`, and `k` and `m` of its last group), and what it
 sees of the way from the peer (`rx_loss`, `rx_burst`, `rx_residual`), see
 [the management API](../internals/ManagementAPI.md).
 

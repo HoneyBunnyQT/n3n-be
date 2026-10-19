@@ -61,7 +61,10 @@
  *
  * m follows the loss and how it comes - in bursts, it takes more (see
  * n3n_fec_m_burst()); and where frames stay lost all the same, the sender
- * adds a margin until they do not.
+ * adds a margin until they do not.  Where the repairs themselves make the
+ * loss - a line that is full - fewer are better: every so often, the
+ * sender sends half of them for a while, and where the loss goes down
+ * with that, it keeps to fewer (halving, then adding slowly again).
  *
  * Sender and receiver keep what they need per peer, by MAC, here.  The
  * threads that handle packets share it, under a lock of its own.
@@ -173,6 +176,7 @@ struct n3n_fec_info {
     int burst4;                 // mean burst in quarters, 0 for not known
     int residual;               // per mille, -1 for not known
     int margin8;                // the loss times margin8 / 8 for m
+    int scale8;                 // m times scale8 / 8: backing off, 8 for not
     int k, m;                   // of the last group
     // from the peer: the loss over longer
     int rx_loss;
