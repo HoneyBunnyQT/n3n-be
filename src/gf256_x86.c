@@ -45,7 +45,7 @@ static void muladd_ssse3 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t le
 CRYPTO_TARGET_END
 
 
-CRYPTO_TARGET_BEGIN("sse2,gfni")
+CRYPTO_TARGET_BEGIN ("sse2,gfni")
 
 static void muladd_gfni (uint8_t *dst, const uint8_t *src, uint8_t c, size_t len) {
 
@@ -100,7 +100,7 @@ static void muladd_avx2 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t len
 CRYPTO_TARGET_END
 
 
-CRYPTO_TARGET_BEGIN("avx512f,avx512bw")
+CRYPTO_TARGET_BEGIN ("avx512f,avx512bw")
 
 static void muladd_avx512 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t len) {
 
@@ -133,7 +133,7 @@ static void muladd_avx512 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t l
 CRYPTO_TARGET_END
 
 
-CRYPTO_TARGET_BEGIN("avx2,gfni")
+CRYPTO_TARGET_BEGIN ("avx2,gfni")
 
 static void muladd_gfni_avx2 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t len) {
 
@@ -151,7 +151,7 @@ static void muladd_gfni_avx2 (uint8_t *dst, const uint8_t *src, uint8_t c, size_
 CRYPTO_TARGET_END
 
 
-CRYPTO_TARGET_BEGIN("avx512f,avx512bw,gfni")
+CRYPTO_TARGET_BEGIN ("avx512f,avx512bw,gfni")
 
 static void muladd_gfni_avx512 (uint8_t *dst, const uint8_t *src, uint8_t c, size_t len) {
 
