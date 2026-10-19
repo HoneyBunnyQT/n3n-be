@@ -471,7 +471,18 @@ static void *worker_main (void *arg) {
         bool readable = false;
         time_t now;
 
-        if(poll(pfd, npfd, 1000) <= 0) {
+        // not longer than until forward error correction's next group
+        // closes, whose repairs are to go then
+        int wait_ms = 1000;
+        if(t->ops->wait_ms) {
+            t->ops->wait_ms(eee, &wait_ms);
+        }
+        if(poll(pfd, npfd, wait_ms) <= 0) {
+            if(t->ops->flush) {
+                pthread_rwlock_rdlock(&t->lock);
+                t->ops->flush(eee);
+                pthread_rwlock_unlock(&t->lock);
+            }
             continue;
         }
         if(stop->revents) {
@@ -511,6 +522,9 @@ static void *worker_main (void *arg) {
         }
         if(tap->revents) {
             w->frames += edge_read_from_tap_batch(eee, WORKER_DRAIN_MAX);
+        }
+        if(t->ops->flush) {
+            t->ops->flush(eee);
         }
         pthread_rwlock_unlock(&t->lock);
 

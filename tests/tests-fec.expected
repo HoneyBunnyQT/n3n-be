@@ -1,11 +1,23 @@
-always, single losses        scheme 2, 40 delivered, 4 from copies, 4 lost: ok
-always, losses in a row      scheme 2, 37 delivered, 2 from copies, 5 lost: ok
-always, big frames           scheme 1, 38 delivered, 0 from copies, 1 lost: ok
-auto, nothing told yet       scheme 1, 39 delivered, 0 from copies, 1 lost: ok
-always, all twice            scheme 2, 40 delivered, 0 from copies, 0 lost: ok
-always, reordered            scheme 2, 40 delivered, 3 from copies, 0 lost: ok
-auto, B tells A              first copy with frame 6, 19 lost, 19 from copies: ok
-copies of recent frames      ok
-restarted sender, idle       ok
-restarted sender, seq below  28 delivered: ok
-broken trailers              ok
+gf256                          ok
+m by k (rows) and loss % (columns):
+        0   1   2   5  10  20  50
+   1    0   1   1   1   1   1   1
+   2    0   1   1   1   1   1   1
+   4    0   1   2   2   2   2   2
+  10    0   1   2   3   5   5   5
+  20    0   2   3   5   8  10  10
+  32    0   2   3   6  10  12  12
+copy, 10 % lost                 500 frames,    0 redundant,  44 lost on the way,  38 undone,   6 missing: ok
+copy, nothing told              500 frames,    0 redundant,  44 lost on the way,   0 undone,  44 missing: ok
+copy, big frames                500 frames,    0 redundant,  44 lost on the way,   0 undone,  44 missing: ok
+auto, no loss told              500 frames,    0 redundant,   0 lost on the way,   0 undone,   0 missing: ok
+auto, voice, 5 %               2000 frames, 2000 redundant, 199 lost on the way,  85 undone,   6 missing: ok
+auto, bulk, 1 %                2000 frames,  195 redundant,  21 lost on the way,  18 undone,   0 missing: ok
+auto, bulk, 5 %                2000 frames,  511 redundant, 122 lost on the way,  95 undone,   0 missing: ok
+auto, mixed, 10 %              2000 frames,  760 redundant, 256 lost on the way, 185 undone,   0 missing: ok
+auto, mixed, 20 % (capped)     2000 frames,  760 redundant, 527 lost on the way, 322 undone,  62 missing: ok
+always, no loss                2000 frames,   68 redundant,   0 lost on the way,   0 undone,   0 missing: ok
+none                            500 frames,    0 redundant,   0 lost on the way,   0 undone,  44 missing: ok
+any m of k + m lost            k 10, m 5, 6 ways: ok
+backwards, twice               26 PDUs, 20 frames came out: ok
+broken trailers                ok

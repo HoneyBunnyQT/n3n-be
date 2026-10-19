@@ -339,16 +339,46 @@ static void transops (void) {
         ops[i].deinit(&ops[i]);
     }
 
-    // the forward error correction's trailers: a small frame with its
-    // seq, then the next with a copy of it
+    // the forward error correction's payloads, see src/fec.h: a frame
+    // with its seq, one with a copy of the one before - once the peer
+    // told of loss - and a group of frames of all sizes with its repairs
+    static uint8_t scratch[N3N_FEC_SCRATCH];
     struct n3n_fec *fec = n3n_fec_new();
-    for(i = 0; i < 2; i++) {
-        size_t n;
-        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_ALWAYS, mac, in, 100,
+    struct n3n_fec_frames f;
+    uint8_t told[64] = {0};
+    n2n_mac_t to;
+    size_t n;
+
+    for(i = 0; i < 3; i++) {
+        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_COPY, mac, in, 100,
                                   out + 1, sizeof(out) - 1, &n, 1000000 * (i + 1));
+        char name[32];
+
+        if(i == 0) {
+            // 10 % lost, it says
+            told[63] = 10;
+            n3n_fec_unwrap(fec, N3N_FEC_SEQ, mac, told, sizeof(told), 1000000, scratch, &f);
+        }
+        out[0] = 0xf0 | scheme;
+        snprintf(name, sizeof(name), "fec-%s-%i", scheme == N3N_FEC_REPEAT ? "repeat" : "seq", i);
+        put("transop", name, out, n + 1);
+    }
+    for(i = 0; i < 8; i++) {
+        uint64_t now = 10000000 + i * 1000;
+        int scheme = n3n_fec_wrap(fec, N3N_FEC_MODE_ALWAYS, mac, in, 60 + i * 150,
+                                  out + 1, sizeof(out) - 1, &n, now);
+        char name[32];
+        int r = 0;
 
         out[0] = 0xf0 | scheme;
-        put("transop", scheme == N3N_FEC_REPEAT ? "fec-repeat" : "fec-seq", out, n + 1);
+        snprintf(name, sizeof(name), "fec-group-%i", i);
+        put("transop", name, out, n + 1);
+        while(n3n_fec_repair(fec, now + (i == 7) * N3N_FEC_GROUP_US, to,
+                             out + 1, sizeof(out) - 1, &n)) {
+            out[0] = 0xf0 | N3N_FEC_REPAIR;
+            snprintf(name, sizeof(name), "fec-repair-%i-%i", i, r++);
+            put("transop", name, out, n + 1);
+        }
     }
     n3n_fec_free(fec);
 }

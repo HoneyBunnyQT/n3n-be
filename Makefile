@@ -145,6 +145,7 @@ OBJS=\
 	src/edge_utils.o \
 	src/embed.o \
 	src/fec.o \
+	src/gf256.o \
 	src/header_encryption.o \
 	src/hexdump.o \
 	src/initfuncs.o \

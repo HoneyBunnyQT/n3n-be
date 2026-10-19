@@ -150,13 +150,13 @@ static struct n3n_metrics_items_llu32 edge_utils_metrics_items2 = {
         },
         {
             .val1 = "tx",
-            .val2 = "fec_copy",
-            .offset = offsetof(struct n2n_edge_stats, tx_fec_copy),
+            .val2 = "fec_redundant",
+            .offset = offsetof(struct n2n_edge_stats, tx_fec_redundant),
         },
         {
             .val1 = "rx",
-            .val2 = "fec_copy",
-            .offset = offsetof(struct n2n_edge_stats, rx_fec_copy),
+            .val2 = "fec_undone",
+            .offset = offsetof(struct n2n_edge_stats, rx_fec_undone),
         },
         {
             .val1 = "rx",
@@ -1002,9 +1002,20 @@ int peer_seen_fast (struct n3n_runtime_data *eee,
 /* ************************************** */
 
 // what the workers of an edge do
+// Not longer than until forward error correction's next group closes
+static void edge_wait_ms (struct n3n_runtime_data *eee, int *wait_ms) {
+
+    int64_t due = n3n_fec_due_us(eee->client.fec, n3n_monotonic_us());
+
+    if((due >= 0) && ((due + 999) / 1000 < *wait_ms)) {
+        *wait_ms = (int)((due + 999) / 1000);
+    }
+}
+
 static const struct n3n_role_ops edge_role_ops = {
     .read_udp = edge_read_proto3_udp,
     .rx_udp = edge_rx_udp,
+    .wait_ms = edge_wait_ms,
     .read_tcp = edge_read_proto3_tcp,
 };
 
@@ -1013,6 +1024,8 @@ static const struct edge_thread_ops edge_thread_ops = {
     .rx_udp = edge_rx_udp,
     .process_pdu = process_pdu_control,
     .tap = 1,
+    .wait_ms = edge_wait_ms,
+    .flush = edge_fec_flush,
 };
 
 
@@ -1361,6 +1374,12 @@ static void edge_tick_tap (struct n3n_runtime_data *eee, time_t now) {
     }
 }
 
+// the repairs of forward error correction's groups whose time is up
+static void edge_tick_fec (struct n3n_runtime_data *eee, time_t now) {
+
+    edge_fec_flush(eee);
+}
+
 static void edge_tick_registrations (struct n3n_runtime_data *eee, time_t now) {
 
     update_supernode_reg(eee, now);
@@ -1479,6 +1498,7 @@ void edge_netwatch_update (struct n3n_runtime_data *eee) {
 static void edge_register_ticks (struct n3n_runtime_data *rt) {
 
     mainloop_register_tick_rt(edge_tick_tap, 0, rt);
+    mainloop_register_tick_rt(edge_tick_fec, 0, rt);
     mainloop_register_tick_rt(edge_tick_registrations, 0, rt);
     mainloop_register_tick_rt(edge_tick_purge, PURGE_REGISTRATION_FREQUENCY, rt);
 #ifdef HAVE_BRIDGING_SUPPORT

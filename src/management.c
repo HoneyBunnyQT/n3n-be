@@ -1015,11 +1015,11 @@ static void jsonrpc_get_packetstats (char *id, struct n3n_runtime_data *eee, con
 
     sb_reprintf(&conn->request,
                 "{"
-                "\"type\":\"fec_copy\","
+                "\"type\":\"fec\","
                 "\"tx_pkt\":%u,"
                 "\"rx_pkt\":%u},",
-                stats.tx_fec_copy,
-                stats.rx_fec_copy);
+                stats.tx_fec_redundant,
+                stats.rx_fec_undone);
 
     sb_reprintf(&conn->request,
                 "{"

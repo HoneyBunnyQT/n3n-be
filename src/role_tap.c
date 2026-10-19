@@ -285,6 +285,28 @@ static int tap_deliver (struct n3n_runtime_data *eee,
 }
 
 
+// Room for the frames forward error correction undoes, one for each
+// thread that handles PACKETs: NULL if there is none
+static N3N_THREAD_LOCAL uint8_t *fec_scratch_buf;
+
+static void fec_scratch_free (void) {
+
+    free(fec_scratch_buf);
+    fec_scratch_buf = NULL;
+}
+
+static uint8_t *fec_scratch (void) {
+
+    if(!fec_scratch_buf) {
+        fec_scratch_buf = malloc(N3N_FEC_SCRATCH);
+        if(fec_scratch_buf) {
+            n3n_thread_on_cleanup(fec_scratch_free);
+        }
+    }
+    return fec_scratch_buf;
+}
+
+
 static int handle_PACKET (struct n3n_runtime_data * eee,
                           const uint8_t from_supernode,
                           const n2n_PACKET_t * pkt,
@@ -405,9 +427,14 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
 
     if(fec_scheme != N3N_FEC_NONE) {
         struct n3n_fec_frames f;
+        uint8_t *scratch = fec_scratch();
+        int rc = 0;
 
+        if(!scratch) {
+            return -1;
+        }
         if(n3n_fec_unwrap(eee->client.fec, fec_scheme, pkt->srcMac,
-                          eth_payload, eth_size, n3n_monotonic_us(), &f) < 0) {
+                          eth_payload, eth_size, n3n_monotonic_us(), scratch, &f) < 0) {
             traceEvent(TRACE_INFO, "dropped a PACKET from %s with a broken FEC trailer",
                        macaddr_str(mac_buf, pkt->srcMac));
             return -1;
@@ -415,16 +442,14 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
         while(f.lost--) {
             STATS_INC(eee, rx_fec_lost);
         }
-        if(f.copy) {
-            // the frame before, lost on the way
-            STATS_INC(eee, rx_fec_copy);
-            tap_deliver(eee, pkt, orig_sender, f.copy, f.copy_len, now);
+        while(f.undone--) {
+            STATS_INC(eee, rx_fec_undone);
         }
-        if(!f.frame) {
-            // came already, from a copy
-            return 0;
+        // the ones undone, before it, then its own - if it came first
+        for(int i = 0; i < f.count; i++) {
+            rc = tap_deliver(eee, pkt, orig_sender, f.frame[i], f.len[i], now);
         }
-        eth_size = f.frame_len;
+        return rc;
     }
 
     return tap_deliver(eee, pkt, orig_sender, eth_payload, eth_size, now);
@@ -717,7 +742,7 @@ size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
                                   n3n_monotonic_us());
         if(fec_scheme != N3N_FEC_NONE) {
             if(fec_scheme == N3N_FEC_REPEAT) {
-                STATS_INC(eee, tx_fec_copy);
+                STATS_INC(eee, tx_fec_redundant);
             }
             tap_pkt = fec_buf;
             len = fec_len;
@@ -842,6 +867,60 @@ size_t edge_encode_packet (struct n3n_runtime_data *eee,
 }
 
 
+/* A PACKET of forward error correction's repair, see fec.h: payload is its
+ * repair and trailer, sent as it is - not compressed, which does not pay off
+ * for it.  Returns the length of the PDU in pktbuf. */
+static size_t edge_encode_repair (struct n3n_runtime_data *eee, n2n_mac_t dest,
+                                  const uint8_t *payload, size_t len,
+                                  uint8_t *pktbuf, size_t pktbuf_size) {
+
+    n2n_common_t cmn;
+    n2n_PACKET_t pkt;
+    size_t headerIdx;
+    size_t idx = 0;
+
+    memset(&cmn, 0, sizeof(cmn));
+    memset(&pkt, 0, sizeof(pkt));
+    cmn.ttl = N2N_DEFAULT_TTL;
+    cmn.pc = MSG_TYPE_PACKET;
+    cmn.flags = 0;
+    memcpy(cmn.community, eee->conf.community.community_name, N2N_COMMUNITY_SIZE);
+    memcpy(pkt.srcMac, eee->tap.device.mac_addr, N2N_MAC_SIZE);
+    memcpy(pkt.dstMac, dest, N2N_MAC_SIZE);
+    pkt.transform = eee->client.transop.transform_id;
+    pkt.compression = N3N_FEC_BYTE(N3N_FEC_REPAIR, N2N_COMPRESSION_ID_NONE);
+
+    encode_PACKET(pktbuf, &idx, &cmn, &pkt);
+    headerIdx = idx;
+    idx += eee->client.transop.fwd(&eee->client.transop,
+                                   pktbuf + idx, pktbuf_size - idx,
+                                   payload, len, dest);
+
+    return edge_encode_packet_tail(eee, pktbuf, headerIdx, idx, len);
+}
+
+
+/* Send the repairs of forward error correction that are due: of groups
+ * that closed with the frames just sent, or whose time is up. */
+void edge_fec_flush (struct n3n_runtime_data *eee) {
+
+    uint8_t payload[N2N_PKT_BUF_SIZE];
+    uint8_t pktbuf[N2N_PKT_BUF_SIZE];
+    n2n_mac_t dest;
+    size_t len;
+
+    while(n3n_fec_repair(eee->client.fec, n3n_monotonic_us(), dest,
+                         payload, sizeof(payload), &len)) {
+        size_t idx = edge_encode_repair(eee, dest, payload, len, pktbuf, sizeof(pktbuf));
+
+        if(idx) {
+            STATS_INC(eee, tx_fec_redundant);
+            send_packet(eee, dest, pktbuf, idx); /* to peer or supernode */
+        }
+    }
+}
+
+
 void edge_send_packet2net (struct n3n_runtime_data * eee,
                            uint8_t *tap_pkt, size_t len) {
 
@@ -851,6 +930,9 @@ void edge_send_packet2net (struct n3n_runtime_data * eee,
     size_t idx = edge_encode_packet(eee, tap_pkt, len, pktbuf, sizeof(pktbuf), destMac);
     if(idx) {
         send_packet(eee, destMac, pktbuf, idx); /* to peer or supernode */
+    }
+    if(eee->conf.community.fec) {
+        edge_fec_flush(eee);
     }
 }
 
@@ -1125,6 +1207,10 @@ static void edge_tx_flush (struct n3n_runtime_data *eee, struct edge_tx_batch *b
         if(idx) {
             send_packet(eee, s->dest, s->pdu, idx); /* to peer or supernode */
         }
+    }
+    // the repairs of groups that closed with them, after them
+    if(eee->conf.community.fec) {
+        edge_fec_flush(eee);
     }
     sock_batch_end();
 

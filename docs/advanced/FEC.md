@@ -12,9 +12,11 @@ congestion, slows down.  Sending through the supernode helps when only the
 direct path loses (see [NAT Traversal](NatTraversal.md#a-direct-path-that-loses-packets)),
 not when the loss is on the edge's own line, which both ways share.
 
-With forward error correction the sending edge puts some of what it sent
-before into what it sends next, so that the receiving edge can undo a loss
-itself, at once, without asking for anything again.
+With forward error correction the sending edge sends some redundancy
+along, computed from what it sent, so that the receiving edge can undo a
+loss itself, at once, without asking for anything again.  It costs extra
+packets - which, where they undo a loss, save what TCP would otherwise
+have sent again, and the time it would have waited for that.
 
 > Under development: what goes on the wire may still change before it is
 > part of a release.  Give all edges of a community the same build when
@@ -34,50 +36,77 @@ setting.  The supernodes pass such PACKETs on as any others; they need
 nothing.  It can be changed while the edge runs (`n3nctl reload`).
 
 - `none`, the default: PACKETs as ever, which every version of n3n reads
-- `auto`: each PACKET to a peer carries a sequence number, so that the
-  peer counts how many of them are lost on the way and tells; while it
-  sees one percent or more lost, a small frame goes again with the next
-  PACKET to it
-- `always`: the copies always, whatever the loss - for testing, or for a
-  line known to be bad
+- `auto`: frames to a peer go in groups, and after each group as many
+  repair PACKETs as the loss on the way to that peer asks for - none while
+  nothing is lost
+- `always`: as `auto`, but at least one repair per group, whatever the
+  loss - for testing, or for a line known to be bad
+- `copy`: instead of groups, a copy of each small frame (up to 400 bytes)
+  in the next PACKET to the same peer, while there is loss - the first
+  way n3n did it; repairs that ride along in data PACKETs are to take its
+  place
 
-Every edge reads it, whatever its own setting.
+Every edge reads all of them, whatever its own setting.
 
 ## What it does
 
-A small frame - up to 400 bytes: voice, games, pings, DNS, TCP's
-acknowledgements - goes once more as a copy in the next PACKET to the same
-peer.  A frame lost alone is then undone with the next one, one packet
-later: 20 ms later for a voice call, which a jitter buffer takes; a second
-later for a ping once a second, which `ping` still counts as answered.
-Two lost in a row: the second is undone, the first stays lost.  So with 10
-percent lost each way, about 1 in 100 frames stays lost instead of 1 in 10.
+The frames to a peer go in **groups**: up to 32 frames, or what comes in
+10 ms, whichever is first - so a stream at a high rate makes groups of 32,
+a voice call (a frame each 20 ms) groups of one.  The frames go as they
+are, at once; after the group, **m repair PACKETs** follow, computed from
+its frames with a Reed-Solomon code.  The receiving edge keeps the frames
+of a group as they come; where some are missing, **any m of them** are
+undone from the repairs, as soon as enough of them came.  A group with
+more lost than it has repairs keeps its losses, but nothing more.
 
-What it costs: 3 bytes in each PACKET to a peer, and while the loss lasts,
-the small frames twice.  A copy only goes of a frame sent in the last two
-seconds.  Big frames get no copy (yet): a lost one stays lost, as without.
-Broadcast and multicast go without.
+How many repairs a group gets follows the loss: each edge counts the
+PACKETs it gets from each peer (they carry sequence numbers), and tells
+the peer, in the PACKETs it sends to it, what it sees lost.  The sender
+takes the fewest repairs that leave at most 0.1 % of the frames lost -
+given the loss it is told, half as much again for safety, and losses
+taken as coming independently - but at most half as many as the group has
+frames (one for one, for a group of one):
+
+| loss told | group of 10 | group of 32 |
+|---|---|---|
+| 1 % | 2 (20 %) | 3 (9 %) |
+| 5 % | 5 (50 %) | 8 (25 %) |
+| 10 % | 5 (50 %) | 12 (38 %) |
+| 20 % | 5 (50 %) | 12 (38 %) |
+
+The more is lost, the more redundancy goes - and the bigger the groups,
+the less of it is needed for the same: losses even out over more frames.
+Where no edge tells (traffic one way only), the sender goes by what it
+sees lost of the peer's PACKETs to it, as if the loss were the same both
+ways.
+
+What it costs: 3 bytes in each PACKET to a peer (7 in a repair), and the
+repairs: one PACKET each, as long as the longest frame of its group.
+Groups and repairs never wait for each other more than 10 ms; a frame
+undone comes that much later, or less.  Broadcast and multicast go
+without.
 
 It works the same through a supernode: it is between the two edges, inside
-the encryption.  Copies do not help against loss from congestion - more
-bytes on a full line lose more - which is why `auto` waits for the loss, and
-why only the small frames get them.
+the encryption.  Repairs do not help against loss from congestion - more
+bytes on a full line lose more - which is why `auto` sends none while
+nothing is lost, and at most half as many as frames.
 
 ## Seeing it work
 
 `n3nctl get_packetstats`:
 
-- `fec_copy`: `tx_pkt` copies sent, `rx_pkt` frames undone from a copy
+- `fec`: `tx_pkt` copies and repairs sent, `rx_pkt` frames undone
 - `fec_lost`: `rx_pkt` PACKETs from peers found missing by their sequence
-  numbers, whether a copy undid them or not
+  numbers, whether undone or not - the loss of the way in
 
-The same on the metrics page (`packets`, events `fec_copy` and `fec_lost`)
-and the management page.
+The same on the metrics page (`packets`, events `fec_redundant`,
+`fec_undone` and `fec_lost`) and the management page.
 
 The netns scenario `fec-lossy` (see
-[Testing behind NATs](../develop/netns_testing.md)) pings from one edge to
-another over a direct path that loses 10 percent each way: 97 to 98 percent
-are answered, without some 82.
+[Testing behind NATs](../develop/netns_testing.md)) has a direct path that
+loses 10 percent each way: of 400 pings, 97 to 98 percent are answered
+(without, some 82); of 2000 frames of 1200 bytes one way, 99.7 to 100
+percent arrive (without, 90), with about one repair for two frames.
 
 ## On the wire
 
@@ -91,13 +120,21 @@ payload, decrypted and decompressed, is the frame with a trailer:
 | 0 | the frame, as ever |
 | 1 | frame, sequence number (16 bits), loss (8 bits) |
 | 2 | frame, copy of the frame before, length of the copy (16 bits), sequence number, loss |
+| 3 | a frame of a group: as 1 |
+| 4 | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), sequence number, loss |
 
 The sequence numbers count the PACKETs from one edge to another, from a
-number of chance; the receiver keeps a window of the last 64, to tell
-what is missing, what came twice (dropped), and what a copy is still
-needed for.  Loss is what the sender sees lost of the PACKETs coming from
-the one it sends to, in percent, 255 while it does not know yet.
+number of chance, repairs too; the frames of a group have them in a row.
+The receiver keeps a window of the last 64, to tell what is missing, what
+came twice (dropped), and what is still to be undone.  Loss is what the
+sender sees lost of the PACKETs coming from the one it sends to, in
+percent, 255 while it does not know yet.
 
-The scheme is chosen for each frame, so more of them fit beside these: the
-next would be parity over a group of frames, for the big ones.  See the
-[Roadmap](../develop/Roadmap.md).
+The code: Reed-Solomon over GF(2^8) with the polynomial
+x^8 + x^4 + x^3 + x + 1 (AES's), systematic - the frames go as they are -
+with a Cauchy matrix for the repairs, its first row all ones (the first
+repair is the XOR of the frames).  What is coded of each frame is its
+length (16 bits) and the frame, padded with zeros to the longest of the
+group.  See `src/fec.h` and `src/gf256.h`, and the
+[Roadmap](../develop/Roadmap.md) for what is to come (repairs riding
+along in data PACKETs, SIMD for the arithmetic).

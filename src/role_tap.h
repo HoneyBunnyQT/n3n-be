@@ -23,6 +23,9 @@ int edge_read_from_tap (struct n3n_runtime_data *eee);
 // Reads up to max frames and returns how many it took off the tap queue
 int edge_read_from_tap_batch (struct n3n_runtime_data *eee, int max);
 
+// Send the repairs of forward error correction that are due, see fec.h
+void edge_fec_flush (struct n3n_runtime_data *eee);
+
 void send_grat_arps (struct n3n_runtime_data * eee);
 
 // The handler of a PACKET, on any thread

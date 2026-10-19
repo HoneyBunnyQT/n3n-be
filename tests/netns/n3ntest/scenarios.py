@@ -585,13 +585,16 @@ SCENARIOS = [
         "fec-lossy",
         "edges behind easy NATs, direct, with community.fec auto; then their "
         "direct path loses 10% each way, and they stay on it "
-        "(p2p_max_loss 0): of pings over it, only those lost with the one "
-        "after them are to stay lost - some 2% instead of 19%",
+        "(p2p_max_loss 0): of pings over it, only those lost with their "
+        "repair are to stay lost - some 2% instead of 19%; of a stream of "
+        "big frames, at most 1% instead of 10%",
         Site(["easy-kept"]),
         Site(["easy-changed"]),
         "direct", fec_loss=10,
+        # the loss is per datagram, as on a line: UDP GSO would have the
+        # firewall drop a batch of them as one
         conf={"community": {"fec": "auto"},
-              "connection": {"p2p_max_loss": 0}}),
+              "connection": {"p2p_max_loss": 0, "udp_gso": False}}),
     Scenario(
         "fec-lossy-threads",
         "as fec-lossy, the edges with packet threads, which share what FEC "
@@ -600,7 +603,7 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", fec_loss=10,
         conf={"community": {"fec": "auto"},
-              "connection": {"p2p_max_loss": 0},
+              "connection": {"p2p_max_loss": 0, "udp_gso": False},
               "daemon": {"threads": 3}}),
     Scenario(
         "tcp-fallback-userpw",

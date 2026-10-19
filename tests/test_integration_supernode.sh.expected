@@ -56,7 +56,7 @@
     {
         "rx_pkt": 0,
         "tx_pkt": 0,
-        "type": "fec_copy"
+        "type": "fec"
     },
     {
         "rx_pkt": 0,
@@ -115,7 +115,7 @@
     {
         "rx_pkt": 0,
         "tx_pkt": 0,
-        "type": "fec_copy"
+        "type": "fec"
     },
     {
         "rx_pkt": 0,

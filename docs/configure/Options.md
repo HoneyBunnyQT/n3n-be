@@ -67,7 +67,7 @@ Default: `none`
 
 Forward error correction: frames lost undone.
 
-none, auto or always. With auto, a small frame (up to 400 bytes: voice, games, pings, TCP's acknowledgements) also goes in the next PACKET to the same peer, while that peer sees PACKETs lost - so one lost alone is undone at once. always sends the copies whatever the loss. The edges count the PACKETs from each other for that, and tell; every edge of the community needs to know it (n3n of 2026-10 on): one that does not drops such PACKETs. See docs/advanced/FEC.md
+none, auto, always or copy. With auto, the frames to a peer go in groups - of up to 32, or 10 ms - and after each group as many repair PACKETs as the loss on the way to that peer asks for (a Reed-Solomon code): any of the group's frames lost, up to as many as there are repairs, are undone by the receiving edge. always sends a repair per group at least, whatever the loss; copy sends a copy of each small frame (up to 400 bytes) in the next PACKET instead, while there is loss. The edges count the PACKETs from each other for that, and tell; every edge of the community needs to know it (n3n-be of 2026-10 on): one that does not drops such PACKETs. See docs/advanced/FEC.md
 
 Default: `none`
 

@@ -50,6 +50,11 @@ struct edge_thread_ops {
     void (*process_pdu)(struct n3n_runtime_data *eee, struct pdu_ctx *c);
     // whether every worker also reads a queue of the tap device
     int tap;
+    // how long a worker may wait at most, given wait_ms; and what it does
+    // then, or after each batch (the edge: forward error correction's
+    // repairs that are due); NULL: nothing
+    void (*wait_ms)(struct n3n_runtime_data *eee, int *wait_ms);
+    void (*flush)(struct n3n_runtime_data *eee);
 };
 
 // How many threads can handle packets with this configuration, the main

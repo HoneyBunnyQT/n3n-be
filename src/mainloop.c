@@ -1022,6 +1022,9 @@ int mainloop_runonce (struct n3n_runtime_data *eee) {
 
     int wait_ms = 1000 * (eee->client.sn_wait ? (SOCKET_TIMEOUT_INTERVAL_SECS / 10 + 1)
                                                : SOCKET_TIMEOUT_INTERVAL_SECS);
+    if(eee->ops && eee->ops->wait_ms) {
+        eee->ops->wait_ms(eee, &wait_ms);
+    }
 
     // Packet threads, if any, may run only while the main thread waits
     edge_threads_main_release(eee);
@@ -1085,12 +1088,13 @@ int mainloop_runonce (struct n3n_runtime_data *eee) {
     // work by /design/
 
     struct timeval wait_time;
-    if(eee->client.sn_wait) {
-        wait_time.tv_sec = (SOCKET_TIMEOUT_INTERVAL_SECS / 10 + 1);
-    } else {
-        wait_time.tv_sec = (SOCKET_TIMEOUT_INTERVAL_SECS);
+    int wait_ms = 1000 * (eee->client.sn_wait ? (SOCKET_TIMEOUT_INTERVAL_SECS / 10 + 1)
+                                               : SOCKET_TIMEOUT_INTERVAL_SECS);
+    if(eee->ops && eee->ops->wait_ms) {
+        eee->ops->wait_ms(eee, &wait_ms);
     }
-    wait_time.tv_usec = 0;
+    wait_time.tv_sec = wait_ms / 1000;
+    wait_time.tv_usec = (wait_ms % 1000) * 1000;
 
     // Packet threads, if any, may run only while the main thread waits
     edge_threads_main_release(eee);

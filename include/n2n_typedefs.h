@@ -601,8 +601,8 @@ struct n2n_edge_stats {
     uint32_t sn_drop;
     uint32_t transop_tx;        /* Payloads encoded by the transform. */
     uint32_t transop_rx;        /* Payloads decoded by the transform. */
-    uint32_t tx_fec_copy;       /* Frames sent again, as a copy in the next PACKET, see fec.h */
-    uint32_t rx_fec_copy;       /* Frames written to the device from such a copy: lost, and undone */
+    uint32_t tx_fec_redundant;  /* Copies and repairs sent, see fec.h */
+    uint32_t rx_fec_undone;     /* Frames lost on the way, and undone from them */
     uint32_t rx_fec_lost;       /* PACKETs of the peers found missing by their seq */
 };
 
@@ -798,6 +798,8 @@ struct n3n_role_ops {
     void (*rx_udp)(struct n3n_runtime_data *rt, SOCKET sock,
                    struct sockaddr *from, socklen_t from_len,
                    uint8_t *buf, size_t len, time_t now);
+    // how long the mainloop may wait at most, given wait_ms; NULL: as long
+    void (*wait_ms)(struct n3n_runtime_data *rt, int *wait_ms);
     // a PDU came in on a TCP connection; buf NULL: the connection is gone
     void (*read_tcp)(struct n3n_runtime_data *rt, SOCKET sock,
                      uint8_t *buf, ssize_t size, time_t now);

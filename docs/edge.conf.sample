@@ -36,9 +36,10 @@ key=mypassword
 # Specifies the supernode IP and port.
 supernode=7.8.9.0:7777
 
-# Forward error correction: on a line that loses packets, small frames
-# lost alone are undone by a copy in the next packet.  Every edge of the
-# community needs to know it, see docs/advanced/FEC.md
+# Forward error correction: on a line that loses packets, repair packets
+# go along, as many as the loss asks for, from which the receiving edge
+# undoes frames lost.  Every edge of the community needs to know it, see
+# docs/advanced/FEC.md
 #fec=auto
 
 [connection]

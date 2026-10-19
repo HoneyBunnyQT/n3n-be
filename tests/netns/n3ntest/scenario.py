@@ -72,6 +72,7 @@ FLOW_MEAS = 2
 FLOW_HOLD = 3
 FLOW_ROAM = 4       # across a move or an outage
 FLOW_IDLE = 5       # after a pause in an outage
+FLOW_FEC = 6        # big frames over a lossy way, see fec_phase()
 # seconds of frames after the move, see Scenario.roam
 ROAM_WATCH = 30
 # and after the supernodes are gone, see Scenario.outage: longer than
@@ -1682,29 +1683,57 @@ class Run:
                 p.stop()
 
     def _fec_stats(self, name):
-        """An edge's FEC counters: copies sent, frames undone from
-        copies, PACKETs found lost"""
+        """An edge's FEC counters: copies and repairs sent, frames undone,
+        PACKETs found lost"""
         rows = self.edges[name]["daemon"].mgmt.try_call("get_packetstats")
         out = {"sent": 0, "undone": 0, "lost": 0}
         for row in rows or []:
-            if row.get("type") == "fec_copy":
+            if row.get("type") == "fec":
                 out["sent"] = row.get("tx_pkt", 0)
                 out["undone"] = row.get("rx_pkt", 0)
             elif row.get("type") == "fec_lost":
                 out["lost"] = row.get("rx_pkt", 0)
         return out
 
+    def _bulk(self, src, dst, count, rate, size):
+        """count UDP frames of size bytes from src to dst, rate a second, to
+        a receiver of their own: how many came"""
+        s, d = self.edges[src], self.edges[dst]
+        port = TRAFFIC_PORT + FLOW_FEC
+        name = "fec-{}{}".format(src, dst)
+        recv = self.lab.spawn(
+            "recv-" + name, d["ns"],
+            [sys.executable, TRAFFIC_PY, "recv", "--bind",
+             "{}:{}".format(d["overlay"], port)],
+            stdout_path=os.path.join(self.workdir, "recv-{}.json".format(name)))
+        time.sleep(0.5)
+        send = self.lab.spawn(
+            "send-" + name, s["ns"],
+            [sys.executable, TRAFFIC_PY, "send", "--src", s["overlay"],
+             "--to", "{}:{}".format(d["overlay"], port),
+             "--flow", str(FLOW_FEC), "--count", str(count),
+             "--rate", str(rate), "--size", str(size)],
+            stdout_path=os.path.join(self.workdir, "send-{}.json".format(name)))
+        wait_for(lambda: not send.alive(), 10 + 2 * count / rate)
+        send.stop()
+        time.sleep(1.0)     # the last ones, and the last group's repairs
+        recv.stop()
+        flows = self._read_json(recv.out.name).get("flows", {})
+        return flows.get(str(FLOW_FEC), {}).get("unique", 0)
+
     def fec_phase(self):
         """The direct path between a and b loses sc.fec_loss percent each
-        way, and the edges stay on it: pings from a to b, small frames, are
-        to be lost only where two in a row are (community.fec auto: once
-        the edges see the loss, a copy of each goes with the next)"""
+        way, and the edges stay on it, with community.fec auto: pings from
+        a to b - small frames, a group each - are to be lost only where a
+        frame and its repair are; then big frames from a to b, many a
+        group, only where more are lost of a group than it has repairs"""
         _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
         peer = (row or {}).get("sockaddr", "").rsplit(":", 1)[0]
         if not peer or ":" in peer:
             return self.check("fec", False, "no IPv4 address of b at a "
                               "({!r})".format(peer))
         count = 400
+        bulk = 2000
         self.lab.nft(self.edges["a"]["ns"],
                      LOSSY.format(peer=peer, pct=self.sc.fec_loss), "lossy")
         try:
@@ -1713,18 +1742,24 @@ class Run:
             before = {n: self._fec_stats(n) for n in ("a", "b")}
             got = self._ping("a", "b", count=count, interval=0.02)
             after = {n: self._fec_stats(n) for n in ("a", "b")}
+            arrived = self._bulk("a", "b", bulk, 1000, 1200)
+            last = {n: self._fec_stats(n) for n in ("a", "b")}
         finally:
             run(["nft", "delete", "table", "inet", "lossy"],
                 ns=self.edges["a"]["ns"])
         stats = {n: {k: after[n][k] - before[n][k] for k in after[n]}
                  for n in after}
-        # without: (1 - loss)^2 of them answered, about 81% at 10%; with,
-        # a request or answer is lost only with the one after it, some 2%
+        bstats = {n: {k: last[n][k] - after[n][k] for k in last[n]}
+                  for n in last}
+        # without: (1 - loss)^2 of the pings answered, about 81% at 10%;
+        # with, a request or answer is lost only with its repair, some 2%
         # (1-5% seen): a third of what is lost without, at most
         alone = (1 - self.sc.fec_loss / 100) ** 2
         want = 1 - (1 - alone) / 3
         self.result["fec"] = {"answered": got, "of": count,
-                              "without": round(100 * alone), "edges": stats}
+                              "without": round(100 * alone), "edges": stats,
+                              "bulk": {"arrived": arrived, "of": bulk,
+                                       "edges": bstats}}
         self.check("fec", got >= want * count and stats["a"]["undone"]
                    and stats["b"]["undone"],
                    "{} of {} pings answered (without FEC some {}%), "
@@ -1734,6 +1769,15 @@ class Run:
                            lost_a=stats["a"]["lost"],
                            undone_b=stats["b"]["undone"],
                            lost_b=stats["b"]["lost"]))
+        # one way: of 1200 byte frames, without FEC 90% at 10%; with, the
+        # groups' repairs leave some 0.1%
+        self.check("fec: bulk", arrived >= 0.99 * bulk
+                   and bstats["b"]["undone"],
+                   "{} of {} frames of 1200 bytes arrived (without FEC some "
+                   "{}%), b undid {} of {} lost, a sent {} repairs".format(
+                       arrived, bulk, 100 - self.sc.fec_loss,
+                       bstats["b"]["undone"], bstats["b"]["lost"],
+                       bstats["a"]["sent"]))
 
     def _sn_entries(self, mac):
         """{supernode: the address its entry for the MAC has}"""

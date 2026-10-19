@@ -30,6 +30,7 @@
 
 static n2n_trans_op_t ops[NOPS];
 static struct n3n_fec *fec;
+static uint8_t scratch[N3N_FEC_SCRATCH];
 
 int LLVMFuzzerInitialize (int *argc, char ***argv) {
 
@@ -74,7 +75,7 @@ int LLVMFuzzerTestOneInput (const uint8_t *data, size_t size) {
         }
         memcpy(out, data + 1, size - 1);
         now_us += 20000;
-        n3n_fec_unwrap(fec, data[0] & 0x0f, mac, out, size - 1, now_us, &f);
+        n3n_fec_unwrap(fec, data[0] & 0x0f, mac, out, size - 1, now_us, scratch, &f);
         return 0;
     }
     op = &ops[data[0] % NOPS];

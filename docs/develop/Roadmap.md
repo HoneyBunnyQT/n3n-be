@@ -169,52 +169,54 @@ report.
             fuzz-transop (0xf0 + scheme), netns `fec-lossy(-threads)`:
             10 % each way, 97-98 % of pings answered, 82 % without.
             docs/advanced/FEC.md
-      - [ ] Phase 2: loss-adaptive repair for frames of any size, a
-            scheme "repair" next to 2.  An erasure code (the seqs tell
-            what is missing), systematic (the frames go as they are, and
-            out at once; only a lost one waits).  Reed-Solomon over
-            GF(2^8), Cauchy, groups of k frames + m repair PACKETs: any m
-            lost of the k+m undone (UDPspeeder, tinyfecVPN do so).  The
-            first repair row all ones, so m=1 is XOR parity and k=1, m=1
-            a copy: one code for all.  A group closes at k frames or T ms
-            (a fraction of the RTT: undone after TCP's reordering window,
-            RACK's RTT/4, a frame is sent again anyway, the repair wasted)
-            - so slow traffic gets small groups, down to copies.  Frames
-            of a group padded to its longest, their lengths in what is
-            coded; small and big frames in groups apart.  Repair PACKET:
-            group's first seq, k, m, its index, the longest length;
-            separate PACKETs (better against bursts), or in slices on the
-            next group's (no PACKETs more, a group later).  Buffers: none
-            of the pool - the sender keeps m running sums per open group
-            (each frame multiplied in as it goes), the receiver m sums of
-            what came, which a repair less them leaves the lost ones in,
-            m unknowns at most: some 10-15 KB per busy peer at m <= 4,
-            freed with the peer; a scratch frame per thread.  GF(2^8)
-            multiply-add with tables ~1 cycle/byte, with PSHUFB/NEON
-            nibble tables a tenth of it (ISA-L, klauspost/reedsolomon)
-      - [ ] Decided (2026-10-19): repair as PACKETs of their own (a
-            repair is as long as the group's longest frame: no room in a
-            full one), riding on the next data PACKET where it fits -
-            which is phase 1's copy, RS with k=1 piggybacked, so scheme 2
-            goes once that works; one code path.  GF(2^8) with the
-            polynomial 0x11B, AES's, so that GFNI (gf2p8mulb) can do it;
-            plain C first (a 256-byte row of the multiplication table per
-            coefficient), then SSSE3/AVX2 PSHUFB, NEON and GFNI as
-            variants chosen at run time like the ciphers', checked
-            against plain C in tests-fec and `n3n-edge test`
+      - [x] Phase 2 (2026-10-19): loss-adaptive Reed-Solomon, schemes
+            3 (a frame of a group, trailer as 1) and 4 (a repair: first
+            seq of the group, k, j, its own seq, loss).  An erasure code
+            (the seqs tell what is missing), systematic (frames go as they
+            are, at once; only a lost one waits).  GF(2^8), polynomial
+            0x11B (AES's: GFNI can do it later), src/gf256.c, plain C, a
+            64 KB multiplication table.  Cauchy coefficients, the first
+            row all ones (j=0 the XOR, k=1 a copy), k <= 32, m <= 12.  A
+            group closes at k frames - what the rate brings in 10 ms -
+            or after 10 ms; its repairs go then, as PACKETs of their own:
+            the main loop and the packet threads wait no longer than a
+            group's time is left.  m: the fewest that leave <= 0.1 % of
+            the frames lost (binomial), for 1.5 x the loss told (the
+            estimate is of the past, and noisy), at most k/2 (1 for 1);
+            the loss told is the larger of a quick and a slow average.
+            No loss told (one-way traffic): the way back's, taken to be
+            the same.  Sender: m running sums per open group (16 KB per
+            peer), no frames kept.  Receiver - unlike planned - keeps the
+            frames of groups (a ring of 64, 100 KB per peer sending
+            groups) and works only when something is lost, instead of m
+            running sums on every frame.  Copies (scheme 2) stay as
+            community.fec = copy until repairs ride in data PACKETs.
+            tests-fec (any m of k+m, mixed sizes byte for byte, reorder,
+            duplicates, broken trailers, the m table), fuzz-transop and
+            a libFuzzer run of the receive path (15 M inputs, ASan/UBSan),
+            TSan on fec-lossy-threads.  netns `fec-lossy(-threads)` with
+            connection.udp_gso = false (new: in the lab, nftables drops a
+            GSO batch as one): 10 % each way, pings 97-98 % answered,
+            2000 frames of 1200 bytes 99.7-100 % (90 % without), about a
+            repair for two frames
+      - [ ] Repairs riding in data PACKETs where they fit (then scheme 2
+            goes), and spaced from the group's last frame, so that a
+            burst that takes one does not take both
+      - [ ] SIMD for gf256_muladd: SSSE3/AVX2 PSHUFB, NEON, GFNI,
+            chosen at run time as the ciphers', checked against plain C;
+            a benchmark item first
       - [ ] One loss measure: the receiver's count of the seqs (one way,
             the path in use, the data itself) beside the probes' (round
             trip, direct path only, about both ways added); the receiver
             tells raw loss (for m) and what stayed lost after decoding
             (whether m was enough - closing the loop where losses come in
             bursts); p2p_max_loss may take the data's loss while direct
-      - [ ] The adaption: k from the rate and T, m such that losing more
-            than m of k+m stays below a target (0.1 %; binomial for
-            independent losses, Gilbert-Elliott where they come in bursts
-            - the receiver's window gives the mean burst, to tell too);
-            the share of repair capped (30-50 %), and backing off when the
-            loss grows with what is sent or with the RTT (congestion);
-            hysteresis
+      - [ ] The adaption, further (k from the rate, m binomial with a
+            margin and a cap are in since phase 2): losses in bursts
+            (Gilbert-Elliott - the receiver's window gives the mean
+            burst, to tell too), the residual told back (what stayed
+            lost: whether m was enough), backing off when the loss grows
+            with what is sent or with the RTT (congestion), hysteresis
       - [ ] Later, maybe: sliding-window coding (RFC 8681's random linear
             codes, Tetrys) - no groups: each repair PACKET is a random
             combination of the last W frames, its coefficients from a
@@ -226,15 +228,17 @@ report.
       - [ ] (Instead of FEC, for bulk at high loss: retransmission within
             the tunnel, as KCP - a round trip later.  Not planned)
       - [ ] Edges that do not tell (one-way traffic, or `none` on the
-            other side) leave `auto` without a loss to go by: take the
-            probes' loss of the direct path (`p2p_max_loss`'s) then
+            other side) leave `auto` with the way back's loss at most
+            (phase 2): take the probes' loss of the direct path
+            (`p2p_max_loss`'s) where there is none
       - [ ] Per peer instead of per community: an edge that learns a
             peer reads FEC (a flag in its REGISTER, or from a PACKET of a
             scheme) sends it to that one only - mixed communities
       - [ ] The loss per peer in `get_edges` and on the page, beside the
             probes' `loss` of the direct path
       - [ ] Not against congestion loss, which more bytes make worse:
-            cap the copies (a share of what goes to the peer)
+            m is capped at k/2 (phase 2); back off where the loss grows
+            with what is sent
 - [ ] A supernode answers an edge's REGISTER_SUPER at once - with the
       header keys, with user/password - and passes it on to the
       federation: a user deleted at one supernode is refused everywhere,
