@@ -58,7 +58,9 @@ struct peer_info {
     n3n_sock_t tcp_sock;    /* where it is reached over TCP then */
     bool tcp_answered;      /* a supernode: it answered over TCP, see sn_tcp_failed() */
     uint32_t sn_load;       /* a supernode: the load it last reported */
-    uint32_t sn_rtt_us;     /* a supernode: the round trip of its last PONG, 0 for none yet */
+    uint32_t sn_rtt_us;     /* a supernode: the round trip of its last PONG, 0 for none yet; at
+                             * a supernode, of the federation: of its REGISTER_SUPER_ACKs, averaged */
+    uint64_t reg_sent_us;   /* at a supernode, of the federation: when the last REGISTER_SUPER went */
     time_t uptime;
     n2n_version_t version;
 

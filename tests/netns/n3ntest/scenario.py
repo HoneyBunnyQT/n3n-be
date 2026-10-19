@@ -1835,10 +1835,12 @@ class Run:
             sn["daemon"].proc.send_signal(signal.SIGHUP)
 
     def lockout_phase(self):
-        """sc.lockout: user b deleted at those supernodes, then at the
-        others too, then back at all"""
+        """sc.lockout: user b deleted at those supernodes - refused, and
+        cut off - then back at all"""
         b = self.edges["b"]
         interval = self.st.register_interval
+        logs = {n: self.edges[n]["daemon"].proc.log_path for n in ("a", "b")}
+        since = {n: os.path.getsize(p) for n, p in logs.items()}
         self._user_b(self.sc.lockout, back=False)
         t = time.monotonic()
 
@@ -1859,13 +1861,11 @@ class Run:
                        entries, took))
         a_at = self._sn_entries(self.edges["a"]["mac"])
         self.check("lockout: a stays", bool(a_at), "a at {}".format(a_at))
-        # The supernodes that still have the user answer b's registrations
-        # first - with the header keys - and pass them on, so b keeps the
-        # keys, and a peer that knows it can still reach it directly.
-        # Gone from all of them, it gets the keys from none: cut off, once
-        # a has the new ones from its next registration
-        rest = sorted(n for n in self.supernodes if n not in self.sc.lockout)
-        self._user_b(rest, back=False)
+        # The reload changed the header keys.  The supernodes that still
+        # have the user hold their answer to b's registration - with the
+        # new keys - until the federation had the time to refuse it, and
+        # drop it when the refusal comes: b gets the keys from none, and is
+        # cut off, once a has the new ones from its next registration
         t = time.monotonic()
         got = None
 
@@ -1875,9 +1875,20 @@ class Run:
             return got == 0 or None
         wait_for(cut_off, 10 + 3 * interval, interval=0.5)
         self.check("lockout: cut off", got == 0,
-                   "out at all supernodes: {} of 3 pings from a to b "
-                   "answered, {}s after".format(
-                       got, round(time.monotonic() - t, 1)))
+                   "out at {}: {} of 3 pings from a to b answered, {}s "
+                   "after".format(", ".join(self.sc.lockout), got,
+                                  round(time.monotonic() - t, 1)))
+        # the reload's new header keys: a has them, b got none
+        new_keys = {}
+        for n, path in logs.items():
+            with open(path, errors="replace") as f:
+                f.seek(since[n])
+                new_keys[n] = sum("header keys from the supernode" in line
+                                  for line in f)
+        self.result["lockout"]["new_keys"] = new_keys
+        self.check("lockout: no keys", new_keys["a"] and not new_keys["b"],
+                   "new header keys since the reload: a {a}, b {b}".format(
+                       **new_keys))
         self._user_b(sorted(self.supernodes), back=True)
         t = time.monotonic()
         ok = wait_for(lambda: bool(self._sn_entries(b["mac"])) or None,

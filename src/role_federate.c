@@ -84,6 +84,7 @@ int re_register_and_purge_supernodes (struct n3n_runtime_data *sss, struct sn_co
 
             reg.cookie = n3n_rand();
             peer->last_cookie = reg.cookie;
+            peer->reg_sent_us = n3n_monotonic_us();
 
             reg.dev_addr.net_addr = ntohl(peer->dev_addr.net_addr);
             reg.dev_addr.net_bitlen = mask2bitlen(ntohl(peer->dev_addr.net_bitlen));
@@ -178,6 +179,20 @@ void sn_rx_register_super_ack (struct n3n_runtime_data *sss, struct pdu_ctx *c) 
     }
 
     if(ack.cookie == scan->last_cookie) {
+
+        // the round trip to it, which a refusal of an edge's registration
+        // passed on takes too, see SN_ACK_HOLD_US: a quarter of each
+        if(scan->reg_sent_us) {
+            uint64_t rtt = n3n_monotonic_us() - scan->reg_sent_us;
+
+            if(rtt > 10 * 1000000) {
+                rtt = 10 * 1000000;
+            }
+            scan->sn_rtt_us = scan->sn_rtt_us ? (uint32_t)((3 * (uint64_t)scan->sn_rtt_us + rtt) / 4)
+                              : (uint32_t)rtt;
+            // the answer to this REGISTER_SUPER only
+            scan->reg_sent_us = 0;
+        }
 
         payload = (n2n_REGISTER_SUPER_ACK_payload_t *)dec_tmpbuf;
         for(i = 0; i < ack.num_sn; i++) {
@@ -305,6 +320,13 @@ void sn_rx_register_super_nak (struct n3n_runtime_data *sss, struct pdu_ctx *c) 
             }
 
             sn_sendto_peer(sss, peer, nakbuf, encx);
+
+            // and not the answer to that registration, if it is still
+            // held back: no header keys for the edge
+            if(sn_held_acks_drop(sss, c->comm->community, nak.srcMac, nak.cookie)) {
+                traceEvent(TRACE_INFO, "%s refused by another supernode: not answered",
+                           macaddr_str(mac_buf, nak.srcMac));
+            }
 
             remove_edge(sss, c->comm, peer);
         }

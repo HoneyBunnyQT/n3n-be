@@ -746,8 +746,238 @@ void sn_rx_register_ack (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
 }
 
 
+/* With user/password, the supernode answers an edge's registration - with
+ * the community's header keys - only once the others of its federation
+ * had the time to refuse it: it passes the registration on to them, and
+ * holds the REGISTER_SUPER_ACK for twice the longest round trip to one of
+ * them that is up (of their REGISTER_SUPER_ACKs, which takes the way a
+ * refusal takes), and SN_ACK_HOLD_US more; SN_ACK_HOLD_UNKNOWN_US for one
+ * not measured yet; at most SN_ACK_HOLD_MAX_US - and not at all where no
+ * other is up.  The mainloop wakes for it (sn_held_acks_due_us()), busy or
+ * not.  A refusal that comes back meanwhile (sn_rx_register_super_nak())
+ * drops it, and goes on to the edge instead.  So a user deleted at one
+ * supernode gets no keys from another that still has it - and once the
+ * deleting supernode's reload changed the keys, that user's edges are
+ * out.  Nothing new on the wire: only the answer comes later, and any
+ * supernode refuses so.  A refusal later than that still drops the edge,
+ * as before. */
+#define SN_ACK_HOLD_US          (20 * 1000)
+#define SN_ACK_HOLD_UNKNOWN_US  (500 * 1000)
+#define SN_ACK_HOLD_MAX_US      (1000 * 1000)
+// more are not held: they go at once
+#define SN_ACK_HOLD_MAX         1024
+
+// encoded, to be encrypted when it goes: the edge takes no time stamp
+// older than one it has seen
+struct sn_held_ack {
+    struct sn_held_ack *next;
+    uint64_t due_us;
+    n2n_community_t community;
+    n2n_private_public_key_t user;
+    n2n_mac_t mac;
+    uint32_t cookie;
+    SOCKET socket_fd;
+    struct sockaddr_storage sock;
+    size_t len;
+    uint8_t buf[N2N_SN_PKTBUF_SIZE];
+};
+
+
+// A REGISTER_SUPER_ACK encoded in buf (of N2N_SN_PKTBUF_SIZE), with the
+// header encryption and, with user/password, the hash of the user, to the
+// edge
+static void register_super_ack_out (struct n3n_runtime_data *sss,
+                                    struct sn_community *comm,
+                                    struct sn_user *user,
+                                    uint8_t *buf, size_t len,
+                                    SOCKET socket_fd,
+                                    const struct sockaddr *sender_sock) {
+
+    uint8_t hash_buf[16] = {0};
+
+    if(comm->header_encryption == HEADER_ENCRYPTION_ENABLED) {
+        packet_header_encrypt(buf, len, len,
+                              comm->header_encryption_ctx_static, comm->header_iv_ctx_static,
+                              time_stamp());
+        // if user-password-auth
+        if(comm->allowed_users) {
+            // append an encrypted packet hash
+            pearson_hash_128(hash_buf, buf, len);
+            speck_128_encrypt(hash_buf, (speck_context_t*)user->shared_secret_ctx);
+            encode_buf(buf, &len, hash_buf, N2N_REG_SUP_HASH_CHECK_LEN);
+        }
+    }
+
+    sn_sendto_sock(sss, socket_fd, sender_sock, buf, len);
+}
+
+
+// How long to hold an answer for the others of the federation that are
+// up to refuse it, see SN_ACK_HOLD_US; 0 for none up
+static uint64_t federation_hold_us (struct n3n_runtime_data *sss, time_t now) {
+
+    struct peer_info *peer, *tmp;
+    uint64_t hold = 0;
+
+    HASH_ITER(hh, sss->relay.federation->edges, peer, tmp) {
+        uint64_t h;
+
+        if((peer->sock.family == (uint8_t)AF_INVALID)
+           || !memcmp(peer->mac_addr, sss->conf.relay.sn_mac_addr, sizeof(n2n_mac_t))
+           || ((now - peer->last_seen) >= LAST_SEEN_SN_NEW)) {
+            continue;
+        }
+        h = peer->sn_rtt_us ? 2 * (uint64_t)peer->sn_rtt_us + SN_ACK_HOLD_US : SN_ACK_HOLD_UNKNOWN_US;
+        if(h > hold) {
+            hold = h;
+        }
+    }
+    return hold < SN_ACK_HOLD_MAX_US ? hold : SN_ACK_HOLD_MAX_US;
+}
+
+
+static void held_ack_send (struct n3n_runtime_data *sss, struct sn_held_ack *h) {
+
+    struct sn_community *comm;
+    struct sn_user *user = NULL;
+
+    // the community and the user as they are now: a reload meanwhile
+    // may have taken them
+    HASH_FIND_COMMUNITY(sss->relay.communities, (char *)h->community, comm);
+    if(comm && comm->allowed_users) {
+        HASH_FIND(hh, comm->allowed_users, h->user, sizeof(n2n_private_public_key_t), user);
+    }
+    if(!comm || !user) {
+        return;
+    }
+    // a TCP connection: still the edge's, not one that came after it
+    if(is_tcp(sss, h->socket_fd)) {
+        n2n_tcp_connection_t *conn;
+
+        HASH_FIND_INT(sss->relay.tcp_connections, &h->socket_fd, conn);
+        if(!conn || memcmp(&conn->sas, &h->sock, sizeof(conn->sas))) {
+            return;
+        }
+    }
+    register_super_ack_out(sss, comm, user, h->buf, h->len, h->socket_fd, (struct sockaddr *)&h->sock);
+}
+
+
+void sn_held_acks_send (struct n3n_runtime_data *sss, uint64_t now_us) {
+
+    struct sn_held_ack **hp = &sss->relay.held_acks;
+
+    while(*hp) {
+        struct sn_held_ack *h = *hp;
+
+        if(now_us < h->due_us) {
+            hp = &h->next;
+            continue;
+        }
+        held_ack_send(sss, h);
+        *hp = h->next;
+        free(h);
+        sss->relay.held_acks_count--;
+    }
+}
+
+
+int64_t sn_held_acks_due_us (struct n3n_runtime_data *sss, uint64_t now_us) {
+
+    int64_t due = -1;
+
+    for(struct sn_held_ack *h = sss->relay.held_acks; h; h = h->next) {
+        int64_t left = h->due_us > now_us ? (int64_t)(h->due_us - now_us) : 0;
+
+        if((due < 0) || (left < due)) {
+            due = left;
+        }
+    }
+    return due;
+}
+
+
+bool sn_held_acks_drop (struct n3n_runtime_data *sss, const char *community,
+                        const n2n_mac_t mac, uint32_t cookie) {
+
+    struct sn_held_ack **hp = &sss->relay.held_acks;
+    bool dropped = false;
+
+    while(*hp) {
+        struct sn_held_ack *h = *hp;
+
+        if(!strncmp((const char *)h->community, community, N2N_COMMUNITY_SIZE)
+           && !memcmp(h->mac, mac, sizeof(n2n_mac_t)) && (h->cookie == cookie)) {
+            *hp = h->next;
+            free(h);
+            sss->relay.held_acks_count--;
+            dropped = true;
+            continue;
+        }
+        hp = &h->next;
+    }
+    return dropped;
+}
+
+
+void sn_held_acks_free (struct n3n_runtime_data *sss) {
+
+    while(sss->relay.held_acks) {
+        struct sn_held_ack *h = sss->relay.held_acks;
+
+        sss->relay.held_acks = h->next;
+        free(h);
+    }
+    sss->relay.held_acks_count = 0;
+}
+
+
+// Hold the REGISTER_SUPER_ACK encoded in buf, to the user's edge, for its
+// registration (mac, cookie); false where it is to go at once
+static bool hold_ack (struct n3n_runtime_data *sss, struct sn_community *comm,
+                      const struct sn_user *user, const n2n_mac_t mac, uint32_t cookie,
+                      SOCKET socket_fd, const struct sockaddr *sender_sock,
+                      const uint8_t *buf, size_t len) {
+
+    struct sn_held_ack *h, **hp;
+    size_t sock_len;
+    uint64_t hold = federation_hold_us(sss, time(NULL));
+    macstr_t mac_buf;
+
+    // not for the edge in this process, which is the supernode's own
+    if(!hold || !sender_sock || (socket_fd == LOCAL_LINK_FD) || (len + N2N_REG_SUP_HASH_CHECK_LEN > sizeof(h->buf))
+       || (sss->relay.held_acks_count >= SN_ACK_HOLD_MAX)) {
+        return false;
+    }
+    sock_len = (sender_sock->sa_family == AF_INET6) ? sizeof(struct sockaddr_in6) : sizeof(struct sockaddr_in);
+    h = calloc(1, sizeof(*h));
+    if(!h) {
+        return false;
+    }
+    // the answer to a registration the edge sent again meanwhile replaces
+    // the one before
+    sn_held_acks_drop(sss, comm->community, mac, cookie);
+    h->due_us = n3n_monotonic_us() + hold;
+    memcpy(h->community, comm->community, sizeof(h->community));
+    memcpy(h->user, user->public_key, sizeof(n2n_private_public_key_t));
+    memcpy(h->mac, mac, sizeof(n2n_mac_t));
+    h->cookie = cookie;
+    h->socket_fd = socket_fd;
+    memcpy(&h->sock, sender_sock, sock_len);
+    memcpy(h->buf, buf, len);
+    h->len = len;
+    for(hp = &sss->relay.held_acks; *hp; hp = &(*hp)->next);
+    *hp = h;
+    sss->relay.held_acks_count++;
+    traceEvent(TRACE_DEBUG, "answer to %s held for %u ms, for the federation to refuse it",
+               macaddr_str(mac_buf, mac), (unsigned)(hold / 1000));
+    return true;
+}
+
+
 /* Send a REGISTER_SUPER_ACK, with the header encryption and, with
- * user/password authentication, the hash of the user */
+ * user/password authentication, the hash of the user - or hold it, for
+ * the edge's registration (hold_mac, cookie), see SN_ACK_HOLD_US */
 static void send_register_super_ack (struct n3n_runtime_data *sss,
                                      struct sn_community *comm,
                                      struct sn_user *user,
@@ -755,28 +985,19 @@ static void send_register_super_ack (struct n3n_runtime_data *sss,
                                      n2n_REGISTER_SUPER_ACK_t *ack,
                                      uint8_t *payload_buf,
                                      SOCKET socket_fd,
-                                     const struct sockaddr *sender_sock) {
+                                     const struct sockaddr *sender_sock,
+                                     const n2n_mac_t hold_mac,
+                                     uint32_t cookie) {
 
     uint8_t ackbuf[N2N_SN_PKTBUF_SIZE];
-    uint8_t hash_buf[16] = {0};
     size_t encx = 0;
 
     encode_REGISTER_SUPER_ACK(ackbuf, &encx, cmn2, ack, payload_buf);
 
-    if(comm->header_encryption == HEADER_ENCRYPTION_ENABLED) {
-        packet_header_encrypt(ackbuf, encx, encx,
-                              comm->header_encryption_ctx_static, comm->header_iv_ctx_static,
-                              time_stamp());
-        // if user-password-auth
-        if(comm->allowed_users) {
-            // append an encrypted packet hash
-            pearson_hash_128(hash_buf, ackbuf, encx);
-            speck_128_encrypt(hash_buf, (speck_context_t*)user->shared_secret_ctx);
-            encode_buf(ackbuf, &encx, hash_buf, N2N_REG_SUP_HASH_CHECK_LEN);
-        }
+    if(hold_mac && user && hold_ack(sss, comm, user, hold_mac, cookie, socket_fd, sender_sock, ackbuf, encx)) {
+        return;
     }
-
-    sn_sendto_sock(sss, socket_fd, sender_sock, ackbuf, encx);
+    register_super_ack_out(sss, comm, user, ackbuf, encx, socket_fd, sender_sock);
 }
 
 
@@ -992,7 +1213,8 @@ void sn_rx_register_super (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
                    macaddr_str(mac_buf, reg.edgeMac),
                    sock_to_cstr(sockbuf, &c->sender));
         ack.num_sn = 0;
-        send_register_super_ack(sss, c->comm, user, &cmn2, &ack, payload_buf, c->socket_fd, c->sender_sock);
+        send_register_super_ack(sss, c->comm, user, &cmn2, &ack, payload_buf, c->socket_fd, c->sender_sock,
+                                NULL, 0);
         return;
     }
 
@@ -1151,9 +1373,13 @@ void sn_rx_register_super (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
             ack.key_time = sss->relay.dynamic_key_time;
         }
 
-        // send REGISTER_SUPER_ACK
+        // send REGISTER_SUPER_ACK - with user/password, once the federation
+        // had the time to refuse it (see SN_ACK_HOLD_US)
         cmn2.pc = MSG_TYPE_REGISTER_SUPER_ACK;
-        send_register_super_ack(sss, c->comm, user, &cmn2, &ack, payload_buf, c->socket_fd, c->sender_sock);
+        send_register_super_ack(sss, c->comm, user, &cmn2, &ack, payload_buf, c->socket_fd, c->sender_sock,
+                                (user && !c->comm->is_federation && !is_null_mac(reg.edgeMac))
+                                ? reg.edgeMac : NULL,
+                                reg.cookie);
 
         traceEvent(TRACE_DEBUG, "Tx REGISTER_SUPER_ACK for %s [%s]",
                    macaddr_str(mac_buf, reg.edgeMac),

@@ -143,7 +143,7 @@ static SOCKET udp_sock (struct n3n_runtime_data *sss) {
 
 
 // is this one of the TCP connections, rather than a UDP socket?
-static bool is_tcp (struct n3n_runtime_data *sss, SOCKET socket_fd) {
+bool is_tcp (struct n3n_runtime_data *sss, SOCKET socket_fd) {
 
     return (socket_fd >= 0) && (bind_entry_of_sock(sss, socket_fd) < 0);
 }
@@ -433,6 +433,8 @@ void sn_term (struct n3n_runtime_data *sss) {
     node_supernode_association_t *assoc, *tmp_assoc;
 
     resolve_cancel_thread(sss->resolve_parameter);
+
+    sn_held_acks_free(sss);
 
     // sock and tcp_sock are the first of these
     for(int i = 1; i < sss->bind_count; i++) {
@@ -932,9 +934,21 @@ void sn_accepted_proto3_tcp (struct n3n_runtime_data *sss,
 }
 
 
+// Not longer than until the next REGISTER_SUPER_ACK held back is due
+static void sn_wait_ms (struct n3n_runtime_data *sss, int *wait_ms) {
+
+    int64_t due = sn_held_acks_due_us(sss, n3n_monotonic_us());
+
+    if((due >= 0) && ((due + 999) / 1000 < *wait_ms)) {
+        *wait_ms = (int)((due + 999) / 1000);
+    }
+}
+
+
 static const struct n3n_role_ops sn_role_ops = {
     .read_udp = sn_read_proto3_udp,
     .rx_udp = sn_rx_udp,
+    .wait_ms = sn_wait_ms,
     .read_tcp = sn_read_proto3_tcp,
     .accepted_tcp = sn_accepted_proto3_tcp,
     .local_pdu = sn_process_local_pdu,
@@ -957,6 +971,8 @@ static void sn_tick (struct n3n_runtime_data *sss, time_t now) {
     static time_t last_purge_edges = 0;
     static time_t last_sort_communities = 0;
     static time_t last_re_reg_and_purge = 0;
+
+    sn_held_acks_send(sss, n3n_monotonic_us());
 
     re_register_and_purge_supernodes(
         sss,

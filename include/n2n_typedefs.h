@@ -771,6 +771,7 @@ struct n3n_rt_tap {
 
 /* What the supernode keeps about its communities and the other supernodes:
  * the relay and federate roles of a peer */
+struct sn_held_ack;
 struct n3n_rt_relay {
     struct n3n_runtime_data *local_edge;    /* that edge, if there is one */
     int tcp_sock;                                           /* auxiliary socket for optional TCP connections */
@@ -784,6 +785,8 @@ struct n3n_rt_relay {
     bool lock_communities;                                    /* If true, only loaded and matching communities can be used. */
     time_t last_sn_fwd;       /* Time when last message was forwarded. */
     time_t last_sn_reg;       /* Time when last REGISTER_SUPER was received. */
+    struct sn_held_ack *held_acks;  /* REGISTER_SUPER_ACKs waiting, see role_relay.c */
+    int held_acks_count;
 };
 
 /* What the parts all roles share - the mainloop, the local link, the

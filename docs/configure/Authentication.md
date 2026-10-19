@@ -109,25 +109,26 @@ user out (evilrabbit, or a stolen laptop), delete it.  Then `n3nctl reload`
 again; `n3nctl reload_communities` reads only the file.  A reload also
 changes the community's header keys, which every edge then gets anew from
 its supernode - but a locked out one gets none: it cannot reach the other
-edges directly any more either, once it is out at every supernode (see
-below).
+edges directly any more either (see below for several supernodes).
 
 With several supernodes, each needs the same users: there is no syncing
 built in, so copy the configuration or the file to all of them
 (Syncthing, scp from a script, ...), and reload each.  In between, they
 do not agree, and the stricter one wins: a supernode passes each
-registration on to the others of its federation, and drops the edge when
-one of them refuses it.  So
+registration on to the others of its federation, holds its answer - with
+the header keys - for as long as a refusal from them would take (twice
+the round trip to the farthest of them that is up, as it measures it, and
+20 ms more; half a second for one not measured yet, a second at most; not
+at all where it is the only one up), and drops the edge, and the answer,
+when one of them refuses it.  So
 
 - a user deleted at one supernode is refused at all of them at once -
   its edges log `authentication error, username or password not
-  recognized by another supernode of the federation`, no supernode relays
-  for them or tells peers about them - but only while that supernode is
-  up and in the federation.  And not quite out: a supernode that still
-  has the user answers its edges' registrations at once, with the header
-  keys, before the refusal comes back, so a peer that already knows such
-  an edge can still reach it directly.  Delete the user everywhere: that
-  cuts it off;
+  recognized by the supernode or another of its federation` - and cut
+  off: the reload changed the header keys, and they get the new ones from
+  none, so not even a peer that knew them reaches them any more.  But
+  only while that supernode is up and in the federation, and answers in
+  time: delete the user everywhere, to be sure;
 - a new user, or a new password, has to be at every supernode before the
   user's edges come with it: one that does not know it refuses them for
   all.

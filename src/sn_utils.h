@@ -46,6 +46,8 @@ void sn_accepted_proto3_tcp (struct n3n_runtime_data *sss, SOCKET sock,
 
 // Forget an edge, and close its TCP connection, if any
 void remove_edge (struct n3n_runtime_data *sss, struct sn_community *comm, struct peer_info *edge);
+// Whether a socket is a TCP connection's, not one of connection.bind
+bool is_tcp (struct n3n_runtime_data *sss, SOCKET socket_fd);
 // Sending: from the socket for the family of an address, to an address, to
 // a peer by its socket or address
 SOCKET family_sock (struct n3n_runtime_data *sss, int family);
