@@ -722,6 +722,8 @@ struct n3n_rt_client {
     n2n_trans_op_t transop_lzo;                                          /**< The transop for LZO  compression */
     n2n_trans_op_t transop_zstd;                                         /**< The transop for ZSTD compression */
     struct n3n_fec *fec;                                                 /**< what forward error correction keeps per peer, see fec.h */
+    uint8_t dynamic_key[N2N_AUTH_CHALLENGE_SIZE];                        /**< with user/password: the header key the supernode gave last */
+    bool dynamic_key_known;
     uint64_t sn_selection_criterion_common_data;
 
     /* supernode socket is in        eee->client.curr_sn->sock (of type n3n_sock_t) */

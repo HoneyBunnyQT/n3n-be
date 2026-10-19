@@ -1071,10 +1071,18 @@ static int handle_remote_auth (struct n3n_runtime_data *eee, struct peer_info *p
             memxor(tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE, eee->conf.client.auth.token + N2N_PRIVATE_PUBLIC_KEY_SIZE, N2N_AUTH_CHALLENGE_SIZE);
             // un-XOR the shared secret
             memxor(tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE, *(eee->conf.shared_secret), N2N_AUTH_CHALLENGE_SIZE);
-            // setup for use as dynamic key
-            packet_header_change_dynamic_key(tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE,
-                                             &(eee->conf.header_encryption_ctx_dynamic),
-                                             &(eee->conf.header_iv_ctx_dynamic));
+            // setup for use as dynamic key - where it is a new one: the
+            // supernodes change it with a reload, when users may have gone
+            if(!eee->client.dynamic_key_known
+               || memcmp(eee->client.dynamic_key, tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE, N2N_AUTH_CHALLENGE_SIZE)) {
+                packet_header_change_dynamic_key(tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE,
+                                                 &(eee->conf.header_encryption_ctx_dynamic),
+                                                 &(eee->conf.header_iv_ctx_dynamic));
+                memcpy(eee->client.dynamic_key, tmp_token + N2N_PRIVATE_PUBLIC_KEY_SIZE, N2N_AUTH_CHALLENGE_SIZE);
+                traceEvent(TRACE_NORMAL, "%s header keys from the supernode",
+                           eee->client.dynamic_key_known ? "new" : "the");
+                eee->client.dynamic_key_known = true;
+            }
             break;
         default:
             break;
