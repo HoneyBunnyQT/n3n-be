@@ -185,122 +185,19 @@ static int tap_write (struct n3n_runtime_data *eee, uint8_t *buf, int len) {
 }
 
 
-static int handle_PACKET (struct n3n_runtime_data * eee,
-                          const uint8_t from_supernode,
-                          const n2n_PACKET_t * pkt,
-                          const n3n_sock_t * orig_sender,
-                          uint8_t * payload,
-                          size_t psize) {
+// A frame of a PACKET for the device: unless filtered out
+static int tap_deliver (struct n3n_runtime_data *eee,
+                        const n2n_PACKET_t *pkt,
+                        const n3n_sock_t *orig_sender,
+                        uint8_t *eth_payload,
+                        size_t eth_size,
+                        time_t now) {
 
-    ssize_t data_sent_len;
-    uint8_t *                 eth_payload = NULL;
-    time_t now;
-    ether_hdr_t *             eh;
-    ipstr_t ip_buf;
-    macstr_t mac_buf;
-    n3n_sock_str_t sockbuf;
-
-    now = time(NULL);
-
-    traceEvent(TRACE_DEBUG, "handle_PACKET size %u transform %u",
-               (unsigned int)psize, (unsigned int)pkt->transform);
-
-    if(from_supernode) {
-        if(is_multi_broadcast(pkt->dstMac))
-            STATS_INC(eee, rx_sup_broadcast);
-
-        STATS_INC(eee, rx_sup);
-        SHARED_STORE(eee->client.last_sup, now);
-    } else {
-        STATS_INC(eee, rx_p2p);
-        SHARED_STORE(eee->client.last_p2p, now);
-    }
-
-    /* Handle transform. */
-    uint8_t decode_buf[N2N_PKT_BUF_SIZE];
-    uint8_t deflate_buf[N2N_PKT_BUF_SIZE];
-    size_t eth_size;
-
-    n2n_transform_t rx_transop_id = (n2n_transform_t)pkt->transform;
-    uint8_t rx_compression_id = pkt->compression;
-
-    if(rx_transop_id != eee->conf.community.transop_id) {
-        traceEvent(
-            TRACE_WARNING,
-            "invalid transop ID: expected %s (%u), got %s (%u) from %s [%s]",
-            n3n_transform_id2str(eee->conf.community.transop_id),
-            eee->conf.community.transop_id,
-            n3n_transform_id2str(rx_transop_id),
-            rx_transop_id,
-            macaddr_str(mac_buf, pkt->srcMac),
-            sock_to_cstr(sockbuf, orig_sender)
-        );
-        return -1;
-    }
-
+    ether_hdr_t *eh = (ether_hdr_t*)eth_payload;
     uint8_t is_multicast;
-    // decrypt
-    eth_payload = decode_buf;
-    int decoded = eee->client.transop.rev(&eee->client.transop,
-                                          eth_payload, N2N_PKT_BUF_SIZE,
-                                          payload, psize, pkt->srcMac);
-    STATS_INC(eee, transop_rx);
-    if(decoded < 0) {
-        // not as the cipher makes it (AES and Twofish check their padding)
-        traceEvent(TRACE_INFO, "dropped a PACKET from %s that did not decrypt",
-                   macaddr_str(mac_buf, pkt->srcMac));
-        return -1;
-    }
-    eth_size = decoded;
+    ssize_t data_sent_len;
+    ipstr_t ip_buf;
 
-    /* decompress if necessary */
-    size_t deflate_len;
-
-    switch(rx_compression_id) {
-        case N2N_COMPRESSION_ID_NONE:
-            break; // continue afterwards
-
-        case N2N_COMPRESSION_ID_LZO:
-            deflate_len = eee->client.transop_lzo.rev(&eee->client.transop_lzo,
-                                                      deflate_buf, N2N_PKT_BUF_SIZE,
-                                                      decode_buf, eth_size, pkt->srcMac);
-            break;
-
-#ifdef HAVE_LIBZSTD
-        case N2N_COMPRESSION_ID_ZSTD:
-            deflate_len = eee->client.transop_zstd.rev(&eee->client.transop_zstd,
-                                                       deflate_buf, N2N_PKT_BUF_SIZE,
-                                                       decode_buf, eth_size, pkt->srcMac);
-            break;
-#endif
-        default:
-            traceEvent(
-                TRACE_WARNING,
-                "decompression: failed: unsupported %i",
-                rx_compression_id
-            );
-            return(-1); // cannot handle it
-    }
-
-    if((rx_compression_id != N2N_COMPRESSION_ID_NONE) && !deflate_len) {
-        traceEvent(TRACE_INFO, "dropped a PACKET from %s that did not decompress",
-                   macaddr_str(mac_buf, pkt->srcMac));
-        return -1;
-    }
-
-    if(rx_compression_id != N2N_COMPRESSION_ID_NONE) {
-        traceEvent(
-            TRACE_DEBUG,
-            "decompression: %i: deflated %u bytes to %u bytes",
-            rx_compression_id,
-            eth_size,
-            deflate_len
-        );
-        eth_payload = deflate_buf;
-        eth_size = deflate_len;
-    }
-
-    eh = (ether_hdr_t*)eth_payload;
 
     if(is_link_local_frame(eth_payload, eth_size)) {
         traceEvent(TRACE_INFO, "dropping RX link-local frame");
@@ -385,6 +282,121 @@ static int handle_PACKET (struct n3n_runtime_data * eee,
     }
 
     return -1;
+}
+
+
+static int handle_PACKET (struct n3n_runtime_data * eee,
+                          const uint8_t from_supernode,
+                          const n2n_PACKET_t * pkt,
+                          const n3n_sock_t * orig_sender,
+                          uint8_t * payload,
+                          size_t psize) {
+
+    uint8_t *                 eth_payload = NULL;
+    time_t now;
+    macstr_t mac_buf;
+    n3n_sock_str_t sockbuf;
+
+    now = time(NULL);
+
+    traceEvent(TRACE_DEBUG, "handle_PACKET size %u transform %u",
+               (unsigned int)psize, (unsigned int)pkt->transform);
+
+    if(from_supernode) {
+        if(is_multi_broadcast(pkt->dstMac))
+            STATS_INC(eee, rx_sup_broadcast);
+
+        STATS_INC(eee, rx_sup);
+        SHARED_STORE(eee->client.last_sup, now);
+    } else {
+        STATS_INC(eee, rx_p2p);
+        SHARED_STORE(eee->client.last_p2p, now);
+    }
+
+    /* Handle transform. */
+    uint8_t decode_buf[N2N_PKT_BUF_SIZE];
+    uint8_t deflate_buf[N2N_PKT_BUF_SIZE];
+    size_t eth_size;
+
+    n2n_transform_t rx_transop_id = (n2n_transform_t)pkt->transform;
+    uint8_t rx_compression_id = pkt->compression;
+
+    if(rx_transop_id != eee->conf.community.transop_id) {
+        traceEvent(
+            TRACE_WARNING,
+            "invalid transop ID: expected %s (%u), got %s (%u) from %s [%s]",
+            n3n_transform_id2str(eee->conf.community.transop_id),
+            eee->conf.community.transop_id,
+            n3n_transform_id2str(rx_transop_id),
+            rx_transop_id,
+            macaddr_str(mac_buf, pkt->srcMac),
+            sock_to_cstr(sockbuf, orig_sender)
+        );
+        return -1;
+    }
+
+    // decrypt
+    eth_payload = decode_buf;
+    int decoded = eee->client.transop.rev(&eee->client.transop,
+                                          eth_payload, N2N_PKT_BUF_SIZE,
+                                          payload, psize, pkt->srcMac);
+    STATS_INC(eee, transop_rx);
+    if(decoded < 0) {
+        // not as the cipher makes it (AES and Twofish check their padding)
+        traceEvent(TRACE_INFO, "dropped a PACKET from %s that did not decrypt",
+                   macaddr_str(mac_buf, pkt->srcMac));
+        return -1;
+    }
+    eth_size = decoded;
+
+    /* decompress if necessary */
+    size_t deflate_len;
+
+    switch(rx_compression_id) {
+        case N2N_COMPRESSION_ID_NONE:
+            break; // continue afterwards
+
+        case N2N_COMPRESSION_ID_LZO:
+            deflate_len = eee->client.transop_lzo.rev(&eee->client.transop_lzo,
+                                                      deflate_buf, N2N_PKT_BUF_SIZE,
+                                                      decode_buf, eth_size, pkt->srcMac);
+            break;
+
+#ifdef HAVE_LIBZSTD
+        case N2N_COMPRESSION_ID_ZSTD:
+            deflate_len = eee->client.transop_zstd.rev(&eee->client.transop_zstd,
+                                                       deflate_buf, N2N_PKT_BUF_SIZE,
+                                                       decode_buf, eth_size, pkt->srcMac);
+            break;
+#endif
+        default:
+            traceEvent(
+                TRACE_WARNING,
+                "decompression: failed: unsupported %i",
+                rx_compression_id
+            );
+            return(-1); // cannot handle it
+    }
+
+    if((rx_compression_id != N2N_COMPRESSION_ID_NONE) && !deflate_len) {
+        traceEvent(TRACE_INFO, "dropped a PACKET from %s that did not decompress",
+                   macaddr_str(mac_buf, pkt->srcMac));
+        return -1;
+    }
+
+    if(rx_compression_id != N2N_COMPRESSION_ID_NONE) {
+        traceEvent(
+            TRACE_DEBUG,
+            "decompression: %i: deflated %u bytes to %u bytes",
+            rx_compression_id,
+            eth_size,
+            deflate_len
+        );
+        eth_payload = deflate_buf;
+        eth_size = deflate_len;
+    }
+
+    return tap_deliver(eee, pkt, orig_sender, eth_payload, eth_size, now);
 }
 
 
