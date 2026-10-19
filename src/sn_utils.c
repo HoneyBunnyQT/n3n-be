@@ -1799,7 +1799,7 @@ static int purge_expired_communities (struct n3n_runtime_data *sss,
 
         // purge the community's associated peers (connected to other supernodes)
         HASH_ITER(hh, comm->assoc, assoc, tmp_assoc) {
-            if(comm->assoc->last_seen < (now - 3 * REGISTRATION_TIMEOUT)) {
+            if(assoc->last_seen < (now - 3 * REGISTRATION_TIMEOUT)) {
                 HASH_DEL(comm->assoc, assoc);
                 free(assoc);
                 num_assoc++;
