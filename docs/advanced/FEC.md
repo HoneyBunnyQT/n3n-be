@@ -129,6 +129,14 @@ most, its repairs some more, up to a frame and a half at the rate of the
 frames to the peer for one that rides; a frame undone comes that much
 later, or less.  Broadcast and multicast go without.
 
+With `connection.p2p_max_loss` (see [NAT Traversal](NatTraversal.md#a-direct-path-that-loses-packets)),
+an edge sends a peer's frames through the supernode where the direct path
+loses that much of its probes - FEC or not: the probes see the loss as it
+is, before any repair.  FEC goes on through the supernode as it did
+directly.  Where the loss is on the edge's own line, the way through the
+supernode loses as much: `p2p_max_loss = 0` keeps the direct path, and
+leaves the loss to FEC.
+
 It works the same through a supernode: it is between the two edges, inside
 the encryption.  Repairs do not help against loss from congestion - more
 bytes on a full line lose more - which is why `auto` sends none while
