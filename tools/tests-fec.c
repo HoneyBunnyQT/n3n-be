@@ -483,6 +483,90 @@ static int test_spacing (void) {
 }
 
 
+// A group that could not be undone leaves its repairs behind; once the
+// seqs wrapped, a group of the same seqs comes, missing a frame - which is
+// not to be undone with the old group's repairs, but with its own
+static int test_wrap (void) {
+
+    struct n3n_fec *a = n3n_fec_new();
+    struct n3n_fec *b = n3n_fec_new();
+    uint8_t frame[N2N_PKT_BUF_SIZE];
+    struct pdu p, rep[N3N_FEC_M_MAX];
+    struct seen s;
+    uint64_t now = 1000 * SEC;
+    int failed = 0, i = 0, n;
+    n2n_mac_t to;
+
+    memset(&s, 0, sizeof(s));
+    // a frame each millisecond, none lost told: no groups, until the
+    // sender knows the rate
+    tell_loss(a, mac_b, 0, now);
+    for(; i < 100; i++) {
+        size_t len = make_frame(frame, i % FRAMES, 200);
+
+        now += 1000;
+        p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                ROOM, &p.len, now);
+        unwrap(b, mac_a, &p, now, &s, 200);
+    }
+    // two groups of 10, as 10 % lost is told; in between, 65536 - 10
+    // frames as none is told: no groups
+    for(int g = 0; g < 2; g++) {
+        tell_loss(a, mac_b, 10, now);
+        for(int x = 0; x < 10; x++, i++) {
+            // the second group's frames others than i makes: those of
+            // 1536 apart have the same sums
+            size_t len = make_frame(frame, (i + 7 * g) % FRAMES, 200);
+
+            now += 1000;
+            p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                    ROOM, &p.len, now);
+            failed |= p.scheme != N3N_FEC_GROUP;
+            // the first: frames 2 and 3 lost, too many; the second:
+            // frame 3 lost
+            if((x != 3) && (g || (x != 2))) {
+                unwrap(b, mac_a, &p, now, &s, 200);
+            }
+        }
+        // its repairs, on their own: of the first, one comes; of the
+        // second, the first one (as the first group's), last
+        n = 0;
+        for(int64_t due; (due = n3n_fec_due_us(a, now)) >= 0;) {
+            now += due;
+            while((n < N3N_FEC_M_MAX) && n3n_fec_repair(a, now, to, rep[n].buf, sizeof(rep[n].buf), &rep[n].len)) {
+                rep[n++].scheme = N3N_FEC_REPAIR;
+            }
+        }
+        failed |= n < 2;
+        unwrap(b, mac_a, &rep[0], now, &s, 200);
+        if(g) {
+            break;
+        }
+        for(int x = 0; x < 65536 - 10; x++, i++) {
+            size_t len = make_frame(frame, i % FRAMES, 200);
+
+            now += 1000;
+            if(x % 1000 == 0) {
+                tell_loss(a, mac_b, 0, now);
+            }
+            p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                    ROOM, &p.len, now);
+            failed |= p.scheme != N3N_FEC_SEQ;
+            unwrap(b, mac_a, &p, now, &s, 200);
+        }
+    }
+    // all but the first group's two came, and the second group's lost one
+    // was undone, as it was
+    failed |= s.wrong || (s.n != i - 2) || (s.undone != 1);
+    printf("%-26s %d frames, %d came out, %d not as sent: %s\n", "past the seqs' wrap", i, s.n,
+           s.wrong, failed ? "FAIL" : "ok");
+
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    return failed;
+}
+
+
 // Payloads that are not what their scheme says
 static int test_broken (void) {
 
@@ -559,6 +643,7 @@ int main (int argc, char * argv[]) {
     failed |= test_any();
     failed |= test_reorder();
     failed |= test_spacing();
+    failed |= test_wrap();
     failed |= test_broken();
 
     return failed;

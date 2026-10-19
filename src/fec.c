@@ -721,6 +721,13 @@ static int rx_advance (struct fec_peer *p, int d) {
         p->delivered <<= 1;
         p->top++;
     }
+    // the repairs of groups that left the window go: once the seqs
+    // wrapped, they would be taken for those of a group of the same seqs
+    for(int r = 0; r < FEC_RX_REPAIRS; r++) {
+        if(p->repair[r].valid && ((int16_t)(p->top - p->repair[r].first) >= FEC_WINDOW)) {
+            p->repair[r].valid = false;
+        }
+    }
     return lost;
 }
 

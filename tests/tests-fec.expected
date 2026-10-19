@@ -16,10 +16,11 @@ auto, bulk, 1 %            2000 frames, repairs  195 alone    0 riding,  17 lost
 auto, bulk, 5 %            2000 frames, repairs  511 alone    0 riding,  95 lost,  95 undone,   0 missing: ok
 auto, small, 10 %          2000 frames, repairs    5 alone  995 riding, 184 lost, 181 undone,   4 missing: ok
 auto, mixed, 10 %          2000 frames, repairs  753 alone    7 riding, 199 lost, 199 undone,   0 missing: ok
-auto, mixed, 20 % (capped) 2000 frames, repairs  753 alone    7 riding, 385 lost, 287 undone,  98 missing: ok
+auto, mixed, 20 % (capped) 2000 frames, repairs  753 alone    7 riding, 385 lost, 338 undone,  47 missing: ok
 always, no loss            2000 frames, repairs   62 alone    6 riding,   0 lost,   0 undone,   0 missing: ok
 none                        500 frames, repairs    0 alone    0 riding,   0 lost,   0 undone,  44 missing: ok
 any m of k + m lost        k 10, m 5, 6 ways: ok
 backwards, twice           26 PDUs, 20 frames came out: ok
 spacing, riding            ok
+past the seqs' wrap        65646 frames, 65644 came out, 0 not as sent: ok
 broken trailers            ok
