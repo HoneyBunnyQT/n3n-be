@@ -123,8 +123,9 @@
   <polygon class="head" points="107.0,80.0 102.5,71.0 111.5,71.0"/>
   <path class="relay" d="M 455.0 82 C 455.0 50, 209.0 50, 209.0 78"/>
   <polygon class="head" points="209.0,80.0 204.5,71.0 213.5,71.0"/>
-  <text class="small" x="478" y="60" text-anchor="start">frames 3 and 6 undone from the repairs -</text>
-  <text class="small" x="478" y="74" text-anchor="start">any 3 of these 11 may get lost</text>
+  <text class="small" x="480" y="46" text-anchor="start">frames 3 and 6 undone from the</text>
+  <text class="small" x="480" y="60" text-anchor="start">repairs: any 3 of group 1's 11</text>
+  <text class="small" x="480" y="74" text-anchor="start">PACKETs (8 frames + 3 repairs)</text>
   <text class="small" x="20" y="212" text-anchor="start">Not right after the group: a burst of loss would take frames and repairs together.  Spread out, a few ms apart,</text>
   <text class="small" x="20" y="228" text-anchor="start">the repairs miss the burst - and the frames go at once: only a lost one waits for its repairs.</text>
   <text class="title" x="20" y="266" text-anchor="start">Voice: a frame each 20 ms - its repair rides along in the next PACKET</text>

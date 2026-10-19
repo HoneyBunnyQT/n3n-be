@@ -627,10 +627,11 @@ def fec_timeline():
             xr[1] + pw / 2, top - 2, xr[1] + pw / 2, top - 34, xl + pw / 2,
             top - 34, xl + pw / 2, top - 6), "relay"))
         body.append(arrowhead(xl + pw / 2, top - 4, xl + pw / 2, top - 24))
-    body.append(text(xr[1] + pw + 8, top - 24, "frames 3 and 6 undone from "
-                     "the repairs -", "small", "start"))
-    body.append(text(xr[1] + pw + 8, top - 10, "any 3 of these 11 may get "
-                     "lost", "small", "start"))
+    for k, line in enumerate(("frames 3 and 6 undone from the",
+                              "repairs: any 3 of group 1's 11",
+                              "PACKETs (8 frames + 3 repairs)")):
+        body.append(text(xr[1] + pw + 10, top - 38 + 14 * k, line, "small",
+                         "start"))
     body.append(text(20, top + 128, "Not right after the group: a burst of "
                      "loss would take frames and repairs together.  "
                      "Spread out, a few ms apart,", "small", "start"))
