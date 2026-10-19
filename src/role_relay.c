@@ -124,6 +124,16 @@ static int auth_edge (const n2n_auth_t *present, const n2n_auth_t *presented, n2
     }
 
     if((present->scheme == n2n_auth_user_password) && (presented->scheme == n2n_auth_user_password)) {
+        // the same user as the edge registered as: the token begins with
+        // the user's public key, the rest is a challenge new each time.
+        // Without this, any user of the community took over another's
+        // entry (its MAC, or its address, see update_edge()) - the hash
+        // of the REGISTER_SUPER only shows that the presented key is the
+        // sender's own
+        if(memcmp(present->token, presented->token, N2N_PRIVATE_PUBLIC_KEY_SIZE) != 0) {
+            traceEvent(TRACE_INFO, "auth fail: another user than the one registered");
+            return -1;
+        }
         // check if submitted public key is in list of allowed users
         HASH_FIND(hh, community->allowed_users, &presented->token, sizeof(n2n_private_public_key_t), user);
         if(user) {

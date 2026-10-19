@@ -330,6 +330,7 @@ ports from all of it.
 | userpw-relayed | hard-range / hard-range, user/password, each edge at its own supernode | relayed, across the federation |
 | userpw-conf | as userpw-relayed, the community and users in `[community NAME]` sections | relayed, across the federation |
 | userpw-cli | easy-kept / easy-changed, user/password; the community's sections on the command line (`-O "community nettest.cli.user=..."`, `-O community.nettest.cli.key=...`), only the edges' supernodes in the file; then a reload of a, which drops one of them | direct; the reload applies the supernode and the filter rule, nothing set by `-O` changes |
+| userpw-spoof | easy-kept / easy-changed, user/password; then an edge of user b (b's password) comes up with a's MAC (`spoof`) | direct; the other edge refused, the supernodes keep a at its address |
 | sn-tap | hard-range / the TAP device of sn2 (`supernode.tap`), the edge at sn2 | relayed |
 | sn-tap-fed | easy-kept at sn1 / the TAP device of sn2 | relayed, across the federation |
 | sn-tap-userpw | as sn-tap-fed, with user/password authentication | relayed, across the federation |

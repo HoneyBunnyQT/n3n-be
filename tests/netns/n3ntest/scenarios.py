@@ -518,6 +518,13 @@ SCENARIOS = [
         Site(on_supernode="sn2"),
         "relayed"),
     Scenario(
+        "userpw-spoof",
+        "user/password; then an edge of user b, with b's password, comes up "
+        "with a's MAC: refused, and the supernodes keep a where it is - "
+        "a user is not to take over another's MAC",
+        Site(["easy-kept"]), Site(["easy-changed"]),
+        "direct", auth="userpw", spoof=True),
+    Scenario(
         "sn-tap-userpw",
         "as sn-tap-fed, with user/password authentication",
         Site(["easy-kept"], supernodes=["sn1"]),

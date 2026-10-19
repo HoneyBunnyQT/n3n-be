@@ -195,7 +195,7 @@ class Scenario:
                  direct_ok=None, sn_peer_family=4, sn_start_gap=0,
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
-                 multicast=False, lossy=0):
+                 multicast=False, lossy=0, spoof=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -227,6 +227,10 @@ class Scenario:
         # (at site a): the edges are to send through the supernode, and
         # once the loss stops, directly again (connection.p2p_max_loss)
         self.lossy = lossy
+        # After the warm-up, another edge of a user of the community (b's,
+        # with b's password) comes up with a's MAC: the supernodes are to
+        # refuse it, and to keep a where it is (auth="userpw")
+        self.spoof = spoof
         # The supernodes take UDP on SN_PORT and TCP on this port
         # (connection.bind udp:// and tcp://), and the edges know it
         # (community.supernode tcp://)
@@ -1660,6 +1664,47 @@ class Run:
             for p in trickle:
                 p.stop()
 
+    def _sn_entries(self, mac):
+        """{supernode: the address its entry for the MAC has}"""
+        out = {}
+        for name, sn in sorted(self.supernodes.items()):
+            for row in sn["daemon"].mgmt.try_call("get_edges") or []:
+                if row.get("macaddr", "").lower() == mac.lower():
+                    out[name] = row.get("sockaddr")
+        return out
+
+    def spoof_phase(self):
+        """sc.spoof: an edge of user b, in b's namespace, with a's MAC"""
+        a, b = self.edges["a"], self.edges["b"]
+        before = self._sn_entries(a["mac"])
+        sections = self._edge_sections("b", self.sc.sites["b"], b)
+        mine = {"tuntap": {"name": "n3n9", "macaddr": a["mac"],
+                           "address": "10.99.0.99/{}".format(OVERLAY_PREFIX)},
+                "connection": {"bind": "[::]:{}".format(EDGE_PORT + 9)}}
+        for section, options in mine.items():
+            sections[section] = [(o, v) for o, v in sections[section]
+                                 if o not in options] + list(options.items())
+        d = Edge(self.lab, "edge-spoof", b["ns"], self._session("spoof"),
+                 self.st.binary("n3n-edge", None), sections,
+                 wrap=self.st.wrap, overlay_ip="10.99.0.99", mac=a["mac"])
+        d.start()
+        try:
+            # a few rounds of registrations
+            time.sleep(3 * self.st.register_interval)
+            after = self._sn_entries(a["mac"])
+            with open(d.proc.log_path, errors="replace") as f:
+                refused = any("authentication error" in line for line in f)
+        finally:
+            d.proc.stop()
+        self.result["spoof"] = {"before": before, "after": after,
+                                "refused": refused}
+        self.check("spoof: refused", refused,
+                   "the edge of user b with a's MAC was {}refused".format(
+                       "" if refused else "not "))
+        self.check("spoof: a stays", after == before,
+                   "the supernodes' entries for a's MAC: {} -> {}".format(
+                       before, after))
+
     def check_marked(self):
         """The learned supernodes the edge of udp_lost's site marked as
         reached over UDP only: some of marked, once each"""
@@ -2045,6 +2090,8 @@ class Run:
                 self.udp_lost_phase()
             if self.sc.lossy and self.check_alive("warm-up"):
                 self.lossy_phase()
+            if self.sc.spoof and self.check_alive("warm-up"):
+                self.spoof_phase()
             if self.sc.failover and self.check_alive("warm-up"):
                 self.failover()
             if self.sc.udp_lost and self.check_alive("warm-up"):
