@@ -1,6 +1,7 @@
 /*
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Hamish Coleman
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * The harness of "n3n-edge test list | check | benchmark" (n3n/benchmark.h;
  * "test fakebench" is in trace.c).  Ciphers, hashes, the compression and

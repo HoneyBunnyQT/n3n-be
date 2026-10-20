@@ -1,6 +1,7 @@
 /*
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Hamish Coleman
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * Benchmark items that measure the harness and the clocks: what a loop
  * of nothing costs, and what the time of day costs, which the packet path

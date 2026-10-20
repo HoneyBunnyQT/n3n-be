@@ -1,6 +1,7 @@
 /*
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Hamish Coleman
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * Benchmark items for the edge's packet path, without a network:
  *

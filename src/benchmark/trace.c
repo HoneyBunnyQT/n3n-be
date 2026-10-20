@@ -1,6 +1,7 @@
 /*
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Hamish Coleman
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * "n3n-edge test fakebench": the instructions an item takes per loop,
  * counted by single-stepping it, for CI runners whose virtual machines

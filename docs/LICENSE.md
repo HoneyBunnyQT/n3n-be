@@ -17,6 +17,10 @@ changes on the same terms, also when they only run it as a service.
 | some of upstream's tools and libraries: `libs/connslot`, `scripts/n3nctl`, ... | GPL-2.0-only or LGPL-2.1-only, as their files say; none of the GPL-2.0-only ones is part of the program |
 | `libs/lzo` | GPL-2.0-or-later |
 
+`src/benchmark/` was written anew after upstream's benchmark harness by
+Hamish Coleman and follows its design, so its files carry his copyright
+as well as n3n-be's.
+
 The program as a whole, `n3n` and the Android app, is a combination of
 these parts.  The GPL version 3 allows combining its code with code under
 the AGPL version 3 (its section 13), and the AGPL's network clause then
@@ -64,7 +68,8 @@ nobody takes it for n3n-be.
   header says.
 - **Code from elsewhere** keeps its licence and its copyright lines, and
   its licence has to go together with the GPL version 3: say where it
-  comes from in the commit message.
+  comes from in the commit message.  Code written anew after someone
+  else's, following its design, keeps their copyright line too.
 - **Upstream n3n** has chosen terms and a way of working of its own, and
   n3n-be leaves it to them: it does not take n3n's newer code, and
   follows it only so far as compatibility needs - the weekly test

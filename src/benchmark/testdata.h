@@ -1,6 +1,7 @@
 /*
- * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Hamish Coleman
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
  * The test data of the benchmark items, see testdata.c
  */

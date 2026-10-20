@@ -884,7 +884,8 @@ release has it - as FEC was; there is no branch for it (see Decisions
   the core LGPL-2.1-only.  What n3n-be already has keeps the licences it
   came with.  Something of upstream's newer work wanted here: its file
   header decides - LGPL-2.1 can be taken (into GPL-3.0), GPL-2.0-only with
-  that permission is better written anew than copied.
+  that permission is better written anew than copied - and what is
+  written anew after someone's code keeps their copyright line.
 - 2026-10-18: n3n-be's own work is under AGPL-3.0-only: the files whose
   only copyright is Honey Bunny QT's, and every new file (see
   docs/LICENSE.md).  The aim: open for anyone to use, commercially too,
@@ -895,7 +896,8 @@ release has it - as FEC was; there is no branch for it (see Decisions
   the SSE2 code of ntop's, and `src/sn_utils.h`, upstream's prototypes,
   stay GPL-3.0-only.  Upstream's GPL-2.0-only files that were linked into
   `n3n`, `src/benchmark/`, are written anew (2026-10-18): no GPL-2.0-only
-  code is left in the program.
+  code is left in the program.  As the new harness follows the design of
+  Hamish Coleman's, its files carry his copyright too (2026-10-20).
 - 2026-10-18: n3n-be goes on with its own code.  Upstream's newer code is
   not taken: n3n has chosen terms and a way of working of its own, and
   both are better served by each project keeping to its own.  Upstream is

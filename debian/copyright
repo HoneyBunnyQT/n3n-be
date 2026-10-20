@@ -97,7 +97,6 @@ Files:
  scripts/gen_doc_images.py
  scripts/test_qemu.sh
  scripts/test_qr.sh
- src/benchmark/*
  src/counter.h
  src/crypto/aes.c
  src/crypto/aes_armce.c
@@ -156,6 +155,17 @@ License: AGPL-3.0-only
  A copy of the GNU Affero General Public License version 3 is available as
  LICENSES/preferred/AGPL-3.0 in the source of this package or at
  https://www.gnu.org/licenses/agpl-3.0-standalone.html
+
+Files:
+ src/benchmark/*
+Copyright: Hamish Coleman
+ Honey Bunny QT
+License: AGPL-3.0-only
+ A copy of the GNU Affero General Public License version 3 is available as
+ LICENSES/preferred/AGPL-3.0 in the source of this package or at
+ https://www.gnu.org/licenses/agpl-3.0-standalone.html
+Comment: Written anew after upstream's benchmark harness by Hamish Coleman,
+ whose design it follows.
 
 Files:
  android/gradlew
