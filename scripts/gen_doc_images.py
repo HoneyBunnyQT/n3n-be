@@ -685,6 +685,57 @@ def fec_timeline():
 PICTURES["fec-timeline.svg"] = fec_timeline()
 
 
+def fec_equations():
+    """How repairs undo lost frames: the frames are the unknowns, each
+    frame or repair that comes is an equation"""
+    w, h = 720, 330
+    body = []
+    body.append(text(20, 24, "Frames as unknowns, repairs as equations",
+                     "title", "start"))
+    body.append(text(20, 52, "sent: a group of three frames, and two "
+                     "repairs made of them", "small", "start"))
+    top = 70
+    for cx, title, sub, cls in ((90, "frame a", "5", "box"),
+                                (200, "frame b", "7", "opt"),
+                                (310, "frame c", "2", "opt"),
+                                (465, "repair 1", "a + b + c = 14", "hi"),
+                                (625, "repair 2", "a + 2b + 3c = 25", "hi")):
+        node(body, cx, top, 150 if cls == "hi" else 100, 50, title, sub,
+             cls)
+    for x in (200, 310):
+        # crossed out at a corner, so that the box stays readable
+        cx, cy = x + 50, top
+        body.append(path("M {} {} L {} {} M {} {} L {} {}".format(
+            cx - 9, cy - 9, cx + 9, cy + 9, cx + 9, cy - 9, cx - 9, cy + 9),
+            "drop"))
+        body.append(text(x, top + 66, "lost", "small"))
+    for x in (90, 465, 625):
+        body.append(arrow(x, top + 52, x, 160))
+    body.append(rect(40, 162, 640, 118, "box", 8))
+    body.append(text(60, 184, "received: a = 5, repair 1 = 14, repair 2 = "
+                     "25 - two unknowns, b and c, and two equations:",
+                     "small", "start"))
+    for k, line in enumerate(("b + c = 14 − 5 = 9",
+                              "2b + 3c = 25 − 5 = 20",
+                              "so c = 20 − 2 × 9 = 2, and b = 9 − 2 = 7")):
+        body.append(text(80, 212 + 22 * k, line, "label", "start"))
+    body.append(text(360, 302, "any 2 of these 5 may get lost: what is left "
+                     "always holds as many equations as frames are missing",
+                     "small"))
+    body.append(text(360, 318, "n3n does this for each byte of the frames, "
+                     "in an arithmetic of bytes, GF(2^8), instead of "
+                     "ordinary numbers", "small"))
+    return svg(w, h, "Frames as unknowns, repairs as equations",
+               "Three frames, a = 5, b = 7 and c = 2, and two repairs, a + "
+               "b + c = 14 and a + 2b + 3c = 25.  Frames b and c are lost; "
+               "the receiver has a and both repairs, two equations for the "
+               "two unknowns, and solves them: b + c = 9, 2b + 3c = 20, so "
+               "c = 2 and b = 7.", body)
+
+
+PICTURES["fec-equations.svg"] = fec_equations()
+
+
 def main():
     out = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),

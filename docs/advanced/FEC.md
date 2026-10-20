@@ -14,7 +14,9 @@ not when the loss is on the edge's own line, which both ways share.
 
 With forward error correction the sending edge sends some redundancy
 along, computed from what it sent, so that the receiving edge can undo a
-loss itself, at once, without asking for anything again.  It costs extra
+loss itself, at once, without asking for anything again - "forward"
+because the means to repair go ahead with the data, instead of the
+receiver asking back for what it missed.  It costs extra
 packets - which, where they undo a loss, save what TCP would otherwise
 have sent again, and the time it would have waited for that.
 
@@ -50,9 +52,11 @@ The frames to a peer go in **groups**: up to 32 frames, or what comes in
 10 ms, whichever is first - so a stream at a high rate makes groups of 32,
 a voice call (a frame each 20 ms) groups of one.  The frames go as they
 are, at once; after the group, **m repairs** follow, computed from its
-frames with a Reed-Solomon code.  The receiving edge keeps the frames of
-a group as they come; where some are missing, **any m of them** are
-undone from the repairs, as soon as enough of them came.  A group with
+frames with a Reed-Solomon code - the kind of code that lets a scratched
+CD play and a smudged QR code scan.  The receiving edge keeps the frames
+of a group as they come; where some are missing, **any m of them** are
+undone from the repairs, as soon as enough of them came (how that can
+be: [below](#how-a-repair-brings-a-frame-back)).  A group with
 more lost than it has repairs keeps its losses, but nothing more.
 
 The repairs do not go right after their group's last frame, but spread
@@ -92,11 +96,13 @@ ways.
 **Bursts.** Many lines lose several packets in a row - a radio fading, a
 queue overflowing - and a burst takes several frames of a group, which
 go in a row.  With the mean burst it is told, the sender reckons with
-that (a Gilbert model: a packet lost after one that was lost is likelier
-than after one that came; the repairs, spread out after the group, lost
-one by one).  Reckoning with 2 % lost (the margin included), a group of
-20 frames gets 3 repairs where the losses come one by one, 7 where they
-come in pairs, 10 where they come in fours.  In the unit tests, of 2000 big frames over a line losing 3 %
+that: for the frames of a group, which go in a row, it takes a packet
+lost right after one that was lost to be likelier than one lost after
+one that came (what is called a Gilbert model); the repairs, spread out
+after the group, it takes as lost one by one.  Reckoning with 2 % lost
+(the margin included), a group of 20 frames gets 3 repairs where the
+losses come one by one, 7 where they come in pairs, 10 where they come
+in fours.  In the unit tests, of 2000 big frames over a line losing 3 %
 in bursts of 4, 33 stay lost where the sender takes the losses as coming
 one by one, 6 where it knows of the bursts.
 
@@ -142,6 +148,51 @@ the encryption.  Repairs do not help against loss from congestion - more
 bytes on a full line lose more - which is why `auto` sends none while
 nothing is lost, at most half as many as frames, and fewer where they
 fill the line (see above).
+
+## How a repair brings a frame back
+
+That a few repairs can stand in for any of a group's frames sounds like
+magic, but it is the algebra of school: a set of equations with as many
+unknowns as equations can be solved.
+
+Take a group of three frames, and think of each as a number: a = 5,
+b = 7, c = 2.  The sender makes two repairs of them, each a sum of the
+frames with weights of its own: repair 1 is a + b + c = 14, repair 2 is
+a + 2b + 3c = 25.  Five PACKETs go, and frames b and c get lost.  The
+receiver has a = 5 and both repairs: two equations, two unknowns.
+
+![Three frames and two repairs; frames b and c lost; from frame a and the two repairs, b + c = 9 and 2b + 3c = 20, so c = 2 and b = 7](../images/fec-equations.svg)
+
+Any two of the five may get lost - two frames, a frame and a repair, or
+both repairs - and what is left always gives as many equations as frames
+are missing.  A frame that came is an equation too (a = 5), only an easy
+one.  So it goes for a group of k frames with m repairs: each repair is
+one more equation, and any m of the k + m PACKETs may be lost.  With one
+more lost than there are repairs, there is one equation too few, and the
+lost frames stay lost.
+
+Two things make this work for real frames:
+
+- **The weights.**  For every choice of lost frames, the equations that
+  are left must be solvable - none of them may just repeat what the
+  others say.  The weights are taken from a table built so that this
+  holds for any choice (mathematicians call it a Cauchy matrix).  Its
+  first row is all ones: the first repair is the plain sum of the frames,
+  and for a single lost frame it is all that is needed.
+- **The numbers.**  A frame is a row of bytes, so the same is done for
+  each byte position: the first bytes of all frames make one set of
+  equations, the second bytes the next, and so on.  The sums are not
+  those of ordinary numbers, which would grow beyond a byte, but of an
+  arithmetic of 256 values - exactly what a byte holds - in which adding,
+  multiplying and dividing never leave a byte, and every number but 0 can
+  be divided by (a finite field, GF(2^8)).  In it, adding is the
+  exclusive or of the bits (XOR: a bit of the sum is 1 where exactly one
+  of the two is), so the first repair is the XOR of the frames.  Solving
+  the equations is the same as at school, only with these sums.
+
+Frames of different lengths are padded with zeros to the longest of the
+group, and each frame's length is coded along with it, so that an undone
+frame comes back at its own length.
 
 ## Why more packets can carry more
 
@@ -222,19 +273,24 @@ its group and its number.  The receiver keeps a window of the last 64,
 to tell what is missing, what came twice (dropped), and what is still to
 be undone; a frame that leaves it missing stayed lost.
 
-The code: Reed-Solomon over GF(2^8) with the polynomial
-x^8 + x^4 + x^3 + x + 1 (AES's), systematic - the frames go as they are -
-with a Cauchy matrix for the repairs, its first row all ones (the first
-repair is the XOR of the frames).  What is coded of each frame is its
-length (16 bits) and the frame, padded with zeros to the longest of the
-group.  See `src/fec.h` and `src/gf256.h`, and the
-[Roadmap](../develop/Roadmap.md) for what is to come.
+The code, in the terms of the trade (for what they mean, see
+[above](#how-a-repair-brings-a-frame-back)): Reed-Solomon over GF(2^8)
+with the polynomial x^8 + x^4 + x^3 + x + 1 (AES's: it says how two
+bytes are multiplied), systematic - the frames go as they are, only
+the repairs are computed - with a Cauchy matrix for the repairs' weights,
+its first row all ones (the first repair is the XOR of the frames).  What
+is coded of each frame is its length (16 bits) and the frame, padded with
+zeros to the longest of the group.  See `src/fec.h` and `src/gf256.h`,
+and the [Roadmap](../develop/Roadmap.md) for what is to come.
 
 ## The arithmetic
 
 Making a repair, and undoing a frame, is the same work: each byte of k
-frames multiplied in GF(2^8) and added up.  It has variants, chosen at
-runtime as the ciphers' are - the fastest one the CPU has:
+frames multiplied by its weight and added up, in the arithmetic of bytes
+above.  Most CPUs can do the same step on many bytes at once, with
+instructions of their own for it (SSSE3, AVX and the like on Intel and
+AMD, NEON on ARM), so the work has variants, chosen at runtime as the
+ciphers' are - the fastest one the CPU has:
 
 - plain C: a table of products, a byte at a time
 - SSSE3, AVX2, AVX-512, NEON: the products of the two halves of a
