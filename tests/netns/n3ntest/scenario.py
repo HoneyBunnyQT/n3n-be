@@ -1907,16 +1907,24 @@ class Run:
                    "b at {} after {}s".format(where, took))
         # The peers find each other again: each has heard the other
         # directly since b is back, before the frames are counted.  Their
-        # entries say p2p all along, also while the frames go through the
-        # supernode; last_p2p (wall clock, as time.time()) tells
+        # entries say p2p also while the frames go through the supernode,
+        # last_p2p (wall clock, as time.time()) tells.  And the REGISTERs
+        # that went unanswered while b was cut off count as lost probes of
+        # the direct path: the path may be taken for lossy (pSp), which
+        # takes a round of probes without loss to undo - probes that go
+        # while frames do, so pings go both ways meanwhile
         a = self.edges["a"]
 
         def heard(edge, peer):
             mode, row = edge["daemon"].peer(peer["mac"])
             return mode == "p2p" and row.get("last_p2p", 0) >= back_at
+
+        def direct():
+            self._ping("a", "b", count=2, interval=0.2)
+            self._ping("b", "a", count=2, interval=0.2)
+            return (heard(a, b) and heard(b, a)) or None
         t = time.monotonic()
-        ok = wait_for(lambda: (heard(a, b) and heard(b, a)) or None,
-                      30 + 6 * interval, interval=0.5)
+        ok = wait_for(direct, 30 + 6 * interval, interval=0.5)
         self.check("lockout: direct again", bool(ok),
                    "a and b heard each other directly {}s after b was back"
                    .format(round(time.monotonic() - t, 1)) if ok else

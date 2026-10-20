@@ -1097,7 +1097,12 @@ runs, one scenario each), and reproduced with `-v 3` in a loop:
   saw nothing.  Fixed in the harness: b stays cut off for a register
   interval, so that this happens every run, and the frames are counted
   once each edge has heard the other directly since b is back
-  (`last_p2p`).
+  (`last_p2p`).  The longer cut-off showed the next thing (CI, the same
+  day): the REGISTERs that went unanswered meanwhile count as lost
+  probes of the direct path, a round of them took it for lossy (`pSp`),
+  and it takes a round without loss to undo that - probes go while
+  frames do, and the wait sent none.  Now it pings both ways while it
+  waits.
 - Not explained yet: `sn-tap-userpw` under ASan (the edge never
   registered; once in 16 in CI, none in 25 runs here, also with the
   supernodes a second apart, either way round, 2026-10-18).
