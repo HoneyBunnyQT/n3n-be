@@ -6,7 +6,9 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 # Path MTU: notes for v4
 
 **Postponed to v4 (decided 2026-10-11), nothing of it is code.**  This
-began as a draft for v3 and stays as the groundwork for v4.  See the
+began as a draft for v3 and stays as the groundwork for v4, whose design
+takes it up and answers its questions: see
+[the peer protocol](PeerProtocol.md#path-mtu).  See also the
 [Roadmap](Roadmap.md) (the decision, and the item in the v4 list) and the
 scenarios `mtu-1280*` in [netns_testing.md](netns_testing.md).
 

@@ -143,8 +143,10 @@ so a network can be set up once and shared:
   community, and a QR code is easily photographed.  So the generator should
   be able to leave them out (the app asks for them on import), or encrypt
   the content with a PIN (a key derived from it with a slow KDF, such as
-  scrypt or Argon2, and ChaCha20-Poly1305).  For now `n3n-qr` only notes
-  that the code holds the key; the rest is open.
+  scrypt or Argon2, and ChaCha20-Poly1305).  `n3n-qr -P` seals a code
+  with a PIN (`src/qr_seal.c`, with the ciphers n3n has); a real key
+  derivation, and codes signed by the community's authority, come with
+  v4 (see [the peer protocol](PeerProtocol.md#signed-qr-codes)).
 - **Making the codes**: `tools/n3n-qr`, with libqrencode and libpng, as a
   PNG or in the terminal; the supernode could offer one per community on
   its management page later.

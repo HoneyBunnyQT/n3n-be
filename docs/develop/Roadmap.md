@@ -115,7 +115,7 @@ a branch of its own that was merged into `main` and retired on
         heavily used edge (noted in configure/Supernode.md).  The full
         merge - one executable, one main code path, the same handling
         (packet threads included) for edge and supernode alike - is a v4
-        goal, where the wire version opens up anyway
+        goal (see [the peer protocol](PeerProtocol.md))
   - [x] after step 9: asked; we stay on v3 for now, with compatible work
         only (--disable-relay, tests, docs, the TCP fallback)
 - [x] `./configure --disable-relay` for small builds that only need an edge;
@@ -127,7 +127,8 @@ Picked on 2026-10-18, in this order: the flaky netns scenarios, the BSD
 job, `src/benchmark/` written anew, the possible bug in `update_edge()`,
 the lossy direct path, the coverage report - all done by 2026-10-19 - and
 FEC, which came in between and is under way.  Next in line: rate limits
-and the Prometheus endpoint.
+and the Prometheus endpoint.  The design of v4 is written down before any
+v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
 
 - [x] `update_edge()` (`role_relay.c`): a REGISTER_SUPER from a MAC the
       supernode does not know took the entry of the edge at the same
@@ -407,9 +408,10 @@ and the Prometheus endpoint.
 - [ ] Open from the MTU scenarios: on a 1280 byte path, frames that do not
       fit get fragmented (works) - lost where fragments are dropped, and
       refused with `connection.pmtu_discovery` ("Message too long", no
-      ICMP back into the TAP).  Moved to v4 (see Decisions 2026-10-11 and
-      [Path MTU](PathMtu.md)); in v3 a smaller `tuntap.mtu` is the way,
-      see configure/TapConfiguration.md
+      ICMP back into the TAP).  Moved to v4 (see Decisions 2026-10-11,
+      [Path MTU](PathMtu.md), and its design in
+      [the peer protocol](PeerProtocol.md#path-mtu)); in v3 a smaller
+      `tuntap.mtu` is the way, see configure/TapConfiguration.md
 - [x] Reload: SIGHUP (not in a terminal), `n3nctl reload` (method
       `reload`), `ExecReload` in the units (`RELOADING=1`/`READY=1`).
       `src/reload.c` loads the configuration as at the start, compares
@@ -660,29 +662,36 @@ and the Prometheus endpoint.
       `ipv6-tap`, `ipv6-tun-tap`, `ipv6-tun-tun`.  Open: trying it on a
       phone; other systems' devices; IPv6 through an exit peer
 - [ ] Supernode lookup by DNS SRV (`resolve.c` TODO): moved to v4, see
-      Decisions
+      Decisions and [the peer protocol](PeerProtocol.md#dns-srv)
 
 ### Later: the peer protocol (v4)
 
 Everything above keeps the v3 wire format, so that n3n-be talks to
 today's edges and supernodes, and to n2n 3.x.  v4 comes on top of it
-without ending that: v4 peers are to keep speaking v3 to every peer and
-supernode that knows nothing else, and the relay role to serve v3 edges
-(the v3 bridge).  So v4 is developed on `main` like everything else, off
-by default, its wire format free to change until a release has it - as
-FEC was; there is no branch for it (see Decisions 2026-10-20).
+without ending that: its design, [the peer protocol](PeerProtocol.md)
+(2026-10-20, written before any of its code), has v4 peers find each
+other while they speak v3, keep speaking v3 to every peer and supernode
+that knows nothing else, and the relay role serve v3 edges (the v3
+bridge).  So v4 is developed on `main` like everything else, off by
+default (`community.v4`), its wire format free to change until a
+release has it - as FEC was; there is no branch for it (see Decisions
+2026-10-20).  The steps are in PeerProtocol.md, "Order of work".
 
-- [ ] Peer identity: a Curve25519 key per peer, node ID = hash of the
-      public key (`auth.c` has the curve already)
+- [ ] Peer identity: an Ed25519 key per peer that signs its records, an
+      X25519 key for the handshake, node ID = hash of the Ed25519 key
+      (`curve25519.c` has X25519 already; see PeerProtocol.md, "Keys")
 - [ ] Who a peer is (name, address, description) in its signed record,
       sent with every answer that makes it known - not only with one of
       the messages, as v3's REGISTER, where an edge that knows a peer by
       the ACK alone has to remember it on the side (`peer_who` in
       `role_client.c`, a workaround: the description came late to n2n,
       in REGISTER only).  A negative example to keep in mind
-- [ ] Encryption between each pair of peers: X25519 handshake, then
-      ChaCha20-Poly1305 or AES-GCM, replay window per peer, rekeying.  A
-      prerequisite for letting any peer relay
+- [ ] Encryption between each pair of peers: a Noise handshake (XX at
+      first contact, IK once the peer's key is known, both with the
+      community's key as PSK) as WireGuard does, instead of a hand-made
+      X25519 exchange; then ChaCha20-Poly1305, a replay window per
+      session, rekeying.  A prerequisite for letting any peer relay
+      (PeerProtocol.md, "The handshake")
 - [ ] Membership: peer certificates signed by the community, revocation,
       groups usable in the traffic filter
 - [ ] Signed peer records: addresses with scope (host / site / global), NAT
@@ -741,13 +750,13 @@ FEC was; there is no branch for it (see Decisions 2026-10-20).
       relay" chosen like any other relay
 - [ ] Broadcast without a central node: answer ARP from the directory
       (proxy ARP) or a tree among relays
-- [ ] v3 bridge: the relay role keeps serving v3 edges
+- [ ] v3 bridge: the relay role keeps serving v3 edges, in the same
+      communities as v4 peers (PeerProtocol.md, "The v3 bridge")
 - [ ] Path MTU, from v3's `mtu-1280*` scenarios (see [Path MTU](PathMtu.md)):
-      the same packet the same size on any path - direct or relayed, IPv4
-      or IPv6, so that a path that changes under a flow (a flip between
-      the families, a move to a relay) does not change what fits - or
-      else explicit packets for finding the MTU of a path, which v4 can
-      have.  Then ICMP "fragmentation needed" / "packet too big" into the
+      decided in PeerProtocol.md, "Path MTU": both - records the same
+      size on any path (relays swap a label instead of adding the
+      sender's address), and probes of their own in the session (RFC
+      8899); then ICMP "fragmentation needed" / "packet too big" into the
       TAP and TCP MSS clamping per peer on what is known
 - [ ] Communities handled the same for every role: one way to give them
       (sections, a file, or what replaces both), the same for a peer
@@ -755,9 +764,14 @@ FEC was; there is no branch for it (see Decisions 2026-10-20).
       community from the configuration and supernode with sections and a
       community file (see Decisions 2026-10-12)
 - [ ] Relay lookup by DNS SRV (from v3's `resolve.c` TODO; waits for
-      v4, see Decisions 2026-10-11)
-- [ ] Signed configurations: a QR code (or file) signed by who may hand
-      out the community's configuration, checked before it is taken
+      v4, see Decisions 2026-10-11): opt-in per configured name, the
+      record's name given in full where `_n3n` is not to show; DNS only
+      gives candidates, which prove themselves in the handshake
+      (PeerProtocol.md, "DNS SRV")
+- [ ] Signed configurations: a QR code (or file) signed by the
+      community's authority key, in a comment line that older apps skip,
+      the key pinned at the first import (PeerProtocol.md, "Signed QR
+      codes")
 
 ### Far future
 
@@ -889,10 +903,18 @@ FEC was; there is no branch for it (see Decisions 2026-10-20).
   Old edges drop such PACKETs as any unknown compression, hence the
   setting per community.  Developed on main, open to change until a
   release has it.
-- 2026-10-20: v4 is developed on `main`, off by default, not on a
-  branch: as it comes on top of v3 instead of replacing it, every step
-  stays wire compatible with v3 peers, and a branch would only drift.
-  Its wire format is free to change until a release has it switched on.
+- 2026-10-20: v4 is designed before it is coded, in
+  [the peer protocol](PeerProtocol.md), and developed on `main`, off by
+  default (`community.v4`), not on a branch: as it comes on top of v3
+  instead of replacing it, every step stays wire compatible with v3
+  peers, and a branch would only drift.  Its wire format is free to
+  change until a release has it switched on.
+- 2026-10-20: v4's handshake is Noise (`Noise_XXpsk3` at first contact,
+  `Noise_IKpsk2` once the peer's key is known; X25519, ChaCha20-Poly1305,
+  BLAKE2s), as WireGuard's is, not an exchange of our own making: Noise
+  is analysed, has test vectors, and says what each message proves.  One
+  cipher suite, no negotiation.  See PeerProtocol.md for the reasons and
+  for path MTU, DNS SRV and signed QR codes, which were postponed to v4.
 
 ## Scratchpad
 
@@ -918,6 +940,9 @@ the coverage report, the BSD job on every push, `src/benchmark/`
 written anew, and fixes found by new netns scenarios (`dual-stack`,
 `userpw-spoof`, `userpw-lockout`).  CI runs the tests, the netns
 scenarios, the sanitizers, fuzzing, interop and Windows on every push.
+
+Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
+(2026-10-20).
 
 Open, in rough order:
 
@@ -946,6 +971,8 @@ Open, in rough order:
 - On real hardware: the Android app on a phone, the edge on a Mac (only
   CI's macOS runners so far) with a Linux edge across the internet, the
   ARM benchmarks.
+- v4: the first steps of PeerProtocol.md, "Order of work", once the
+  above leaves room.
 
 Picking up in a new session: read this file and `docs/develop/*.md`, build
 with `./autogen.sh && ./configure && make`, and the tests are `make test`

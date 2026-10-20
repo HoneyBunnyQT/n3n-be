@@ -53,6 +53,7 @@ nav:
       - Roadmap: develop/Roadmap.md
       - Mobile and TUN (design): develop/MobileAndTun.md
       - IPv6 (design): develop/IPv6.md
+      - Peer Protocol v4 (design): develop/PeerProtocol.md
       - Path MTU (design): develop/PathMtu.md
       - Releasing n3n-be: develop/Releasing.md
       - Build From Source:
