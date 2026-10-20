@@ -331,7 +331,7 @@ ports from all of it.
 | userpw-conf | as userpw-relayed, the community and users in `[community NAME]` sections | relayed, across the federation |
 | userpw-cli | easy-kept / easy-changed, user/password; the community's sections on the command line (`-O "community nettest.cli.user=..."`, `-O community.nettest.cli.key=...`), only the edges' supernodes in the file; then a reload of a, which drops one of them | direct; the reload applies the supernode and the filter rule, nothing set by `-O` changes |
 | userpw-spoof | easy-kept / easy-changed, user/password; then an edge of user b (b's password) comes up with a's MAC (`spoof`) | direct; the other edge refused, the supernodes keep a at its address |
-| userpw-lockout | user/password, a at sn1, b at sn2; then user b's line out of sn1's community file only, sn1 reloads; then out of sn2's too; then back at both (`lockout`) | b refused all over the federation, a stays; out at both, b cut off from a (no pings); then b back in, and direct |
+| userpw-lockout | user/password, a at sn1, b at sn2; then user b's line out of sn1's community file only, sn1 reloads; b kept cut off for a register interval; then back at both (`lockout`) | b refused all over the federation, a stays; b cut off from a (no pings), a with the new header keys, b without; then b back in, and a and b heard directly again before the frames are counted |
 | sn-tap | hard-range / the TAP device of sn2 (`supernode.tap`), the edge at sn2 | relayed |
 | sn-tap-fed | easy-kept at sn1 / the TAP device of sn2 | relayed, across the federation |
 | sn-tap-userpw | as sn-tap-fed, with user/password authentication | relayed, across the federation |

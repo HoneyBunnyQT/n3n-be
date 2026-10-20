@@ -1889,6 +1889,14 @@ class Run:
         self.check("lockout: no keys", new_keys["a"] and not new_keys["b"],
                    "new header keys since the reload: a {a}, b {b}".format(
                        **new_keys))
+        # Cut off for a register interval: a and b no longer hear each
+        # other directly, and an edge sends a peer's frames through the
+        # supernode once it has not heard it for half its timeout (the
+        # register interval), until a REGISTER at its address is answered.
+        # Held for that long, it is so every time, not only when the
+        # cut-off happens to last longer than half of it
+        time.sleep(interval)
+        back_at = int(time.time())
         self._user_b(sorted(self.supernodes), back=True)
         t = time.monotonic()
         ok = wait_for(lambda: bool(self._sn_entries(b["mac"])) or None,
@@ -1897,12 +1905,22 @@ class Run:
         where = self._sn_entries(b["mac"])
         self.check("lockout: back in", bool(ok),
                    "b at {} after {}s".format(where, took))
-        # the peers find each other again: direct both ways, before the
-        # frames are counted
+        # The peers find each other again: each has heard the other
+        # directly since b is back, before the frames are counted.  Their
+        # entries say p2p all along, also while the frames go through the
+        # supernode; last_p2p (wall clock, as time.time()) tells
         a = self.edges["a"]
-        wait_for(lambda: (a["daemon"].peer(b["mac"])[0] == "p2p"
-                          and b["daemon"].peer(a["mac"])[0] == "p2p")
-                 or None, 30 + 6 * interval, interval=0.5)
+
+        def heard(edge, peer):
+            mode, row = edge["daemon"].peer(peer["mac"])
+            return mode == "p2p" and row.get("last_p2p", 0) >= back_at
+        t = time.monotonic()
+        ok = wait_for(lambda: (heard(a, b) and heard(b, a)) or None,
+                      30 + 6 * interval, interval=0.5)
+        self.check("lockout: direct again", bool(ok),
+                   "a and b heard each other directly {}s after b was back"
+                   .format(round(time.monotonic() - t, 1)) if ok else
+                   "a and b not heard directly since b is back")
 
     def spoof_phase(self):
         """sc.spoof: an edge of user b, in b's namespace, with a's MAC"""

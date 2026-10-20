@@ -1088,6 +1088,16 @@ runs, one scenario each), and reproduced with `-v 3` in a loop:
   learns only with the peer's second registration - and the peer moved
   there and back to IPv6.  Fixed in the edge (2026-10-18, see "Network
   changes").
+- `userpw-lockout` (2026-10-20, twice in a row in CI): after b was back,
+  39 of 500 frames each way went through the supernode.  The cut-off
+  lasted about 2.6 s, right at the edge's limit of half a peer's timeout
+  (the register interval, 5 s in the lab): past it, a peer's frames go
+  through the supernode until a REGISTER at its address is answered, and
+  `get_edges` says `p2p` all the while - so waiting for `p2p` (5d93a54)
+  saw nothing.  Fixed in the harness: b stays cut off for a register
+  interval, so that this happens every run, and the frames are counted
+  once each edge has heard the other directly since b is back
+  (`last_p2p`).
 - Not explained yet: `sn-tap-userpw` under ASan (the edge never
   registered; once in 16 in CI, none in 25 runs here, also with the
   supernodes a second apart, either way round, 2026-10-18).
