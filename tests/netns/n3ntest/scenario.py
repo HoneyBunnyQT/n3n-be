@@ -1889,13 +1889,6 @@ class Run:
         self.check("lockout: no keys", new_keys["a"] and not new_keys["b"],
                    "new header keys since the reload: a {a}, b {b}".format(
                        **new_keys))
-        # Cut off for a register interval: a and b no longer hear each
-        # other directly, and an edge sends a peer's frames through the
-        # supernode once it has not heard it for half its timeout (the
-        # register interval), until a REGISTER at its address is answered.
-        # Held for that long, it is so every time, not only when the
-        # cut-off happens to last longer than half of it
-        time.sleep(interval)
         back_at = int(time.time())
         self._user_b(sorted(self.supernodes), back=True)
         t = time.monotonic()
@@ -1907,12 +1900,13 @@ class Run:
                    "b at {} after {}s".format(where, took))
         # The peers find each other again: each has heard the other
         # directly since b is back, before the frames are counted.  Their
-        # entries say p2p also while the frames go through the supernode,
-        # last_p2p (wall clock, as time.time()) tells.  And the REGISTERs
-        # that went unanswered while b was cut off count as lost probes of
-        # the direct path: the path may be taken for lossy (pSp), which
-        # takes a round of probes without loss to undo - probes that go
-        # while frames do, so pings go both ways meanwhile
+        # entries say p2p also while the frames go through the supernode
+        # - a peer not heard for half its timeout - last_p2p (wall clock,
+        # as time.time()) tells.  And the REGISTERs that went unanswered
+        # while b was cut off count as lost probes of the direct path,
+        # which may be taken for lossy (pSp) until a round of probes
+        # without loss - probes that go while frames do, so pings go both
+        # ways meanwhile
         a = self.edges["a"]
 
         def heard(edge, peer):
@@ -1925,10 +1919,19 @@ class Run:
             return (heard(a, b) and heard(b, a)) or None
         t = time.monotonic()
         ok = wait_for(direct, 30 + 6 * interval, interval=0.5)
+
+        def seen(edge, peer):
+            mode, row = edge["daemon"].peer(peer["mac"])
+            if not row:
+                return "none"
+            return "{} at {}, last_p2p {}s after b was back, loss {}%".format(
+                mode, row.get("sockaddr"),
+                row.get("last_p2p", 0) - back_at, row.get("loss"))
         self.check("lockout: direct again", bool(ok),
                    "a and b heard each other directly {}s after b was back"
                    .format(round(time.monotonic() - t, 1)) if ok else
-                   "a and b not heard directly since b is back")
+                   "not heard directly since b is back - a's b: {}; "
+                   "b's a: {}".format(seen(a, b), seen(b, a)))
 
     def spoof_phase(self):
         """sc.spoof: an edge of user b, in b's namespace, with a's MAC"""

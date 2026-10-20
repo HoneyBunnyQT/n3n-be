@@ -1094,15 +1094,18 @@ runs, one scenario each), and reproduced with `-v 3` in a loop:
   (the register interval, 5 s in the lab): past it, a peer's frames go
   through the supernode until a REGISTER at its address is answered, and
   `get_edges` says `p2p` all the while - so waiting for `p2p` (5d93a54)
-  saw nothing.  Fixed in the harness: b stays cut off for a register
-  interval, so that this happens every run, and the frames are counted
-  once each edge has heard the other directly since b is back
-  (`last_p2p`).  The longer cut-off showed the next thing (CI, the same
-  day): the REGISTERs that went unanswered meanwhile count as lost
-  probes of the direct path, a round of them took it for lossy (`pSp`),
-  and it takes a round without loss to undo that - probes go while
-  frames do, and the wait sent none.  Now it pings both ways while it
-  waits.
+  saw nothing.  Fixed in the harness: the frames are counted once each
+  edge has heard the other directly since b is back (`last_p2p`), with
+  pings both ways meanwhile, as the REGISTERs that went unanswered count
+  as lost probes of the direct path and may have it taken for lossy
+  (`pSp`) until a round of probes without loss.  Open: holding the
+  cut-off for a register interval (37ddde0, taken back) left a and b
+  `pSp` for the whole minute after b was back, pings or not (CI, twice):
+  past one and a half timeouts an edge drops a quiet peer and learns it
+  anew, and such a peer is listed `pSp` too while pending.  Which of the
+  two, and why it does not end, is to be found (the scenario's failure
+  now shows each edge's entry for the other) - if it is the edge's
+  doing, it matters outside the lab as well.
 - Not explained yet: `sn-tap-userpw` under ASan (the edge never
   registered; once in 16 in CI, none in 25 runs here, also with the
   supernodes a second apart, either way round, 2026-10-18).
