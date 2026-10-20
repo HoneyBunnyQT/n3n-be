@@ -45,8 +45,9 @@ Status: `[ ]` open, `[~]` in progress, `[x]` done.
 ### Done: merge edge and supernode code (protocol unchanged)
 
 Each step is a commit (or a few) of its own and changes no behaviour; all
-tests and `make lint` pass after each.  Done on the branch `peer`, which is
-in `main` since 2026-10-10.
+tests and `make lint` pass after each.  Done 2026-10-01 to 2026-10-10, on
+a branch of its own that was merged into `main` and retired on
+2026-10-10 (see Decisions); everything since happens on `main`.
 
 - [x] Format the C code as uncrustify 0.77.1 does, and check it so in CI
 - [x] Step 1: one send layer, `src/sock.c`: picking the socket of
@@ -122,11 +123,11 @@ in `main` since 2026-10-10.
 
 ### Next
 
-Picked for now (2026-10-18), in this order: the flaky netns scenarios, the
-BSD job, `src/benchmark/` written anew, the possible bug in
-`update_edge()` - all four done the same day; after them the lossy
-direct path, then rate limits, the Prometheus endpoint and the coverage
-report.
+Picked on 2026-10-18, in this order: the flaky netns scenarios, the BSD
+job, `src/benchmark/` written anew, the possible bug in `update_edge()`,
+the lossy direct path, the coverage report - all done by 2026-10-19 - and
+FEC, which came in between and is under way.  Next in line: rate limits
+and the Prometheus endpoint.
 
 - [x] `update_edge()` (`role_relay.c`): a REGISTER_SUPER from a MAC the
       supernode does not know took the entry of the edge at the same
@@ -421,9 +422,11 @@ report.
       its own changes in the supernode's configuration (`sn-tap-reload`),
       and a new description reaches the peers at once
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
-      privileges (Landlock, seccomp; CAP_NET_ADMIN only is there); tools
-      init (`tools/n3n-qr` is there).  (Learned supernodes on disk wait for
-      v4, see Decisions 2026-10-04; epoll, batched I/O, no alloc per
+      privileges (Landlock, seccomp; dropping all capabilities but
+      CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
+      configuration with a fresh community name and key (`tools keygen`
+      and `tools/n3n-qr` are there).  (Learned supernodes on disk wait
+      for v4, see Decisions 2026-10-04; epoll, batched I/O, no alloc per
       packet and UDP GSO/GRO are done, below)
 - [~] Releases of n3n-be (see [Releasing](Releasing.md)): the packages
       are `n3n-be` (.deb, .rpm, and a PKGBUILD for Arch), the user `n3n`
@@ -431,13 +434,16 @@ report.
       build signed from the environment; `release.yml`, started by hand,
       builds them all from a tag, with a draft GitHub Release if asked;
       `tests.yml` no longer reacts to releases.  The app's ID is
-      `io.github.honeybunnyqt.n3nbe` (2026-10-15).  First release: 3.4.8
-      (2026-10-15), Linux packages and the signed app; rebuilt from the
-      same tag on 2026-10-18 in the new home, with the zip of the Windows
-      programs and attestations that point to `HoneyBunnyQT/n3n-be`.  A
-      tarball of the macOS programs from the tag after 3.4.8 (the first
-      with utun).  Open: the channels (apt repository,
-      AUR, COPR, Obtainium / IzzyOnDroid), OpenWrt
+      `io.github.honeybunnyqt.n3nbe` (2026-10-15).  Released: 3.4.8
+      (2026-10-15, the first by `release.yml`), Linux packages and the
+      signed app; rebuilt from the same tag on 2026-10-18 in the new home,
+      with the zip of the Windows programs and attestations that point to
+      `HoneyBunnyQT/n3n-be`.  On `main` since and not released yet: the
+      edge on utun, so the tarball of the macOS programs that
+      `release.yml` makes for tags after 3.4.8, and FEC, whose wire format
+      the first release with it fixes.  Open: the channels (apt
+      repository, AUR, COPR, Obtainium / IzzyOnDroid), OpenWrt
+      (`slow_openwrt.yml` is stale, see Scratchpad)
 - [x] TUN mode (layer 3 device): `tuntap.type = tun`, `src/tun.c`, netns
       scenarios `tun-tap` and `tun-tun`; IPv6 (neighbour discovery); macOS
       on its own `utun` device (2026-10-17, `tests/macos/utun.py` in CI).
@@ -658,13 +664,13 @@ report.
 
 ### Later: the peer protocol (v4)
 
-Where v3 compatibility ends: everything above keeps the v3 wire format, so
-`main` stays able to talk to today's edges and supernodes, and to n2n 3.x.
-The first item below that changes what goes over the wire - peer identities
-in REGISTER, the handshake, signed records - starts the branch `peer-v4`
-off `main`.  From there, v3 lives on in the relay role (the v3 bridge),
-while `main` keeps getting what does not touch the wire, merged into
-`peer-v4` from time to time.
+Everything above keeps the v3 wire format, so that n3n-be talks to
+today's edges and supernodes, and to n2n 3.x.  v4 comes on top of it
+without ending that: v4 peers are to keep speaking v3 to every peer and
+supernode that knows nothing else, and the relay role to serve v3 edges
+(the v3 bridge).  So v4 is developed on `main` like everything else, off
+by default, its wire format free to change until a release has it - as
+FEC was; there is no branch for it (see Decisions 2026-10-20).
 
 - [ ] Peer identity: a Curve25519 key per peer, node ID = hash of the
       public key (`auth.c` has the curve already)
@@ -759,7 +765,8 @@ while `main` keeps getting what does not touch the wire, merged into
       2026-10-17, see TUN mode above
 - [ ] Kademlia directory for large networks, preferring low-RTT nodes in the
       buckets; NATed peers only as clients of the directory
-- [ ] Android (VpnService) and iOS (NetworkExtension) on a stable libn3n API
+- [ ] iOS (NetworkExtension) on a stable libn3n API, as Android's app
+      (`VpnService`, see Next) is on `include/n3n/embed.h`
 - [ ] Peer names in DNS (`laptop.mycommunity`), answered by the peer itself
 - [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
       "Next", 2026-10-18)
@@ -773,39 +780,42 @@ while `main` keeps getting what does not touch the wire, merged into
 
 - 2026-10-01: The C code is formatted by uncrustify 0.77.1, built from source
   in CI.  0.78.1 (Ubuntu 24.04) gives the same result today.
-- 2026-10-01: The peer work happens on the branch `peer`, branched off
-  `main`.  It does not wait for upstream (n42n/n3n).
+- 2026-10-01: The peer work happens on a branch `peer`, off `main`, not
+  waiting for upstream (n42n/n3n).  Superseded on 2026-10-10: `peer` is
+  merged and gone, all work is on `main`.
 - 2026-10-01: Tables of peers, communities, connections etc. use the uthash
   structures and macros (`HASH_ADD`, `HASH_FIND`, `HASH_ITER`, ...) as the
   rest of the code does, wherever they fit: their loops read more easily
   than hand-written ones.
 - 2026-10-01: Fixes found along the way are commits of their own, with
-  messages that stand alone, so that they can be taken upstream; the
-  branch `fixes` collects them on top of `main`.
+  messages that stand alone; the branch `fixes` collects them on top of
+  `main` (what goes there: 2026-10-04).
 - 2026-10-01: The PDU length checks of the branch pdu-len-check are on
-  `fixes` (and `peer`), ported onto the current code; the other old side
+  `fixes` (and `main`), ported onto the current code; the other old side
   branches (chachacha, drain, phase-a, speck-avx512, trace-level-check,
   twofish) are in main already, apart from the AES burst benchmark of
   `drain`, which is on `fixes` too.
-- 2026-10-01: The wire format stays v3 until the peer protocol; it gets
-  the branch `peer-v4` off `peer` (see "Later: the peer protocol").
+- 2026-10-01: The wire format stays v3 until the peer protocol.  (That it
+  was to get a branch `peer-v4` is superseded: see 2026-10-20.)
 - 2026-10-01: Roles are chosen at run time; leaving the relay code out of a
-  build is an option for later, decided in one place.
-- 2026-10-04: `fixes` takes real bugs that upstream has too - no features,
-  nothing of the fork's own.  Porting them onto upstream's code is no
-  effort we spend for now: upstream can cherry-pick, or we do it later.
-- 2026-10-04: PRs for upstream: one topic each, the project's conventions
-  as they are (a .gitignore per directory, comments as in the sibling
-  files, explicit names over wildcards), and a look at the existing
-  issues and PRs on a topic first.  The fork keeps purging peer tables of
-  any size (upstream keeps tables of fewer than 16 on purpose, #142).
-
+  build is decided in one place - done as `--disable-relay` (c55ed77).
+- 2026-10-04: `fixes` takes genuine bugs only, ones that upstream n42n/n3n
+  or other forks of n3n have too - no features, nothing of the fork's
+  own.  Whoever wants them cherry-picks them; making them fit their code
+  is theirs to do, we spend no porting effort on it.
+- 2026-10-04: The fork keeps purging peer tables of any size (upstream
+  keeps tables of fewer than 16 on purpose, its #142).  (The rules of the
+  same day for pull requests to upstream are void since 2026-10-18: no
+  more pull requests.)
 - 2026-10-04: Nothing of the edge's learned state goes to disk in v3.
   Learned supernodes on disk come with v4 (peer store, "Learned relays
   survive"), the file encrypted with the community's data key - which
   some setups may hold elsewhere, e.g. on a smart card, not in the config.
   Performance work (epoll, batched I/O, no alloc per packet) from
   2026-10-11 on.
+- 2026-10-10: Development goes on on `main`, which has all of `peer`;
+  `peer` is not worked on any more and goes.  The fork's packages are
+  named `n3n-be`.
 - 2026-10-11: Fuzzing `qr_seal` and the configuration a QR code opens is
   postponed: the code's text is read in as a configuration typed in
   would be, so a malicious code is a malicious configuration, which no
@@ -833,9 +843,6 @@ while `main` keeps getting what does not touch the wire, merged into
   simple setup `-O "community NAME.option=value"` makes a file needless,
   and a peer whose roles share one configuration is v4's matter, with the
   rest of handling communities the same for all roles.
-- 2026-10-10: Development goes on on `main`, which has all of `peer`;
-  `peer` is not worked on any more and goes.  The fork's packages are
-  named `n3n-be`.
 - 2026-10-18: Multicast of protocols without IP (PROFINET's DCP, NetBEUI,
   AppleTalk) is n3n-be's own: upstream closed n42n/n3n#119 without a
   change, although a reproduction with its 3.4.6 and main showed such
@@ -882,74 +889,56 @@ while `main` keeps getting what does not touch the wire, merged into
   Old edges drop such PACKETs as any unknown compression, hence the
   setting per community.  Developed on main, open to change until a
   release has it.
+- 2026-10-20: v4 is developed on `main`, off by default, not on a
+  branch: as it comes on top of v3 instead of replacing it, every step
+  stays wire compatible with v3 peers, and a branch would only drift.
+  Its wire format is free to change until a release has it switched on.
 
 ## Scratchpad
 
 Current ideas, half-decided things, commands worth keeping.
 
-### Where things stand (2026-10-17)
+### Where things stand (2026-10-20)
 
-Recently on `main` and done: epoll and batched I/O (`recvmmsg()` /
-`sendmmsg()`), with `tests/netns/bench.py` for the whole packet path; the
-packages of n3n-be and `release.yml`; fuzzing of the receive
-path, the TCP framing, the management interface and the TUN edge, plus
-`fuzz-spray` at running daemons, which found and fixed several bugs (see
-Fuzzing above); netns scenarios with builds for other CPUs under
-qemu-user; the steps before the dispatch in one place for both roles
-(`pdu_in_common()`); over TCP, the configured supernodes first and the
-learned ones marked once they turn out to be UDP only; a reload that
-compares and applies the filter rules and reaches the edge of a supernode
-(`supernode.tap`).  Android: the revamp - the state in the service, the
-notification following it, the connect button with its LED.  Postponed to
-v4: the path MTU, DNS SRV, fuzzing the QR code (see Decisions).
-Since: the repository is `HoneyBunnyQT/n3n-be` (2026-10-15; the old
-name `HoneyBunnyQT/n3n` redirects there), and n3n-be its name in the docs
-and packages, "n3n-be (Bunny Edition)" in full.  Also since: addresses
-from the supernode on Android (tried on a phone), the
-app's look (round keys, bunny-pink, the tile in the quick settings), Speck,
-AES, ChaCha20 and Twofish chosen at runtime with `cipher = AES/AES-NI` to ask for a
-variant, and Windows building again (it had not since the network watch:
-the Windows jobs run on pull requests only, so nobody saw).  `tests.yml`
-and `quick_windows.yml` run on every push now, and what failed in them
-does not any more (2026-10-15): the Debian/Ubuntu packages (the job
-looked for `n3n_*.deb`, the package is `n3n-be`), the OpenWrt packages
-(the source was `n3n-.tar.gz`, `PKG_SOURCE` set before `PKG_VERSION`;
-and configure ran for the build host, so 32 bit MIPS lacked libatomic),
-macOS (`IPV6_DROP_MEMBERSHIP` is Linux's, `IPV6_LEAVE_GROUP` POSIX's),
-the ASan analyser's netns run (LeakSanitizer cannot stop the threads of
-a daemon that dropped root: `--keep-root`, as in `sanitizers.yml`).  The
-macOS binaries, which run after the macOS tests and so had not for long,
-failed now and then in configure: their `SDKROOT` was the Command Line
-Tools' SDK, on some runners macOS 27's, which the Xcode 26 linker cannot
-read ("unknown architecture arm64e.x1-macos" in `libSystem.tbd`); it is
-`xcrun --show-sdk-path` now, and the jobs print configure's failure.
-Since (2026-10-17): the edge on macOS's own utun device
-(`tuntap.type = tun`, no kernel extension), tested end to end in CI by
-`tests/macos/utun.py`; `/var/run` as the rundir off Linux (macOS had no
-management socket); `release.yml` makes a zip of the Windows programs and
-a tarball of the macOS ones.  Options may follow the subcommand on every
-system (`getopt_long` permutes on macOS and the BSDs too, a builtin test
-says so).
+The repository is `HoneyBunnyQT/n3n-be` (since 2026-10-15; the old name
+`HoneyBunnyQT/n3n` redirects there), out of the fork network since
+2026-10-18, its own project: no pull requests to upstream, genuine bug
+fixes on `fixes` for whoever wants them, compatibility with upstream
+watched by `upstream.yml`.  Its branches: `main`, where all work happens,
+and `fixes`.  3.4.8 is released (2026-10-15, rebuilt 2026-10-18 with the
+Windows zip); `release.yml` builds a release from a tag.
+
+On `main` since 3.4.8, not released yet: the edge on macOS's utun device
+(and the macOS tarball with it), FEC (under development, see Next), the
+lossy direct path (`connection.p2p_max_loss`), the supernode holding its
+answer until the federation could refuse it (user/password), the address
+the supernode gives an edge kept as the edge's, user/password entries
+that stay with their user, what a supernode forwards batched with GSO,
+the coverage report, the BSD job on every push, `src/benchmark/`
+written anew, and fixes found by new netns scenarios (`dual-stack`,
+`userpw-spoof`, `userpw-lockout`).  CI runs the tests, the netns
+scenarios, the sanitizers, fuzzing, interop and Windows on every push.
 
 Open, in rough order:
 
+- FEC: what is left of it in Next (`auto` without reports, per peer
+  instead of per community, the page), then fixing its wire format in a
+  release.
+- Rate limits at the supernode, the Prometheus endpoint (Next).
 - `slow_openwrt.yml` (the `openwrt` branch, or by hand): stale - it
   checks out to `src` and builds `$GITHUB_WORKSPACE/n3n`, sets
   `PKG_VERSION` where the package takes `BUILD_VERSION`, and compiles
-  without `USE_SOURCE_DIR`.  `slow_bsd.yml` runs on every push now,
-  with the builtin and unit tests on FreeBSD, OpenBSD and NetBSD
-  (2026-10-18).
-
+  without `USE_SOURCE_DIR`.
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
-  privileges (Landlock, CAP_NET_ADMIN only is there).
+  privileges (Landlock, seccomp).
 - Releases: the channels - decisions to take.
 - To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
   on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`
   (default false) drops on both edges; on Windows also the interface
   metric and the firewall profile of the TAP adapter.  The option itself
-  is tested now (netns `multicast`, `multicast-half`, `multicast-tun`):
+  is tested (netns `multicast`, `multicast-half`, `multicast-tun`):
   SSDP's group passes where both edges allow it, broadcast always.  Since
-  (2026-10-17, decided: as a switch does) the option covers every
+  2026-10-17 (decided: as a switch does) the option covers every
   multicast MAC, also those of protocols without IP (NetBEUI, AppleTalk,
   PROFINET's DCP - n42n/n3n#119), on edge and supernode; the IEEE 802.1
   link-local ones (spanning tree, LACP, 802.1X, LLDP, pause) never pass,
@@ -957,15 +946,6 @@ Open, in rough order:
 - On real hardware: the Android app on a phone, the edge on a Mac (only
   CI's macOS runners so far) with a Linux edge across the internet, the
   ARM benchmarks.
-- Keep in mind a real finding: the direct path between two edges can be
-  the lossy one (an ISP spreading traffic over two peering legs, one
-  dropping) while the relay is clean - see the v4 path-manager note above;
-  v3 goes by the supernode then ("A lossy direct path" in Next).
-
-Done on 2026-10-18: n3n-be has left the fork network, the pull requests at
-upstream are closed with a pointer to `fixes`, private vulnerability
-reporting is on (docs/SECURITY.md), and 3.4.8 was built again in the new
-home, with the Windows zip.
 
 Picking up in a new session: read this file and `docs/develop/*.md`, build
 with `./autogen.sh && ./configure && make`, and the tests are `make test`
@@ -1033,7 +1013,9 @@ and the AES burst benchmark), and the branches deleted, as `phase-a` and
 `phase-b` before them.  Since 2026-10-18 the repository has `main` and
 `fixes`; the `pr/*` branches went with the pull requests at upstream
 (closed, see Decisions; an archive of them as a git bundle exists),
-`peer` with its merge into `main`.
+`peer` with its merge into `main` (2026-10-10).  A branch for one piece
+of work (`lossy-path`, `sn-gso`, a session's `claude/...`) goes once
+`main` has it.
 
 ### Flaky netns scenarios (NAT work)
 
@@ -1153,7 +1135,7 @@ Where am I, what changed:
 ```sh
 git status                      # branch, changed files
 git log --oneline -10           # the last 10 commits
-git log --oneline main..peer    # commits on peer that main does not have
+git log --oneline main..fixes   # commits on fixes that main does not have
 git diff                        # changes not yet added
 git diff --staged               # changes added for the next commit
 ```
@@ -1162,10 +1144,10 @@ Get the latest from GitHub and switch branches:
 
 ```sh
 git fetch origin                # download, changes nothing locally
-git switch peer                 # go to the branch peer
+git switch fixes                # go to the branch fixes
 git pull                        # fetch + bring the current branch up to date
 git switch -c new-idea          # new branch from where you are
-git switch -c peer origin/main  # new branch "peer" from GitHub's main
+git switch -c main origin/main  # local "main" from GitHub's main
 ```
 
 Commit and push:
@@ -1173,14 +1155,14 @@ Commit and push:
 ```sh
 git add path/to/file            # or: git add -p   (pick the pieces)
 git commit                      # opens the editor for the message
-git push -u origin peer         # first push of a branch; later just: git push
+git push -u origin main         # first push of a branch; later just: git push
 ```
 
-Bring `main`'s new commits into `peer` (keeps history, safe on shared
-branches):
+Bring `main`'s new commits into a branch of your own, `topic` say
+(keeps history, safe on shared branches):
 
 ```sh
-git switch peer
+git switch topic
 git fetch origin
 git merge origin/main           # on conflicts: edit the files, then
 git add <file> && git commit    # ... to finish the merge
@@ -1194,7 +1176,7 @@ git restore file.c              # throw away uncommitted changes of a file
 git restore --staged file.c     # un-add, keeps the changes
 git commit --amend              # fix the last commit (only if not pushed!)
 git revert <commit>             # new commit that undoes <commit> (safe)
-git reset --hard origin/peer    # local branch = GitHub's (loses local work!)
+git reset --hard origin/main    # local branch = GitHub's (loses local work!)
 git reflog                      # where HEAD has been: finds "lost" commits
 ```
 
@@ -1217,7 +1199,7 @@ Clean up branches:
 ```sh
 git fetch --prune origin        # forget origin/... of branches deleted on GitHub
 git branch -vv                  # local branches; "gone" = deleted on GitHub
-git log --oneline BR --not main fixes peer   # what only BR has (empty: nothing)
+git log --oneline BR --not main fixes   # what only BR has (empty: nothing)
 git branch -d BR                # delete, refuses if BR has commits nowhere else
 git branch -D BR                # delete anyway ("not fully merged")
 git reflog | grep BR            # find it again; then: git branch BR <hash>
