@@ -43,6 +43,9 @@ path manager, the directory and any peer relaying (see the Roadmap).
   so that a path that changes under a flow does not change what fits.
 - **Unknown fields are skipped, unless marked critical**, so that later
   versions can add to records without a new version number.
+- **Nothing on the wire that tells what it is.**  With header encryption,
+  v3 has no fixed bytes to match; v4 is not to be easier to recognise
+  (see [Being recognised](#being-recognised)).
 
 ## Keys and identities
 
@@ -119,9 +122,11 @@ one stays, and the conflict is logged).
 
 ### Messages
 
-All of v4's messages begin with a byte of type, its upper half 4 (so that
-a capture shows them at a glance; an unencrypted v3 packet begins with
-its version, 3), then three bytes sent as zero and ignored.  Indexes are
+All of v4's messages begin with a byte of type, its upper half 4, then
+three bytes sent as zero and ignored.  That is how this page tells them
+apart; what goes on the wire is not to be as plain, see
+[Being recognised](#being-recognised) - the values and sizes here are the
+logic, not yet the last word on the bytes.  Indexes are
 32-bit numbers each side picks at random for its end of a session, as in
 WireGuard; the receiver finds the session by the index it picked.
 
@@ -349,7 +354,9 @@ relay.  The first native record that gets an answer makes that path
 native; otherwise it stays wrapped.
 
 A packet at a socket is taken for v4 when the upper half of its first
-byte is 4 and it is long enough for its type: a data record whose
+byte is 4 (as written above; however the wire form ends up, the receiver
+tells v4 from v3 by a check that costs little and fails cheaply) and it
+is long enough for its type: a data record whose
 receiver index is a session's, or a handshake message with the right
 mac1.  Anything else goes the v3 way, as now: an unencrypted v3 packet
 begins with 3; one with header encryption begins with random bytes, of
@@ -482,6 +489,24 @@ it:
   primitives; the Pearson hash of today's seal goes.
 - A code for one device may carry that device's certificate; the private
   keys are made on the device and never go into a code.
+
+## Being recognised
+
+Asked for on 2026-10-20 by a user behind a national firewall that blocks
+the VPN protocols it recognises.  With header encryption, v3 shows no
+fixed bytes and no names, and a supernode answers nothing it cannot
+decrypt; what is left to go by are the sizes of the messages, their
+timing (registrations at a fixed interval), the ports, and over TCP its
+framing.
+
+v4 is not to add to that: no fixed values on the wire, no message sizes
+that give it away, and a native form that says no more than the wrapped
+one.  How far to go beyond - making sizes, timing or a carrier tell less
+- is worked out when it is built, in v4 and in v3 where it can stay
+compatible (as a setting, since both ends have to agree), weighing what
+each costs: bytes on the wire, code, and that a disguise which is not the
+real thing can be found out by whoever looks closely.  Not the aim:
+hiding that traffic flows at all.
 
 ## The code it needs
 

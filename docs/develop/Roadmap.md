@@ -430,6 +430,16 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       and `tools/n3n-qr` are there).  (Learned supernodes on disk wait
       for v4, see Decisions 2026-10-04; epoll, batched I/O, no alloc per
       packet and UDP GSO/GRO are done, below)
+- [ ] Less recognisable traffic, for networks that block the VPN
+      protocols they recognise (asked 2026-10-20 by a user behind such a
+      firewall, who went to another VPN for it).  Under header encryption
+      what is left to go by are sizes, timing, ports and the TCP framing.
+      Ideas were talked over (2026-10-20), to be worked out when it is
+      taken up: in v3 as a
+      setting (both ends have to agree), and in v4's design
+      ([the peer protocol](PeerProtocol.md#being-recognised)).  To keep
+      in mind before FEC's wire format is fixed by a release: such work
+      may want room in the PACKET as well
 - [~] Releases of n3n-be (see [Releasing](Releasing.md)): the packages
       are `n3n-be` (.deb, .rpm, and a PKGBUILD for Arch), the user `n3n`
       from sysusers.d, the app's version that of the core and its release
