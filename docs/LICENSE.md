@@ -19,7 +19,8 @@ changes on the same terms, also when they only run it as a service.
 
 `src/benchmark/` was written anew after upstream's benchmark harness by
 Hamish Coleman and follows its design, so its files carry his copyright
-as well as n3n-be's.
+as well as n3n-be's, and they are under that harness's GPL-3.0-only, as
+it was until upstream moved it to GPL-2.0-only on 2026-08-09.
 
 The program as a whole, `n3n` and the Android app, is a combination of
 these parts.  The GPL version 3 allows combining its code with code under

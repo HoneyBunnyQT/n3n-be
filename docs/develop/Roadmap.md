@@ -897,7 +897,10 @@ release has it - as FEC was; there is no branch for it (see Decisions
   stay GPL-3.0-only.  Upstream's GPL-2.0-only files that were linked into
   `n3n`, `src/benchmark/`, are written anew (2026-10-18): no GPL-2.0-only
   code is left in the program.  As the new harness follows the design of
-  Hamish Coleman's, its files carry his copyright too (2026-10-20).
+  Hamish Coleman's, its files carry his copyright too, and are under
+  GPL-3.0-only, the licence of his harness until 2026-08-09, when
+  upstream moved it to GPL-2.0-only - the versions from before stay
+  GPL-3.0 (2026-10-20).
 - 2026-10-18: n3n-be goes on with its own code.  Upstream's newer code is
   not taken: n3n has chosen terms and a way of working of its own, and
   both are better served by each project keeping to its own.  Upstream is
