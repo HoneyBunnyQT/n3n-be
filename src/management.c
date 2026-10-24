@@ -36,6 +36,7 @@
 #include "natclass.h"    // for nat_view_str
 #include "peer_info.h"   // for peer_info
 #include "reload.h"      // for n3n_reload
+#include "role_client.h" // for p2p_max_loss
 #include "counter.h"     // for SHARED_LOAD
 #include "stats.h"       // for n3n_stats_sum
 #include "uthash.h"
@@ -814,7 +815,7 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
         jsonrpc_get_edges_row(
             &conn->request,
             peer,
-            (peer->lossy && eee->conf.client.p2p_max_loss) ? "pSp" : "p2p",
+            (peer->lossy && p2p_max_loss(&eee->conf)) ? "pSp" : "p2p",
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
             eee->client.nat_peers,

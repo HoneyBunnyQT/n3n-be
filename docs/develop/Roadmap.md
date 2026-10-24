@@ -311,6 +311,12 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       takes header keys only where they changed, and logs that.  The
       lab: about 50 ms held; b gets no new keys after sn1's reload, a
       does.  Not for `fixes`
+- [x] `connection.p2p_max_loss = auto`, the default (2026-10-24): 20, or
+      0 with `community.fec` - FEC repairs what the direct path loses, and
+      the way through the supernode does not avoid a loss on the edge's
+      own line; a number given holds also with FEC.  A uint32 option can
+      name values now (str2id_data, as "auto").  netns `fec-lossy` takes
+      the default (10 % each way, some 19 % of the probes: direct)
 - [x] A busy direct path taken for a lossy one (2026-10-24): with
       header encryption and packet threads, under load (scp in a LAN),
       edges went through the supernode, their probes "85 % lost".  A

@@ -1672,7 +1672,7 @@ size_t encode_register_pkt (struct n3n_runtime_data * eee,
 static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *peer) {
 
     macstr_t mac_buf;
-    uint32_t max = eee->conf.client.p2p_max_loss;
+    uint32_t max = p2p_max_loss(&eee->conf);
     unsigned sent = peer->probes_sent;
     unsigned answered = MIN(peer->probes_answered, sent);
 

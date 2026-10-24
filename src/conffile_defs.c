@@ -13,6 +13,7 @@
 #include <string.h>             // for strlen, strcpy
 
 #include "fec.h"                // for N3N_FEC_MODE_NONE, ...
+#include "role_client.h"        // for P2P_MAX_LOSS_AUTO
 #include "n2n_define.h"
 
 
@@ -34,6 +35,14 @@ static struct n3n_conf_option section_auth[] = {
     },
     // TODO: the connection.description is repurposed as a username for auth
     {.name = NULL},
+};
+
+static struct n3n_conf_str2id_data p2p_max_loss_data[] = {
+    {
+        .id = P2P_MAX_LOSS_AUTO,
+        .name = "auto",
+    },
+    {},
 };
 
 static struct n3n_conf_str2id_data fec_mode_data[] = {
@@ -290,6 +299,7 @@ static struct n3n_conf_option section_connection[] = {
     {
         .name = "p2p_max_loss",
         .type = n3n_conf_uint32,
+        .str2id_data = p2p_max_loss_data,
         .offset = offsetof(n2n_edge_conf_t, client.p2p_max_loss),
         .desc = "Percent lost on a direct path that sends through the supernode",
         .help = "While frames go to a peer directly, the edge sends it a "
@@ -298,7 +308,9 @@ static struct n3n_conf_option section_connection[] = {
                 "go through the supernode - as long as one answers - and back "
                 "the direct way once at most a quarter as many are lost; the "
                 "edge goes on asking meanwhile.  0 keeps a direct path however "
-                "bad it gets.  See docs/advanced/NatTraversal.md",
+                "bad it gets.  auto, the default, is 20 - or 0 with "
+                "community.fec, which then repairs what the direct path "
+                "loses.  See docs/advanced/NatTraversal.md",
     },
     {
         .name = "pmtu_discovery",

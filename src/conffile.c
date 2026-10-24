@@ -287,6 +287,14 @@ int n3n_config_set_option (void *conf, char *section, char *option, char *value)
             return 0;
         }
         case n3n_conf_uint32:
+            // some of its values may have a name, as "auto"
+            if(p->str2id_data) {
+                int id = str2id_by_name(p->str2id_data, value);
+                if(id != -1) {
+                    *(uint32_t *)valvoid = (uint32_t)id;
+                    return 0;
+                }
+            }
 try_uint32:
             {
                 uint32_t *val = (uint32_t *)valvoid;
@@ -730,6 +738,12 @@ static const char * stringify_option (void *conf, struct n3n_conf_option option,
         case n3n_conf_uint32: {
             uint32_t *val = (uint32_t *)valvoid;
 
+            if((option.type == n3n_conf_uint32) && option.str2id_data) {
+                const char *name = str2id_by_id(option.str2id_data, (int)*val);
+                if(name) {
+                    return (char *)name;
+                }
+            }
             snprintf(buf, buflen, "%u", *val);
             return buf;
         }

@@ -28,6 +28,7 @@
 #include "n2n_typedefs.h"
 #include "natclass.h"           // for nat_view_str, nat_hint_str
 #include "peer_info.h"
+#include "role_client.h"        // for p2p_max_loss
 #include "sn_selection.h"         // for SN_SELECTION_STRATEGY_RTT
 #include "stats.h"              // for n3n_stats_sum
 #include "uthash.h"
@@ -310,7 +311,7 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         if(rows++ < PAGE_ROWS_MAX) {
             // with what its direct path lost of late, see peer_probe()
             char path[48];
-            bool lossy = peer->lossy && eee->conf.client.p2p_max_loss;
+            bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
             const char *way = lossy ? "via supernode" : "direct";
             if(peer->loss) {
                 snprintf(path, sizeof(path), "%s, %u%% lost", way, peer->loss);

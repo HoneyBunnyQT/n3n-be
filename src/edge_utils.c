@@ -1974,7 +1974,7 @@ void edge_conf_role_defaults (n2n_edge_conf_t *conf) {
     conf->client.register_interval = REGISTER_SUPER_INTERVAL_DFL;
     conf->client.punch_ports = NAT_PUNCH_PORTS_DFL;
     conf->client.punch_sockets = NAT_PUNCH_SOCKETS_DFL;
-    conf->client.p2p_max_loss = P2P_MAX_LOSS_DFL;
+    conf->client.p2p_max_loss = P2P_MAX_LOSS_AUTO;
 
     // Ensure we can notice if the config has set a dev name
     conf->tap.tuntap_dev_name[0] = '\0';

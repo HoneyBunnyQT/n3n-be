@@ -41,6 +41,16 @@ void send_register (struct n3n_runtime_data * eee,
 // quarter of it.  While frames go to the peer, it is probed every
 // P2P_PROBE_US (edge_event_apply(), EDGE_EVENT_PEER_PROBE)
 #define P2P_MAX_LOSS_DFL    20      /* percent */
+// connection.p2p_max_loss = auto, the default: P2P_MAX_LOSS_DFL, or 0 with
+// community.fec - which repairs the loss, and repairs it through the
+// supernode as well, where the loss is on the edge's own line
+#define P2P_MAX_LOSS_AUTO   0x7fffffff
+static inline uint32_t p2p_max_loss (const n2n_edge_conf_t *conf) {
+    if(conf->client.p2p_max_loss != P2P_MAX_LOSS_AUTO) {
+        return conf->client.p2p_max_loss;
+    }
+    return conf->community.fec ? 0 : P2P_MAX_LOSS_DFL;
+}
 #define P2P_PROBE_ROUND     20      /* probes */
 #define P2P_PROBE_US        500000
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer);

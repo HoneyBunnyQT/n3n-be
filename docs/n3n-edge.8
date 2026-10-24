@@ -297,7 +297,8 @@ See docs/advanced/NatTraversal.md for details.
 Where the edge's own line loses packets, which neither path avoids,
 \fBcommunity.fec\fR=auto on all edges of the community sends repair
 packets along, as many as the loss asks for, from which the receiving edge
-undoes frames lost; see docs/advanced/FEC.md.
+undoes frames lost; see docs/advanced/FEC.md.  With it, the edge keeps the
+direct path, lossy or not, unless \fBconnection.p2p_max_loss\fR is given.
 
 .SH TRANSPORT
 The edge reaches its supernodes over UDP.  When none of them answers, for a

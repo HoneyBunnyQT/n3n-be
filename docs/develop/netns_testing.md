@@ -340,8 +340,8 @@ ports from all of it.
 | tcp-fallback-back | as tcp-fallback, then UDP let through again (`unblock_udp`) | direct, a back on UDP |
 | lossy-direct | easy NATs, direct; then the direct path loses 30% each way, the supernode's clean (`lossy`) | through the supernode within 60s, direct again within 60s of the loss stopping |
 | lossy-direct-threads | as lossy-direct, the edges with packet threads | the same |
-| fec-lossy | easy NATs, direct, `community.fec` auto, `connection.udp_gso` false (the loss per datagram); then the direct path loses 10% each way, and the edges stay on it (`fec_loss`) | of 400 pings, at most a third as many lost as without (some 19%), and frames undone at both edges; of 2000 frames of 1200 bytes one way, 99% arrive (without, 90%) |
-| fec-lossy-threads | as fec-lossy, the edges with packet threads | the same |
+| fec-lossy | easy NATs, direct, `community.fec` auto, `connection.udp_gso` false (the loss per datagram); then the direct path loses 10% each way, and the edges stay on it, `p2p_max_loss` being auto, 0 with FEC (`fec_loss`) | of 400 pings, at most a third as many lost as without (some 19%), and frames undone at both edges; of 2000 frames of 1200 bytes one way, 99% arrive (without, 90%) |
+| fec-lossy-threads | as fec-lossy, the edges with packet threads, `p2p_max_loss` 0 given | the same |
 | load-direct-userpw | easy NATs, direct, user/password, packet threads; a TCP stream from a to b as fast as it goes for 15s (`load`) | direct throughout: the REGISTERs overtaken by PACKETs not taken for replays (lost 60-70% so before), both edges registered |
 | load-relayed-userpw | as load-direct-userpw, hard NATs, relayed | relayed throughout, both edges registered |
 | tcp-fallback-userpw | as tcp-fallback-back, with user/password authentication | direct, a back on UDP |

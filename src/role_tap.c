@@ -554,7 +554,7 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
             uint64_t us = n3n_monotonic_us();
 
             // the direct path measured while frames go, see peer_probe()
-            if(eee->conf.client.p2p_max_loss
+            if(p2p_max_loss(&eee->conf)
                && (us - SHARED_LOAD(scan->last_probe_us) >= P2P_PROBE_US)) {
                 struct edge_event ev = { .type = EDGE_EVENT_PEER_PROBE, .now = now };
 
@@ -562,7 +562,7 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
                 memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
                 edge_event_post(eee, &ev);
             }
-            if(SHARED_LOAD(scan->lossy) && eee->conf.client.p2p_max_loss
+            if(SHARED_LOAD(scan->lossy) && p2p_max_loss(&eee->conf)
                && supernode_answers(eee, now)) {
                 // too lossy: through the supernode, still a known peer
                 memcpy(destination, &(eee->client.curr_sn->sock), sizeof(n3n_sock_t));

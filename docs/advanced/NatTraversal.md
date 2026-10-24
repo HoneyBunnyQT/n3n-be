@@ -208,13 +208,18 @@ address; every REGISTER to the peer there counts, also the regular ones.
 After 20 of them, the share that went unanswered is the loss of the direct
 path, which `n3nctl get_edges` shows (`loss`, in percent) and the
 management page with the peer's path.  With `connection.p2p_max_loss`
-percent or more lost (20 by default), the peer's frames go through the
+percent or more lost (20 by default, see below), the peer's frames go through the
 supernode - as long as one answers - while the edge keeps asking the peer
 directly, and back the direct way once a round loses at most a quarter as
 many (5 percent by default): as an edge on TCP goes back to UDP once UDP
 gets through.  Such a peer shows as `pSp` in `get_edges`.  A switch takes a
 round or two, 10 to 20 seconds; `connection.p2p_max_loss = 0` keeps a
 direct path however bad it gets.
+
+The default, `auto`, is 20 - or 0 where `community.fec` is on: FEC
+repairs what the direct path loses, and a loss on the edge's own line,
+the most common one, the way through the supernode would not avoid.
+A number given for `p2p_max_loss` holds also with FEC.
 
 Nothing of it is on the wire: the probes are REGISTERs, which every
 version of n3n and n2n answers.  The way through the supernode is not
