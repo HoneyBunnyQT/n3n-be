@@ -73,6 +73,7 @@ FLOW_HOLD = 3
 FLOW_ROAM = 4       # across a move or an outage
 FLOW_IDLE = 5       # after a pause in an outage
 FLOW_FEC = 6        # big frames over a lossy way, see fec_phase()
+FLOW_LOAD = 7       # a TCP stream as fast as it goes, see load_phase()
 # seconds of frames after the move, see Scenario.roam
 ROAM_WATCH = 30
 # and after the supernodes are gone, see Scenario.outage: longer than
@@ -197,7 +198,7 @@ class Scenario:
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
-                 fec_loss=0):
+                 fec_loss=0, load=0):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -234,6 +235,11 @@ class Scenario:
         # pings over it, with community.fec in conf, those lost alone are
         # undone by the copy in the next PACKET, see fec_phase()
         self.fec_loss = fec_loss
+        # After the warm-up, a TCP stream from a to b through the tunnel, as
+        # fast as it goes, for this many seconds: the edges are to keep the
+        # path they are on - not take a busy direct path for a lossy one
+        # (the probes of connection.p2p_max_loss), and keep registered
+        self.load = load
         # After the warm-up, another edge of a user of the community (b's,
         # with b's password) comes up with a's MAC: the supernodes are to
         # refuse it, and to keep a where it is (auth="userpw")
@@ -1723,6 +1729,77 @@ class Run:
         flows = self._read_json(recv.out.name).get("flows", {})
         return flows.get(str(FLOW_FEC), {}).get("unique", 0)
 
+    def load_phase(self):
+        """A TCP stream from a to b through the tunnel for sc.load seconds,
+        as fast as it goes: each edge's path to the other, looked at every
+        second, is to stay what it is - direct with what a REGISTER to the
+        peer, answered, finds lost on the way (p2p_max_loss) - and both edges
+        are to stay registered"""
+        a, b = self.edges["a"], self.edges["b"]
+        port = TRAFFIC_PORT + FLOW_LOAD
+        out = os.path.join(self.workdir, "load-sink.txt")
+        sink = self.lab.spawn("load-sink", b["ns"], [
+            sys.executable, "-c",
+            "import signal, socket, sys\n"
+            "n = 0\n"
+            "def done(*_):\n"
+            "    open(sys.argv[3], 'w').write(str(n))\n"
+            "    sys.exit(0)\n"
+            "signal.signal(signal.SIGTERM, done)\n"
+            "s = socket.create_server((sys.argv[1], int(sys.argv[2])))\n"
+            "c, _ = s.accept()\n"
+            "while True:\n"
+            "    d = c.recv(1 << 16)\n"
+            "    if not d:\n"
+            "        done()\n"
+            "    n += len(d)\n",
+            b["overlay"], str(port), out])
+        time.sleep(0.5)
+        send = self.lab.spawn("load-send", a["ns"], [
+            sys.executable, "-c",
+            "import socket, sys, time\n"
+            "s = socket.create_connection((sys.argv[1], int(sys.argv[2])), 10)\n"
+            "buf = bytes(1 << 16)\n"
+            "end = time.monotonic() + float(sys.argv[3])\n"
+            "while time.monotonic() < end:\n"
+            "    s.sendall(buf)\n"
+            "s.close()\n",
+            b["overlay"], str(port), str(self.sc.load)])
+        want = "p2p" if self.sc.expect == "direct" else "pSp"
+        seen = {}
+        losses = {}
+        end = time.monotonic() + self.sc.load
+        while time.monotonic() < end and send.alive():
+            for pair, mode in self.modes().items():
+                seen.setdefault(pair, set()).add(mode)
+            for src, dst in self.sc.directions():
+                _, row = self.edges[src]["daemon"].peer(self.edges[dst]["mac"])
+                if row and "loss" in row:
+                    losses[src] = max(losses.get(src, 0), row["loss"])
+            time.sleep(1)
+        wait_for(lambda: not send.alive(), 15)
+        send.stop()
+        time.sleep(0.5)
+        sink.stop()
+        try:
+            with open(out) as f:
+                got = int(f.read() or 0)
+        except (OSError, ValueError):
+            got = 0
+        mbit = 8 * got / self.sc.load / 1e6
+        self.result["load"] = {"mbit": round(mbit), "modes": {
+            "{}{}".format(*p): sorted(m) for p, m in seen.items()},
+            "loss": losses}
+        self.check("load: stream", got > 0,
+                   "{:.0f} Mbit/s from a to b".format(mbit))
+        self.check("load: path", seen and all(m == {want} for m in seen.values()),
+                   "{} throughout, probes lost at most {} %: {}".format(
+                       want, max(losses.values(), default=0),
+                       {"{}{}".format(*p): sorted(m) for p, m in seen.items()}))
+        self.check("load: registered", all(
+            self.edges[n]["daemon"].current_supernode() for n in ("a", "b")
+            if "daemon" in self.edges[n]), "both edges at a supernode")
+
     def fec_phase(self):
         """The direct path between a and b loses sc.fec_loss percent each
         way, and the edges stay on it, with community.fec auto: pings from
@@ -2352,6 +2429,8 @@ class Run:
                 self.lossy_phase()
             if self.sc.fec_loss and self.check_alive("warm-up"):
                 self.fec_phase()
+            if self.sc.load and self.check_alive("warm-up"):
+                self.load_phase()
             if self.sc.spoof and self.check_alive("warm-up"):
                 self.spoof_phase()
             if self.sc.lockout and self.check_alive("warm-up"):

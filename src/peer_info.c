@@ -91,6 +91,7 @@ void peer_info_init (struct peer_info *peer, const n2n_mac_t mac) {
     metrics.init++;
     peer->purgeable = true;
     peer->last_valid_time_stamp = initial_time_stamp();
+    peer->last_valid_strict_stamp = peer->last_valid_time_stamp;
     memcpy(peer->mac_addr, mac, sizeof(n2n_mac_t));
 }
 
@@ -420,6 +421,16 @@ static int time_stamp_verify_and_update (uint64_t stamp, uint64_t *previous_stam
  *
  * For a given packet, find the apporopriate internal last valid time stamp for lookup
  * and verify it (and also update, if applicable).
+ *
+ * The messages checked without jitter - REGISTER, REGISTER_ACK, those of
+ * registering with a supernode - are checked against each other only,
+ * those with jitter - PACKETs, PEER_INFOs - against each other: the
+ * sender's packet threads stamp and send its PACKETs, and ours take them
+ * in, side by side with the others, so one stamped later can overtake
+ * one stamped before it.  Checked against the PACKETs' stamp, a REGISTER
+ * would then be taken for a replay - under load, most of them, and a
+ * clean direct path for a lossy one (peer_probe()).  A replay is still
+ * found, among the messages of its kind.
  */
 int find_peer_time_stamp_and_verify (
     struct peer_info *peers1,
@@ -433,7 +444,7 @@ int find_peer_time_stamp_and_verify (
 
     if(sn) {
         // from supernode
-        previous_stamp = &(sn->last_valid_time_stamp);
+        previous_stamp = allow_jitter ? &(sn->last_valid_time_stamp) : &(sn->last_valid_strict_stamp);
     } else {
         // from (peer) edge
         struct peer_info *peer;
@@ -445,7 +456,7 @@ int find_peer_time_stamp_and_verify (
         if(peer) {
             // time_stamp_verify_and_update allows the pointer a previous
             // stamp to be NULL if it is a (so far) unknown peer
-            previous_stamp = &(peer->last_valid_time_stamp);
+            previous_stamp = allow_jitter ? &(peer->last_valid_time_stamp) : &(peer->last_valid_strict_stamp);
         }
     }
 

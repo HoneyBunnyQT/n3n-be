@@ -610,6 +610,23 @@ SCENARIOS = [
               "connection": {"p2p_max_loss": 0, "udp_gso": False},
               "daemon": {"threads": 3}}),
     Scenario(
+        "load-direct-userpw",
+        "edges behind easy NATs, direct, with user/password authentication "
+        "and packet threads; a TCP stream from a to b as fast as it goes: "
+        "the edges keep the direct path - their REGISTERs, overtaken by "
+        "PACKETs stamped after them, are not taken for replays, and the "
+        "busy path for a lossy one (connection.p2p_max_loss)",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", auth="userpw", load=15, conf={"daemon": {"threads": 3}}),
+    Scenario(
+        "load-relayed-userpw",
+        "as load-direct-userpw, the edges behind hard NATs, relayed: they "
+        "stay registered at their supernodes under the stream",
+        Site(["hard-range"]),
+        Site(["hard-range"]),
+        "relayed", auth="userpw", load=15, conf={"daemon": {"threads": 3}}),
+    Scenario(
         "tcp-fallback-userpw",
         "as tcp-fallback-back, with user/password authentication",
         Site(["easy-kept"], block_udp=True),

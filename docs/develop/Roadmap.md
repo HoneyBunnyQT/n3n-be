@@ -311,6 +311,18 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       takes header keys only where they changed, and logs that.  The
       lab: about 50 ms held; b gets no new keys after sn1's reload, a
       does.  Not for `fixes`
+- [x] A busy direct path taken for a lossy one (2026-10-24): with
+      header encryption and packet threads, under load (scp in a LAN),
+      edges went through the supernode, their probes "85 % lost".  A
+      REGISTER or REGISTER_ACK is checked against the peer's last time
+      stamp without jitter, and its PACKETs, stamped and sent by other
+      threads, raised that stamp - one stamped after a REGISTER overtook
+      it, and the REGISTER counted as a replay (60-70 % of them in the
+      lab, none with one thread).  Each peer now has a stamp for the
+      messages checked without jitter and one for the others; the same
+      at the supernode (REGISTER_SUPER).  netns `load-direct-userpw`
+      (a TCP stream for 15 s; failed 2 of 2 before), `load-relayed-userpw`.
+      Not for `fixes`: one thread does not reorder them
 - [x] A lossy direct path: v3 picked a direct path and kept it however
       bad it got (the real case: an ISP spreading traffic over two
       peering legs, one dropping 20-30 %, the relay clean).  Now, while

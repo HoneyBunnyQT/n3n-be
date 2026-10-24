@@ -52,6 +52,7 @@ struct peer_info {
     time_t time_alloc;
     uint64_t selection_criterion;
     uint64_t last_valid_time_stamp;
+    uint64_t last_valid_strict_stamp; /* of the last message checked without jitter, see find_peer_time_stamp_and_verify() */
     char *hostname;
     uint8_t transports;     /* a supernode: N3N_TRANSPORT_*, 0 for both */
     char *tcp_hostname;     /* a supernode: its "tcp://" entry, if TCP is elsewhere than sock */
