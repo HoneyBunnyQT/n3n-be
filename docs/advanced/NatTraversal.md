@@ -207,7 +207,7 @@ second, and counts the REGISTER_ACKs that come back from the peer's
 address; every REGISTER to the peer there counts, also the regular ones.
 After 20 of them, the share that went unanswered is the loss of the direct
 path, which `n3nctl get_edges` shows (`loss`, in percent) and the
-management page with the peer's path.  With `connection.p2p_max_loss`
+management page (`lost`).  With `connection.p2p_max_loss`
 percent or more lost (20 by default, see below), the peer's frames go through the
 supernode - as long as one answers - while the edge keeps asking the peer
 directly, and back the direct way once a round loses at most a quarter as

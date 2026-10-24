@@ -46,7 +46,17 @@ buttons for more and less, and a button to stop n3n.
   well (`lynx http://localhost:5644/`), and with `curl`.  A small stylesheet
   (with a dark variant) and a few lines of script, which refresh the page
   every five seconds, come along for browsers that take them; nothing is
-  loaded from elsewhere.
+  loaded from elsewhere.  What changes from one refresh to the next keeps
+  its width, and a table scrolled sideways stays where it was.
+- An edge's peers show with their path (direct, or via the supernode),
+  what is lost on the way (`lost`) and, with `community.fec`, a column
+  `FEC`: coloured where the last group of frames to the peer had repairs,
+  dim where it had none.  `lost` is, with FEC, what the peer tells it
+  lost of the PACKETs to it (the way back in the tooltip); without, the
+  share of the REGISTERs to it that went unanswered, where
+  `connection.p2p_max_loss` has the edge probe the path.  The two are
+  measured differently: FEC counts every PACKET, one way each, by its
+  sequence number; the probes are two a second, there and back.
 - Everything other peers say about themselves (descriptions, versions,
   community names) is shown as text.
 - The buttons are plain forms, posted to `/page`; they ask for the management

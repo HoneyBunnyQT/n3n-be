@@ -311,6 +311,13 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       takes header keys only where they changed, and logs that.  The
       lab: about 50 ms held; b gets no new keys after sn1's reload, a
       does.  Not for `fixes`
+- [x] The management page, steadier (2026-10-24): the path badge of one
+      width, the loss in a column of its own (`lost`: with FEC the
+      peer's report of the way to it, else the probes'), a column `FEC`
+      (coloured while repairing), "last seen" and the digits of one
+      width, the descriptions wrapping so that a table fits rather than
+      scrolls, and a table scrolled sideways kept there as the page
+      refreshes
 - [x] `connection.p2p_max_loss = auto`, the default (2026-10-24): 20, or
       0 with `community.fec` - FEC repairs what the direct path loses, and
       the way through the supernode does not avoid a loss on the edge's

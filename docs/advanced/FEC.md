@@ -235,7 +235,9 @@ sees of the way from the peer (`rx_loss`, `rx_burst`, `rx_residual`), see
 [the management API](../internals/ManagementAPI.md).
 
 The same on the metrics page (`packets`, events `fec_redundant`,
-`fec_undone` and `fec_lost`) and the management page.
+`fec_undone` and `fec_lost`) and the management page: its peers show
+what the way to each loses, as the peer tells, and `FEC` where the last
+group to the peer had repairs.
 
 The netns scenario `fec-lossy` (see
 [Testing behind NATs](../develop/netns_testing.md)) has a direct path that

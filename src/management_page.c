@@ -22,6 +22,7 @@
 #include <string.h>
 #include <time.h>
 #include "counter.h"            // for SHARED_LOAD
+#include "fec.h"                // for n3n_fec_peer_info
 #include "management.h"         // for mgmt_password_is_default
 #include "management_page.h"
 #include "n2n.h"
@@ -65,6 +66,12 @@ static const char page_style[] =
     "th,td{text-align:left;padding:.3rem .6rem;border-bottom:1px solid var(--line);"
     "white-space:nowrap}th{color:var(--dim);font-weight:500}"
     "td.num,th.num{text-align:right}"
+    // what changes from one refresh to the next keeps its width: digits of
+    // one width, the path, the loss and "last seen" at their widest; the
+    // description wraps, so that a table fits instead of scrolling
+    "td{font-variant-numeric:tabular-nums}td.w{white-space:normal}"
+    ".p{min-width:13ch;text-align:center}.n{display:inline-block;min-width:5ch}"
+    ".t{display:inline-block;min-width:10ch}"
     "code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"
     "font-size:.85rem}"
     ".b{display:inline-block;padding:0 .45rem;border-radius:1rem;font-size:.8rem;"
@@ -77,7 +84,8 @@ static const char page_style[] =
     "button.bad{border-color:var(--bad)}"
     "nav{margin-left:auto;color:var(--dim)}a{color:var(--info)}";
 
-// Refresh the page in place every few seconds, keeping open what is open
+// Refresh the page in place every few seconds, keeping open what is open,
+// and each table scrolled where it was
 static const char page_script[] =
     "setInterval(function(){"
     "if(document.hidden||!window.fetch||!window.DOMParser)return;"
@@ -86,7 +94,9 @@ static const char page_script[] =
     "o=document.querySelector('main');if(!n||!o)return;"
     "o.querySelectorAll('details[open]').forEach(function(d){"
     "var e=n.querySelector('#'+d.id);if(e)e.open=true});"
-    "o.replaceWith(n)})},5000);";
+    "var x=[].map.call(o.querySelectorAll('.scroll'),function(s){return s.scrollLeft});"
+    "o.replaceWith(n);"
+    "n.querySelectorAll('.scroll').forEach(function(s,i){if(x[i])s.scrollLeft=x[i]})})},5000);";
 
 
 // Text as HTML, up to its end or max bytes: markup characters escaped, bytes
@@ -196,7 +206,8 @@ static void community_name (strbuf_t **b, const char *name, uint8_t header_encry
 
 // A peer of the edge, or an edge registered at the supernode
 static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mode, const char *mode_class,
-                      const struct sn_community *community, bool unlocked, struct nat_peer *nat_peers, time_t now) {
+                      const char *cells, const struct sn_community *community, bool unlocked,
+                      struct nat_peer *nat_peers, time_t now) {
 
     macstr_t mac_buf;
     n3n_sock_str_t sockbuf;
@@ -205,7 +216,7 @@ static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     char when[24];
     const struct nat_peer *np = nat_peers ? nat_peer_find(nat_peers, peer->mac_addr, false) : NULL;
 
-    sb_reprintf(b, "<tr><td><span class=\"b %s\">%s</span></td>", mode_class, mode);
+    sb_reprintf(b, "<tr><td><span class=\"%s\">%s</span></td>%s", mode_class, mode, cells ? cells : "");
     if(community) {
         sb_reprintf(b, "<td>");
         community_name(b, community->community, community->header_encryption, unlocked);
@@ -223,9 +234,50 @@ static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     if(nat_peers) {
         sb_reprintf(b, "<td>%s</td>", nat_hint_str(nat, sizeof(nat), np ? np->hint : 0));
     }
-    sb_reprintf(b, "<td>");
+    sb_reprintf(b, "<td class=w>");
     html_text(b, peer->dev_desc, N2N_DESC_SIZE);
-    sb_reprintf(b, "</td><td>%s</td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
+    sb_reprintf(b, "</td><td><span class=t>%s</span></td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
+}
+
+
+// The cells after an edge's peer's path: what is lost on the way - with
+// FEC, of the PACKETs to the peer, as it tells; else of the probes of
+// p2p_max_loss, where it probes - and whether FEC repairs now: "FEC"
+// coloured where the last group to the peer had repairs, dim where it had
+// none (nothing lost of late), nothing where FEC has not heard of the peer
+static const char *peer_cells (char *buf, size_t size, const struct n3n_runtime_data *eee,
+                               const struct peer_info *peer) {
+
+    struct n3n_fec_info fi;
+    bool fec = eee->conf.community.fec;
+    bool known = fec && !n3n_fec_peer_info(eee->client.fec, peer->mac_addr, &fi);
+    int used;
+
+    if(known && (fi.loss >= 0)) {
+        used = snprintf(buf, size, "<td class=num title=\"of the PACKETs to the peer, as it tells; "
+                        "from it: %d %%\"><span class=n>%d %%</span></td>", fi.rx_loss, fi.loss);
+    } else if(!fec && p2p_max_loss(&eee->conf)) {
+        used = snprintf(buf, size, "<td class=num title=\"of the REGISTERs to the peer, unanswered\">"
+                        "<span class=n>%u %%</span></td>", peer->loss);
+    } else {
+        used = snprintf(buf, size, "<td class=num></td>");
+    }
+    if((used < 0) || ((size_t)used >= size)) {
+        return "";
+    }
+    if(!fec) {
+        return buf;
+    }
+    if(!known) {
+        snprintf(buf + used, size - used, "<td></td>");
+    } else if(fi.m > 0) {
+        snprintf(buf + used, size - used, "<td><span class=\"b info\" title=\"repairing: %d repairs "
+                 "with the last %d frames\">FEC</span></td>", fi.m, fi.k);
+    } else {
+        snprintf(buf + used, size - used, "<td><span class=\"b dim\" title=\"no repairs of late, "
+                 "nothing lost\">FEC</span></td>");
+    }
+    return buf;
 }
 
 
@@ -303,32 +355,33 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
     }
     sb_reprintf(b, "</dl>\n");
 
+    // with FEC, a column of its own: whether it repairs, see peer_cells()
+    bool fec = eee->conf.community.fec;
+    int cols = fec ? 9 : 8;
     sb_reprintf(b, "<h3>Peers</h3><div class=scroll><table>"
-                "<tr><th>path</th><th>address</th><th>MAC</th><th>socket</th><th>NAT</th>"
-                "<th>description</th><th>last seen</th></tr>\n");
+                "<tr><th>path</th><th class=num>lost</th>%s<th>address</th><th>MAC</th><th>socket</th>"
+                "<th>NAT</th><th>description</th><th>last seen</th></tr>\n",
+                fec ? "<th>FEC</th>" : "");
     rows = 0;
     HASH_ITER(hh, eee->client.known_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
-            // with what its direct path lost of late, see peer_probe()
-            char path[48];
+            // through the supernode where the direct path loses too many,
+            // see peer_probe()
+            char cells[256];
             bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
-            const char *way = lossy ? "via supernode" : "direct";
-            if(peer->loss) {
-                snprintf(path, sizeof(path), "%s, %u%% lost", way, peer->loss);
-            } else {
-                snprintf(path, sizeof(path), "%s", way);
-            }
-            peer_row(b, peer, path, lossy ? "warn" : "ok", NULL, false, eee->client.nat_peers, now);
+            peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
+                     peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers, now);
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
-            peer_row(b, peer, "via supernode", "warn", NULL, false, eee->client.nat_peers, now);
+            peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
+                     NULL, false, eee->client.nat_peers, now);
         }
     }
-    row_more(b, 7, rows - PAGE_ROWS_MAX);
+    row_more(b, cols, rows - PAGE_ROWS_MAX);
     if(!rows) {
-        sb_reprintf(b, "<tr><td colspan=7 class=dim>none yet</td></tr>\n");
+        sb_reprintf(b, "<tr><td colspan=%d class=dim>none yet</td></tr>\n", cols);
     }
     sb_reprintf(b, "</table></div>\n");
 
@@ -359,7 +412,7 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
                 sb_reprintf(b, "</td><td class=num></td><td>");
             }
             html_text(b, version, sizeof(version));
-            sb_reprintf(b, "</td><td>%s</td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
+            sb_reprintf(b, "</td><td><span class=t>%s</span></td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
         }
         row_more(b, 8, rows - PAGE_ROWS_MAX);
         sb_reprintf(b, "</table></div>\n");
@@ -428,8 +481,8 @@ static void section_supernode (strbuf_t **b, struct n3n_runtime_data *sss, bool 
         HASH_ITER(hh, comm->edges, peer, ptmp) {
             if(rows++ < PAGE_ROWS_MAX) {
                 // its own edge is at 127.0.0.1:0, see local_link.h
-                peer_row(b, peer, peer->sock.port ? "here" : "own", peer->sock.port ? "info" : "ok",
-                         comm, unlocked, NULL, now);
+                peer_row(b, peer, peer->sock.port ? "here" : "own", peer->sock.port ? "b info" : "b ok",
+                         NULL, comm, unlocked, NULL, now);
             }
         }
     }
@@ -456,7 +509,7 @@ static void section_supernode (strbuf_t **b, struct n3n_runtime_data *sss, bool 
                         sock_to_cstr(sockbuf, &peer->sock),
                         is_null_mac(peer->mac_addr) ? "" : macaddr_str(mac_buf, peer->mac_addr));
             html_text(b, version, sizeof(version));
-            sb_reprintf(b, "</td><td>%s</td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
+            sb_reprintf(b, "</td><td><span class=t>%s</span></td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
         }
         row_more(b, 4, rows - PAGE_ROWS_MAX);
         if(!rows) {
