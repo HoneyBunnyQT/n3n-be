@@ -1758,7 +1758,8 @@ class Run:
         send = self.lab.spawn("load-send", a["ns"], [
             sys.executable, "-c",
             "import socket, sys, time\n"
-            "s = socket.create_connection((sys.argv[1], int(sys.argv[2])), 10)\n"
+            "s = socket.create_connection((sys.argv[1], int(sys.argv[2])),\n"
+            "                             10)\n"
             "buf = bytes(1 << 16)\n"
             "end = time.monotonic() + float(sys.argv[3])\n"
             "while time.monotonic() < end:\n"
@@ -1787,15 +1788,15 @@ class Run:
         except (OSError, ValueError):
             got = 0
         mbit = 8 * got / self.sc.load / 1e6
-        self.result["load"] = {"mbit": round(mbit), "modes": {
-            "{}{}".format(*p): sorted(m) for p, m in seen.items()},
-            "loss": losses}
+        self.result["load"] = {"mbit": round(mbit), "loss": losses, "modes": {
+            "{}{}".format(*p): sorted(m) for p, m in seen.items()}}
         self.check("load: stream", got > 0,
                    "{:.0f} Mbit/s from a to b".format(mbit))
-        self.check("load: path", seen and all(m == {want} for m in seen.values()),
+        modes = {"{}{}".format(*p): sorted(m) for p, m in seen.items()}
+        self.check("load: path",
+                   seen and all(m == {want} for m in seen.values()),
                    "{} throughout, probes lost at most {} %: {}".format(
-                       want, max(losses.values(), default=0),
-                       {"{}{}".format(*p): sorted(m) for p, m in seen.items()}))
+                       want, max(losses.values(), default=0), modes))
         self.check("load: registered", all(
             self.edges[n]["daemon"].current_supernode() for n in ("a", "b")
             if "daemon" in self.edges[n]), "both edges at a supernode")
