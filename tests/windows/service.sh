@@ -98,10 +98,12 @@ out=$("$EXE" edge service install "$SESSION" 2>&1)
 [ "$(tr -d '\r' <"$MACHINE/$SESSION.conf" | grep -c "^password")" = 1 ]
 check "install again: the same password" $? "$(echo "$out" | grep -i password)"
 
-sid=$(whoami //user //fo csv //nh | tr -d '\r"' | cut -d, -f2)
+# an entry with the rights to start and stop it besides SYSTEM's: the
+# user's (as SDDL names it, "LA" for the runner's account, the
+# computer's Administrator, a SID otherwise)
 sd=$(sc.exe sdshow "$NAME" | tr -d '\r\n ')
-echo "$sd" | grep -qF "(A;;CCLCSWRPWPDTLOCRRC;;;$sid)"
-check "install: this user may start and stop it" $? "$sid in $sd"
+echo "$sd" | grep -o '(A;;CCLCSWRPWPDTLOCRRC;;;[^)]*)' | grep -qv ';SY)'
+check "install: this user may start and stop it" $? "$sd"
 
 sleep 3
 first=$(checkpoint)
