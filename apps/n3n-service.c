@@ -11,6 +11,11 @@
  * as the configuration holds the community's key.  It tells the service
  * manager that it runs once it does, through the hook of notify.h - as
  * systemd's Type=notify on Linux, where the units do the rest of this.
+ *
+ * For the tray app (n3n-be-tray.c), which runs as the user who installed the
+ * service: that user may start and stop it, and finds the management port
+ * and password in %USERPROFILE%\n3n-be\SESSION.tray - a random password of
+ * the service's own if its configuration has none but the default one.
  */
 
 #include <stdbool.h>
@@ -24,12 +29,21 @@
 #include <windows.h>
 #include <aclapi.h>             // for SetNamedSecurityInfoA
 #include <sddl.h>               // for ConvertStringSecurityDescriptorToSecurityDescriptorA
+#include <wincrypt.h>           // for CryptGenRandom
 #include <n3n/conffile.h>       // for n3n_config_set_confdir, n3n_config_set_rundir
+#include <n3n/edge.h>           // for edge_init_conf_defaults
+#include <n3n/initfuncs.h>      // for n3n_initfuncs
+#include "n2n_define.h"         // for N3N_MGMT_PASSWORD
 #include "../src/notify.h"      // for n3n_notify_hook
 #include "../src/reload.h"      // for n3n_reload_request
 
 // SYSTEM and the administrators, also for what is made in the directory
 #define MACHINE_DIR_SDDL "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
+// Who may do what with the service: Windows' defaults for one, and the
+// user who installed it may also start and stop it, and reload it
+// (PARAMCHANGE needs the right to pause and go on)
+#define SERVICE_SDDL "D:(A;;CCLCSWRPWPDTLOCRRC;;;SY)(A;;CCDCLCSWRPWPDTLOCRSDRCWDWO;;;BA)" \
+    "(A;;CCLCSWLOCRRC;;;IU)(A;;CCLCSWLOCRRC;;;SU)(A;;CCLCSWRPWPDTLOCRRC;;;%s)"
 
 static char session[65];
 static char service_name[80];
@@ -110,6 +124,115 @@ static void fail (const char *what) {
 }
 
 
+// The management port and password of the service, from its configuration
+// in dir; a random password of its own added to it if it has none but the
+// default one, which anyone on this computer knows.  false if the
+// configuration cannot be read.
+static bool management (const char *dir, const char *conf_path, char *password, size_t size, int *port) {
+
+    n2n_edge_conf_t conf;
+    char name[sizeof(session)];
+    HCRYPTPROV prov;
+    unsigned char rnd[24];
+    static const char abc[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    FILE *f;
+    int r;
+
+    memset(&conf, 0, sizeof(conf));
+    n3n_initfuncs();
+    // loading may change the name it is given
+    snprintf(name, sizeof(name), "%s", session);
+    edge_init_conf_defaults(&conf, name);
+    n3n_config_set_confdir(dir);
+    r = n3n_config_load_file(&conf, name);
+    n3n_config_set_confdir(NULL);
+    if(r != 0) {
+        printf("%s cannot be read as a configuration\n", conf_path);
+        return false;
+    }
+    *port = conf.mgmt_port;
+    if(conf.mgmt_password && strcmp(conf.mgmt_password, N3N_MGMT_PASSWORD)) {
+        snprintf(password, size, "%s", conf.mgmt_password);
+        return true;
+    }
+    if((size <= sizeof(rnd))
+       || !CryptAcquireContextA(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
+        return false;
+    }
+    r = CryptGenRandom(prov, sizeof(rnd), rnd);
+    CryptReleaseContext(prov, 0);
+    if(!r) {
+        return false;
+    }
+    for(size_t i = 0; i < sizeof(rnd); i++) {
+        password[i] = abc[rnd[i] % (sizeof(abc) - 1)];
+    }
+    password[sizeof(rnd)] = '\0';
+    if(!(f = fopen(conf_path, "a"))) {
+        return false;
+    }
+    fprintf(f, "\n# a password of its own, for the tray app (written by \"service install\")\n"
+            "[management]\npassword = %s\n", password);
+    fclose(f);
+    printf("the management password was the default one: %s has one of its own now\n", conf_path);
+    return true;
+}
+
+
+// What the tray app of this user needs to reach the service, in the user's
+// own profile: %USERPROFILE%\n3n-be\SESSION.tray, its port and password
+static void tray_file (int port, const char *password) {
+
+    const char *profile = getenv("USERPROFILE");
+    char dir[MAX_PATH], path[MAX_PATH + 80];
+    FILE *f;
+
+    if(!profile) {
+        return;
+    }
+    snprintf(dir, sizeof(dir), "%s\\n3n-be", profile);
+    CreateDirectoryA(dir, NULL);
+    snprintf(path, sizeof(path), "%s\\%s.tray", dir, session);
+    if(!(f = fopen(path, "w"))) {
+        printf("%s cannot be written: the tray app cannot change what the service does\n", path);
+        return;
+    }
+    fprintf(f, "# how n3n-be-tray reaches the service %s (written by \"service install\")\n"
+            "[management]\nport = %d\npassword = %s\n", service_name, port, password);
+    fclose(f);
+    printf("for the tray app: %s\n", path);
+}
+
+
+// This user - the one installing it - may start, stop and reload it, as
+// the tray app does, without being an administrator
+static void grant_user (SC_HANDLE svc) {
+
+    HANDLE token;
+    union {
+        TOKEN_USER user;
+        char buf[256];
+    } tu;
+    DWORD len;
+    char *sid = NULL, sddl[512];
+    PSECURITY_DESCRIPTOR sd = NULL;
+
+    if(!OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &token)) {
+        return;
+    }
+    if(GetTokenInformation(token, TokenUser, &tu, sizeof(tu), &len) && ConvertSidToStringSidA(tu.user.User.Sid, &sid)) {
+        snprintf(sddl, sizeof(sddl), SERVICE_SDDL, sid);
+        if(!ConvertStringSecurityDescriptorToSecurityDescriptorA(sddl, SDDL_REVISION_1, &sd, NULL)
+           || !SetServiceObjectSecurity(svc, DACL_SECURITY_INFORMATION, sd)) {
+            fail("letting this user start and stop the service");
+        }
+        LocalFree(sd);
+        LocalFree(sid);
+    }
+    CloseHandle(token);
+}
+
+
 static int install (void) {
 
     char dir[MAX_PATH], conf[MAX_PATH + 80], user_conf[MAX_PATH + 80];
@@ -130,6 +253,11 @@ static int install (void) {
             return 1;
         }
         printf("copied %s to %s, where the service reads it\n", user_conf, conf);
+    }
+    char password[260];
+    int port;
+    if(!management(dir, conf, password, sizeof(password), &port)) {
+        return 1;
     }
 
     // n3n-be.exe takes the role first, n3n-be-edge.exe is the edge
@@ -175,6 +303,8 @@ static int install (void) {
     ChangeServiceConfig2A(svc, SERVICE_CONFIG_FAILURE_ACTIONS, &fa);
     SERVICE_FAILURE_ACTIONS_FLAG flag = { TRUE };
     ChangeServiceConfig2A(svc, SERVICE_CONFIG_FAILURE_ACTIONS_FLAG, &flag);
+    grant_user(svc);
+    tray_file(port, password);
 
     printf("installed: %s, which starts at boot; its configuration is %s, its log %s\\%s.log\n",
            service_name, conf, dir, session);
@@ -224,6 +354,13 @@ static int uninstall (void) {
         return 1;
     }
     printf("uninstalled %s; its configuration and log stay in %%ProgramData%%\\n3n-be\n", service_name);
+    // the tray app's password for it goes with it
+    const char *profile = getenv("USERPROFILE");
+    if(profile) {
+        char path[MAX_PATH + 80];
+        snprintf(path, sizeof(path), "%s\\n3n-be\\%s.tray", profile, session);
+        DeleteFileA(path);
+    }
     CloseServiceHandle(svc);
     CloseServiceHandle(scm);
     return 0;

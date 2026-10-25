@@ -242,7 +242,7 @@ jobs:
 
       # the runner's user is an administrator
       - name: The edge as a Windows service
-        run: tests/windows/service.sh apps/n3n-be.exe
+        run: tests/windows/service.sh apps/n3n-be.exe tools/tests-mgmt-client.exe
         shell: bash
 
       - if: ${{ failure() }}
