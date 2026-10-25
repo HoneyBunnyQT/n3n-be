@@ -123,7 +123,7 @@ jobs:
         run: |
           VERSION=$(scripts/version.sh | tr - _)
           rpmbuild --define "VERSION $VERSION" --define "TOPDIR $PWD" \
-            --define "_topdir $PWD/rpmbuild" -bb packages/rpm/n3n.spec
+            --define "_topdir $PWD/rpmbuild" -bb packages/rpm/n3n-be.spec
           mkdir dist
           mv rpmbuild/RPMS/*/*.rpm dist/
           rpm -qpil dist/*.rpm
@@ -249,7 +249,7 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          # static: the toolchain's libwinpthread-1.dll goes into n3n.exe,
+          # static: the toolchain's libwinpthread-1.dll goes into n3n-be.exe,
           # which then needs Windows' own DLLs only
           export LDFLAGS=-static
           ./scripts/hack_fakeautoconf.sh
@@ -263,10 +263,11 @@ jobs:
         run: |
           name="n3n-be-$TAG-windows-x86_64"
           mkdir -p "$name" dist
-          cp install/usr/local/sbin/n3n.exe install/usr/local/bin/n3nctl \
+          cp install/usr/local/sbin/n3n-be.exe install/usr/local/bin/n3n-be-ctl \
             docs/edge.conf.sample docs/supernode.conf.sample "$name/"
-          # n3n.exe only, no copies n3n-edge.exe and n3n-supernode.exe:
-          # "n3n.exe edge" and "n3n.exe supernode", see the README
+          # n3n-be.exe only, no copies n3n-be-edge.exe and
+          # n3n-be-supernode.exe: "n3n-be.exe edge" and "n3n-be.exe
+          # supernode", see the README
           # the README of the workflow's commit, so that a tag from before
           # it gets one too
           git show "$GITHUB_SHA:packages/windows/README.txt" \
@@ -284,11 +285,11 @@ jobs:
           fi
           cp "$notice" "$name/LICENSES/winpthreads.txt"
           # the DLLs it needs: Windows' own only, or the zip is not enough
-          objdump -p "$name/n3n.exe" | grep "DLL Name"
-          if objdump -p "$name/n3n.exe" | grep "DLL Name" |
+          objdump -p "$name/n3n-be.exe" | grep "DLL Name"
+          if objdump -p "$name/n3n-be.exe" | grep "DLL Name" |
               grep -iv -e kernel32 -e msvcrt -e ws2_32 -e iphlpapi \
                 -e netapi32 -e advapi32 -e user32 -e api-ms-win; then
-            echo "::error::n3n.exe needs a DLL that is not in the zip"
+            echo "::error::n3n-be.exe needs a DLL that is not in the zip"
             exit 1
           fi
           7z a -tzip "dist/$name.zip" "$name"
@@ -343,16 +344,16 @@ jobs:
           fi
           name="n3n-be-$TAG-macos-universal"
           mkdir -p "$name" dist
-          cp -P install/usr/local/sbin/* install/usr/local/bin/n3nctl \
+          cp -P install/usr/local/sbin/* install/usr/local/bin/n3n-be-ctl \
             docs/edge.conf.sample docs/supernode.conf.sample "$name/"
           git show "$GITHUB_SHA:packages/macos/README.txt" \
             > "$name/README.txt"
           cp -R LICENSES "$name/"
-          lipo -info "$name/n3n"
-          otool -l "$name/n3n" | grep -A3 LC_BUILD_VERSION | head -4
+          lipo -info "$name/n3n-be"
+          otool -l "$name/n3n-be" | grep -A3 LC_BUILD_VERSION | head -4
           # signed ad hoc, which Apple Silicon wants of every program
-          codesign --force --sign - "$name/n3n"
-          codesign --verify --verbose "$name/n3n"
+          codesign --force --sign - "$name/n3n-be"
+          codesign --verify --verbose "$name/n3n-be"
           tar -czf "dist/$name.tar.gz" "$name"
           tar -tzvf "dist/$name.tar.gz"
 

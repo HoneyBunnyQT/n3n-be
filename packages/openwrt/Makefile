@@ -4,7 +4,7 @@
 
 include $(TOPDIR)/rules.mk
 
-PKG_NAME:=n3n
+PKG_NAME:=n3n-be
 PKG_RELEASE:=1
 
 # These are defaults for compiling without any environmental overrides
@@ -15,7 +15,7 @@ PKG_SOURCE_VERSION?=$(BUILD_SOURCE_REF)
 PKG_MIRROR_HASH:=skip
 
 # after PKG_VERSION: := takes it as it is at this point, and before, the
-# source was n3n-.tar.gz
+# source was n3n-be-.tar.gz
 PKG_SOURCE_PROTO:=git
 PKG_SOURCE:=$(PKG_NAME)-$(PKG_VERSION).tar.gz
 
@@ -27,31 +27,31 @@ PKG_FIXUP:=autoreconf
 
 include $(INCLUDE_DIR)/package.mk
 
-define Package/n3n/Default
+define Package/n3n-be/Default
   SECTION:=net
   CATEGORY:=Network
-  TITLE:=N3N Peer-to-peer VPN
+  TITLE:=n3n-be Peer-to-peer VPN
   URL:=https://github.com/HoneyBunnyQT/n3n-be
   SUBMENU:=VPN
 endef
 
-define Package/n3n-edge
-  $(call Package/n3n/Default)
+define Package/n3n-be-edge
+  $(call Package/n3n-be/Default)
   TITLE+= client (edge node)
   DEPENDS+=+kmod-tun
 endef
 
-define Package/n3n-supernode
-  $(call Package/n3n/Default)
+define Package/n3n-be-supernode
+  $(call Package/n3n-be/Default)
   TITLE+= server (supernode)
 endef
 
-define Package/n3n-edge/description
-The client node for the N3N infrastructure
+define Package/n3n-be-edge/description
+The client node for the n3n-be infrastructure
 endef
 
-define Package/n3n-supernode/description
-The supernode for the N3N infrastructure
+define Package/n3n-be-supernode/description
+The supernode for the n3n-be infrastructure
 endef
 
 # configure for the target, with its compiler (CONFIGURE_VARS) and --host
@@ -65,33 +65,33 @@ define Build/Configure
 	$(call Build/Configure/Default)
 endef
 
-define Package/n3n-edge/conffiles
-/etc/n3n/edge.conf
+define Package/n3n-be-edge/conffiles
+/etc/n3n-be/edge.conf
 endef
 
-define Package/n3n-edge/install
+define Package/n3n-be-edge/install
 	$(INSTALL_DIR) $(1)/usr/bin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/scripts/n3nctl $(1)/usr/bin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/scripts/n3n-be-ctl $(1)/usr/bin/
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/apps/n3n-edge $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/apps/n3n-be-edge $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/packages/openwrt/etc/init.d/n3n-edge $(1)/etc/init.d/n3n-edge
-	$(INSTALL_DIR) $(1)/etc/n3n
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/docs/edge.conf.sample $(1)/etc/n3n/edge.conf
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/packages/openwrt/etc/init.d/n3n-be-edge $(1)/etc/init.d/n3n-be-edge
+	$(INSTALL_DIR) $(1)/etc/n3n-be
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/docs/edge.conf.sample $(1)/etc/n3n-be/edge.conf
 endef
 
-define Package/n3n-supernode/conffiles
-/etc/n3n/supernode.conf
+define Package/n3n-be-supernode/conffiles
+/etc/n3n-be/supernode.conf
 endef
 
-define Package/n3n-supernode/install
+define Package/n3n-be-supernode/install
 	$(INSTALL_DIR) $(1)/usr/sbin
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/apps/n3n-supernode $(1)/usr/sbin/
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/apps/n3n-be-supernode $(1)/usr/sbin/
 	$(INSTALL_DIR) $(1)/etc/init.d
-	$(INSTALL_BIN) $(PKG_BUILD_DIR)/packages/openwrt/etc/init.d/n3n-supernode $(1)/etc/init.d/n3n-supernode
-	$(INSTALL_DIR) $(1)/etc/n3n
-	$(INSTALL_CONF) $(PKG_BUILD_DIR)/docs/supernode.conf.sample $(1)/etc/n3n/supernode.conf
+	$(INSTALL_BIN) $(PKG_BUILD_DIR)/packages/openwrt/etc/init.d/n3n-be-supernode $(1)/etc/init.d/n3n-be-supernode
+	$(INSTALL_DIR) $(1)/etc/n3n-be
+	$(INSTALL_CONF) $(PKG_BUILD_DIR)/docs/supernode.conf.sample $(1)/etc/n3n-be/supernode.conf
 endef
 
-$(eval $(call BuildPackage,n3n-edge))
-$(eval $(call BuildPackage,n3n-supernode))
+$(eval $(call BuildPackage,n3n-be-edge))
+$(eval $(call BuildPackage,n3n-be-supernode))

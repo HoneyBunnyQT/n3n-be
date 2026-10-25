@@ -1,0 +1,5 @@
+# an upgrade: what an n3n-be of n3n's names had - its configuration in
+# /etc/n3n, its services n3n-edge@... - goes on under the new names
+post_upgrade() {
+    /usr/lib/n3n-be/migrate || true
+}

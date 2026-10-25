@@ -37,7 +37,7 @@ Files:
  apps/Makefile
  debian/*
  scripts/munin/n3n_
- scripts/n3nctl
+ scripts/n3n-be-ctl
  tests/*
  tools/Makefile
  uncrustify.cfg
@@ -74,7 +74,7 @@ License: GPL-2+
 Files:
  android/*
  apps/example_edge_embed_tun.c
- apps/n3n.c
+ apps/n3n-be.c
  apps/n3n.h
  docs/SECURITY.md
  docs/advanced/NatTraversal.md
@@ -94,6 +94,7 @@ Files:
  include/n3n/embed.h
  include/n3n/qr_seal.h
  include/n3n/version.h
+ packages/lib/n3n-be-migrate
  scripts/gen_doc_images.py
  scripts/test_qemu.sh
  scripts/test_qr.sh

@@ -52,7 +52,7 @@ jobs:
 
       - name: Copy src package definition into openwrt
         run: |
-          cp -r src/packages/openwrt openwrt/package/n3n
+          cp -r src/packages/openwrt openwrt/package/n3n-be
         working-directory: ./
 
       - name: Cache openwrt source downloads
@@ -68,8 +68,8 @@ jobs:
 
       - name: Add package to openwrt config
         run: |
-          echo "CONFIG_PACKAGE_n3n-edge=m" >>.config
-          echo "CONFIG_PACKAGE_n3n-supernode=m" >>.config
+          echo "CONFIG_PACKAGE_n3n-be-edge=m" >>.config
+          echo "CONFIG_PACKAGE_n3n-be-supernode=m" >>.config
 
       - name: Build a full config from our stub file
         run: |
@@ -93,9 +93,9 @@ jobs:
         run: |
           echo "Build for $PKG_VERSION"
           export PKG_VERSION
-          make package/n3n/clean V=s
-          make package/n3n/prepare USE_SOURCE_DIR=$GITHUB_WORKSPACE/n3n V=s
-          make package/n3n/compile V=s
+          make package/n3n-be/clean V=s
+          make package/n3n-be/prepare USE_SOURCE_DIR=$GITHUB_WORKSPACE/n3n V=s
+          make package/n3n-be/compile V=s
 
 # FIXME: add a way to run the test suite!
 #      - name: Run embedded tests

@@ -15,9 +15,6 @@ Depends:
  ${misc:Depends},
  ${python3:Depends},
  ${shlibs:Depends},
-Provides: n3n
-Conflicts: n3n
-Replaces: n3n
 Description: Peer-to-Peer and Layer-2 VPN network daemon
  n3n is a layer-two peer-to-peer virtual private network (VPN) which allows
  users to exploit features typical of P2P applications at network instead of
@@ -31,4 +28,6 @@ Description: Peer-to-Peer and Layer-2 VPN network daemon
  Edge is the edge node daemon for n3n which creates a TAP interface to expose
  the n3n virtual LAN.
  .
- This is n3n-be (Bunny Edition), a fork of n3n, which it replaces.
+ This is n3n-be (Bunny Edition), a fork of n3n.  Its programs (n3n-be-edge,
+ n3n-be-supernode, n3n-be-ctl), its configuration (/etc/n3n-be) and its
+ services have names of their own, so it installs next to n3n.

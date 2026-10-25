@@ -18,8 +18,7 @@ url="https://github.com/HoneyBunnyQT/n3n-be"
 license=('AGPL-3.0-only' 'GPL-3.0-only' 'GPL-2.0-only' 'GPL-2.0-or-later' 'LGPL-2.1-only')
 depends=(glibc python)
 makedepends=(autoconf automake)
-provides=(n3n)
-conflicts=(n3n)
+install=n3n-be.install
 
 build() {
     cd "$_top"
@@ -31,6 +30,6 @@ build() {
 package() {
     cd "$_top"
     # Arch has no /usr/sbin of its own: it is a link to /usr/bin, so the
-    # units find /usr/sbin/n3n-edge all the same
+    # units find /usr/sbin/n3n-be-edge all the same
     make DESTDIR="$pkgdir" CONFIG_SBINDIR="$pkgdir/usr/bin" install
 }

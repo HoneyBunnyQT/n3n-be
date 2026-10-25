@@ -541,6 +541,9 @@ install.systemd:
 	$(INSTALL_DOC) packages/lib/systemd/system/n3n-be-supernode.service $(CONFIG_SYSTEMDDIR)
 	$(INSTALL) -d $(CONFIG_SYSUSERSDIR)
 	$(INSTALL_DOC) packages/lib/sysusers.d/n3n-be.conf $(CONFIG_SYSUSERSDIR)
+	# what the packages run on an upgrade from an n3n-be of n3n's names
+	$(INSTALL) -d $(PREFIX)/lib/n3n-be
+	$(INSTALL_PROG) packages/lib/n3n-be-migrate $(PREFIX)/lib/n3n-be/migrate
 
 .PHONY: install.doc
 install: $(MANS)

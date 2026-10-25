@@ -1,0 +1,112 @@
+#!/bin/sh
+#
+# Copyright (C) Honey Bunny QT
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# n3n-be up to 3.4.8 went by n3n's names: the programs n3n-edge,
+# n3n-supernode and n3nctl, its configuration in /etc/n3n, its services
+# n3n-edge@NAME, n3n-edge and n3n-supernode, its user n3n.  It has names of
+# its own now (n3n-be-edge, /etc/n3n-be, n3n-be-edge@NAME, ...), so that it
+# installs next to n3n, whose configuration it does not read.
+#
+# The packages run this once they are installed or upgraded: what an older
+# n3n-be had goes on under the new names -
+#
+# - its configuration, copied from /etc/n3n to /etc/n3n-be (/etc/n3n stays:
+#   it may be n3n's too), with the paths to /etc/n3n in it made those to
+#   /etc/n3n-be, and the files of the user n3n made n3n-be's
+# - its services: those that were enabled are enabled under the new name,
+#   those that ran are started under it
+#
+# A service whose unit file is still there is n3n's, installed next to it,
+# and left alone; so is /etc/n3n when n3n is installed.  Once only: it
+# leaves /var/lib/n3n-be/renamed.  Run it by hand to do it again after
+# removing that.
+
+set -u
+
+DONE=${N3N_BE_MIGRATE_DONE:-/var/lib/n3n-be/renamed}
+ETC=${N3N_BE_MIGRATE_ETC:-/etc}
+UNITS="$ETC/systemd/system /run/systemd/system /usr/lib/systemd/system /lib/systemd/system"
+
+[ -e "$DONE" ] && exit 0
+
+systemd_running() {
+    [ -d /run/systemd/system ] && [ -z "${DPKG_ROOT:-}" ]
+}
+
+# whether a unit's file is there: then it is n3n's, not an older n3n-be's
+unit_present() {
+    case "$1" in
+        *@*) file="${1%%@*}@.service" ;;
+        *) file="$1" ;;
+    esac
+    for d in $UNITS; do
+        [ -e "$d/$file" ] && return 0
+    done
+    return 1
+}
+
+# n3n-edge@home.service -> n3n-be-edge@home.service
+new_name() {
+    echo "n3n-be-${1#n3n-}"
+}
+
+# the services enabled and running under the old names
+enabled=""
+for link in "$ETC"/systemd/system/*.wants/n3n-edge*.service \
+            "$ETC"/systemd/system/*.wants/n3n-supernode.service; do
+    [ -L "$link" ] || continue
+    unit=$(basename "$link")
+    unit_present "$unit" && continue
+    case " $enabled " in
+        *" $unit "*) ;;
+        *) enabled="$enabled $unit" ;;
+    esac
+    rm -f "$link"
+done
+
+active=""
+if systemd_running; then
+    for unit in $(systemctl list-units --plain --no-legend --state=active \
+                      'n3n-edge*.service' 'n3n-supernode.service' 2>/dev/null |
+                  awk '{ for(i = 1; i <= NF; i++) if($i ~ /\.service$/) { print $i; break } }'); do
+        unit_present "$unit" && continue
+        active="$active $unit"
+        systemctl stop "$unit" || true
+    done
+fi
+
+# the configuration, where n3n is not installed: then /etc/n3n is an older
+# n3n-be's
+if [ -d "$ETC/n3n" ] && ! ls "$ETC"/n3n-be/*.conf >/dev/null 2>&1 \
+   && ! unit_present n3n-edge@.service && ! unit_present n3n-supernode.service; then
+    mkdir -p "$ETC/n3n-be"
+    cp -a "$ETC/n3n/." "$ETC/n3n-be/"
+    for conf in "$ETC"/n3n-be/*.conf; do
+        [ -f "$conf" ] && sed -i 's|/etc/n3n/|/etc/n3n-be/|g' "$conf"
+    done
+    if id n3n >/dev/null 2>&1 && id n3n-be >/dev/null 2>&1; then
+        chown -R --from=n3n n3n-be "$ETC/n3n-be" 2>/dev/null || true
+        chown -R --from=:n3n :n3n-be "$ETC/n3n-be" 2>/dev/null || true
+    fi
+    echo "n3n-be: its configuration is in /etc/n3n-be now, copied from /etc/n3n (which stays)"
+fi
+
+if [ -n "$enabled$active" ]; then
+    if systemd_running; then
+        systemctl daemon-reload || true
+    fi
+    for unit in $enabled; do
+        echo "n3n-be: $unit is $(new_name "$unit") now, enabled"
+        systemctl enable "$(new_name "$unit")" || true
+    done
+    for unit in $active; do
+        echo "n3n-be: $unit is $(new_name "$unit") now, started"
+        systemctl start "$(new_name "$unit")" || true
+    done
+fi
+
+mkdir -p "$(dirname "$DONE")"
+: >"$DONE"
+exit 0

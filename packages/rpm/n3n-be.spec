@@ -10,15 +10,14 @@ Packager: Honey Bunny QT <honeybunnyqt.official@proton.me>
 # Temporary location where the RPM will be built
 BuildRoot:  %{_tmppath}/%{name}-%{version}-root
 Requires: libzstd
-# n3n-be, a fork of n3n, installs the same files
-Provides: n3n
-Conflicts: n3n
 
 # Make sure .build-id is not part of the package
 %define _build_id_links none
 
 %description
-n3n peer-to-peer VPN: n3n-be (Bunny Edition), a fork of n3n
+n3n peer-to-peer VPN: n3n-be (Bunny Edition), a fork of n3n.  Its
+programs, configuration (/etc/n3n-be) and services have names of their
+own, so it installs next to n3n.
 
 %prep
 
@@ -47,28 +46,29 @@ chmod u+w $RPM_BUILD_ROOT%{_sbindir}/*
 rm -fr $RPM_BUILD_ROOT
 
 %files
-/usr/bin/n3nctl
-/usr/lib/systemd/system/n3n-edge.service
-/usr/lib/systemd/system/n3n-edge@.service
-/usr/lib/systemd/system/n3n-supernode.service
-/usr/lib/sysusers.d/n3n.conf
-%{_sbindir}/n3n
-%{_sbindir}/n3n-edge
-%{_sbindir}/n3n-supernode
-/usr/share/doc/n3n/Contributing.md
-/usr/share/doc/n3n/FAQ.md
-/usr/share/doc/n3n/LICENSE.md
-/usr/share/doc/n3n/README.md
-/usr/share/doc/n3n/SECURITY.md
-/usr/share/doc/n3n/Scripts.md
-/usr/share/doc/n3n/Tools.md
-/usr/share/doc/n3n/community.list.sample
-/usr/share/doc/n3n/edge.conf.sample
-/usr/share/doc/n3n/supernode.conf.sample
-/usr/share/man/man7/n3n.7.gz
-/usr/share/man/man8/n3n.8.gz
-/usr/share/man/man8/n3n-edge.8.gz
-/usr/share/man/man8/n3n-supernode.8.gz
+/usr/bin/n3n-be-ctl
+/usr/lib/n3n-be/migrate
+/usr/lib/systemd/system/n3n-be-edge.service
+/usr/lib/systemd/system/n3n-be-edge@.service
+/usr/lib/systemd/system/n3n-be-supernode.service
+/usr/lib/sysusers.d/n3n-be.conf
+%{_sbindir}/n3n-be
+%{_sbindir}/n3n-be-edge
+%{_sbindir}/n3n-be-supernode
+/usr/share/doc/n3n-be/Contributing.md
+/usr/share/doc/n3n-be/FAQ.md
+/usr/share/doc/n3n-be/LICENSE.md
+/usr/share/doc/n3n-be/README.md
+/usr/share/doc/n3n-be/SECURITY.md
+/usr/share/doc/n3n-be/Scripts.md
+/usr/share/doc/n3n-be/Tools.md
+/usr/share/doc/n3n-be/community.list.sample
+/usr/share/doc/n3n-be/edge.conf.sample
+/usr/share/doc/n3n-be/supernode.conf.sample
+/usr/share/man/man7/n3n-be.7.gz
+/usr/share/man/man8/n3n-be.8.gz
+/usr/share/man/man8/n3n-be-edge.8.gz
+/usr/share/man/man8/n3n-be-supernode.8.gz
 
 # Set the default attributes of all of the files specified to have an
 # owner and group of root and to inherit the permissions of the file
@@ -81,19 +81,26 @@ rm -fr $RPM_BUILD_ROOT
 
 # Execution order:
 # install:    pre -> (copy) -> post
-# upgrade:    pre -> (copy) -> post -> preun (old) -> (delete old) -> postun (old)
+# upgrade:    pre -> (copy) -> post -> preun (old) -> (delete old) -> postun (old) -> posttrans
 # un-install:                          preun       -> (delete)     -> postun
 
 %pre
 
-if ! grep -q n3n /etc/group; then
-  echo 'Creating n3n group'
-  /usr/sbin/groupadd -r n3n
+if ! getent group n3n-be > /dev/null 2>&1; then
+  echo 'Creating n3n-be group'
+  /usr/sbin/groupadd -r n3n-be
 fi
 
-if ! /usr/bin/id -u n3n > /dev/null 2>&1; then
-  echo 'Creating n3n user'
-  /usr/sbin/useradd -M -N -g n3n -r -s /bin/false n3n
+if ! /usr/bin/id -u n3n-be > /dev/null 2>&1; then
+  echo 'Creating n3n-be user'
+  /usr/sbin/useradd -M -N -g n3n-be -r -s /bin/false n3n-be
+fi
+
+# an upgrade: once the old package is gone, %posttrans carries over what it
+# had under n3n's names (/usr/lib/n3n-be/migrate)
+if [ "$1" -gt 1 ]; then
+  mkdir -p /var/lib/n3n-be
+  touch /var/lib/n3n-be/upgrading
 fi
 
 %post
@@ -108,7 +115,7 @@ fi
 if [ -f /bin/systemctl ]; then
   if [ ! -f /.dockerenv ]; then
       # possibly remove the installed services
-      %systemd_preun supernode.service n3n-edge.service 'edge@*.service'
+      %systemd_preun n3n-be-supernode.service n3n-be-edge.service 'n3n-be-edge@*.service'
   fi
 fi
 
@@ -116,6 +123,12 @@ fi
 if [ -f /bin/systemctl ]; then
   if [ ! -f /.dockerenv ]; then
       # possibly restart the running services
-      %systemd_postun_with_restart n3n-supernode.service n3n-edge.service 'n3n-edge@*.service'
+      %systemd_postun_with_restart n3n-be-supernode.service n3n-be-edge.service 'n3n-be-edge@*.service'
   fi
+fi
+
+%posttrans
+if [ -e /var/lib/n3n-be/upgrading ]; then
+  /usr/lib/n3n-be/migrate || true
+  rm -f /var/lib/n3n-be/upgrading
 fi

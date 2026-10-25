@@ -18,7 +18,7 @@ RPM_SIGN_CMD=./rpm-sign.exp
 all: clean pkg
 
 pkg:
-	rpmbuild --define='VERSION ${VERSION}' --define='TOPDIR ${N3N_HOME}' -bb ./n3n.spec
+	rpmbuild --define='VERSION ${VERSION}' --define='TOPDIR ${N3N_HOME}' -bb ./n3n-be.spec
 	-@$(RPM_SIGN_CMD) $(RPM_PATH)
 	@echo ""
 	@echo "Package contents:"

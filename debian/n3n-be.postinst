@@ -4,18 +4,18 @@ if [ "$1" = "configure" ]; then
     umask 022
 
     # ensure we have our expected group and user
-    if [ -z "$(id -g n3n 2> /dev/null)" ]; then
-        groupadd --system n3n
+    if ! getent group n3n-be > /dev/null 2>&1; then
+        groupadd --system n3n-be
     fi
 
-    if [ -z "$(id -u n3n 2> /dev/null)" ]; then
+    if [ -z "$(id -u n3n-be 2> /dev/null)" ]; then
         useradd \
             --no-create-home \
             --no-user-group \
-            --gid n3n \
+            --gid n3n-be \
             --system \
             --shell /bin/true \
-            n3n
+            n3n-be
     fi
 fi
 
@@ -27,9 +27,15 @@ if [ "$1" = "configure" ]; then
 
     # TODO: It would be nice if the dh_systemd_start handled templated services
     if [ -z "${DPKG_ROOT:-}" ] && [ -d /run/systemd/system ]; then
-        if systemctl is-active --quiet 'n3n-edge@*.service'; then
-            systemctl try-restart 'n3n-edge@*.service'
+        if systemctl is-active --quiet 'n3n-be-edge@*.service'; then
+            systemctl try-restart 'n3n-be-edge@*.service'
         fi
+    fi
+
+    # an upgrade: what an n3n-be of n3n's names had - its configuration in
+    # /etc/n3n, its services n3n-edge@... - goes on under the new names
+    if [ -n "$2" ]; then
+        /usr/lib/n3n-be/migrate || true
     fi
 fi
 
