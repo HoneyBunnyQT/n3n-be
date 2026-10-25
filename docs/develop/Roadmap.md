@@ -524,12 +524,26 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       registers); `uml.sh` builds its kernel with policy routing (not tried:
       UML 6.8 does not boot on a host with AMX, whose XSAVE area is larger
       than it hands to ptrace - "ptrace set fp regs failed, errno = 14";
-      CI's runners have IPv6 without it).  Open:
-      try it on Windows (CI only builds it there); step 2, switching at
-      run time - a method of the management API (`set_gateway`) and on
-      the page a "route all traffic through" choice of peer, which gives
-      Windows the app's switch in the browser, later a tray app as a
-      client of it; macOS (`IP_BOUND_IF`, utun); the Android app taking
+      CI's runners have IPv6 without it).  Step 2, done: switching while
+      the edge runs, as the app's switch - `set_gateway` of the management
+      API (an address, `""` for none, a second value for the DNS server;
+      `gateway`, `route_all`, `dns` in `get_info`), on the page "All
+      traffic" with a stop button and a "route all" button at each peer,
+      and `tuntap.gateway`, `tuntap.route_all`, `tuntap.dns` live in a
+      reload.  One reconcile step in `route_all.c` makes the routes as the
+      three options are, at the device's opening and after each change;
+      another exit peer gets its routes before the old one's go.  Windows
+      knows the edge's sockets from the start and binds them once it is to
+      route all traffic, so any edge can; on Linux an edge started with
+      `tuntap.route_all = true`, which may now start without
+      `tuntap.gateway` and waits for an exit peer.  Giving one up leaves
+      `tuntap.route_all` as it is: as it was in the file, which a reload
+      would else not set again.  netns `route-all-switch` (quick): on,
+      off, by reload, the page's own button, refused outside the subnet
+      and by an edge started without it.  Found on the way: Windows left
+      its IPv4 routes behind (deleted with next hop 0).  Open:
+      try it on Windows (CI only builds it there); a tray app as a client
+      of the management API; macOS (`IP_BOUND_IF`, utun); the Android app taking
       `tuntap.route_all` and `tuntap.dns` from a configuration it imports
       (it ignores them now); IPv6 through an exit peer; blocking what
       goes around the tunnel (a kill switch, WFP on Windows); in v4 an
@@ -1065,8 +1079,8 @@ Open, in rough order:
   without `USE_SOURCE_DIR`.
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
   privileges (Landlock, seccomp).
-- All traffic through an exit peer: tried on Windows, then switching at
-  run time from the management page (Next).
+- All traffic through an exit peer: tried on Windows, the switching
+  from the management page too (Next).
 - Releases: the channels - decisions to take.
 - To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
   on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`

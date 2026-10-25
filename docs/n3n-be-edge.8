@@ -342,6 +342,10 @@ its end.  Linux and 64-bit Windows:
 .RE
 
 The exit peer needs \fBfilter.allow_routing\fR=true, IP forwarding and NAT.
+While the edge runs, \fBn3n-be-ctl set_gateway\fR \fIaddress\fR (\fB""\fR for
+none) and the buttons of its web page choose the exit peer: on Windows in
+any edge, on Linux in one started with \fBtuntap.route_all\fR=true, which
+may then start without \fBtuntap.gateway\fR.
 See docs/advanced/Routing.md.
 
 .SH SERVICE MANAGERS

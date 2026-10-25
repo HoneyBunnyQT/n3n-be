@@ -161,6 +161,39 @@ gets through only with a TUN device and `tuntap.address6`, to an exit
 peer that routes IPv6; otherwise it goes nowhere, and programs fall
 back to IPv4.
 
+### Switching while it runs
+
+As in the Android app, the exit peer can be chosen, changed and given up
+while the edge runs - from the edge's web page (see
+[the management API](../internals/ManagementAPI.md#the-web-page)), where
+each peer has a button "route all" and "All traffic" says through which
+peer it goes, with a button to stop; or with `n3n-be-ctl`:
+
+```sh
+n3n-be-ctl -k PASSWORD set_gateway 10.99.99.60            # through oscar
+n3n-be-ctl -k PASSWORD set_gateway 10.99.99.60 1.1.1.1    # and that DNS server
+n3n-be-ctl -k PASSWORD set_gateway ""                     # through none
+```
+
+`get_info` says how it is: `gateway`, `route_all` (1 while all traffic
+goes through it) and `dns`.  A reload that changes `tuntap.gateway`,
+`tuntap.route_all` or `tuntap.dns` in the configuration applies them the
+same way.  What was switched lasts until a restart, or until a reload
+changes those options in the file.  Moving to another exit peer keeps all
+traffic in the tunnel meanwhile: the new routes come before the old ones
+go.  Giving up the exit peer leaves `tuntap.route_all` as it is, waiting
+for the next one.
+
+- On 64-bit Windows this works in any edge: it knows its sockets from the
+  start, and binds them to the default route's interface once it is to
+  route all traffic.
+- On Linux the edge's sockets carry the firewall mark from their start,
+  and the edge keeps CAP_NET_ADMIN, only when it starts with
+  `tuntap.route_all = true`.  Such an edge may start without
+  `tuntap.gateway`: it routes nothing then, and waits for an exit peer.
+  Any other edge answers `set_gateway` with the reason it cannot, and its
+  page has no buttons for it.
+
 ### By hand
 
 Without `tuntap.route_all` - on other systems, say - the routes are set

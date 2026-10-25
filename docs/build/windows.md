@@ -78,7 +78,12 @@ dns = 1.1.1.1
 
 The edge sets the routes, the adapter's DNS server and metric while it
 runs, keeps its own traffic outside the tunnel, follows a default route
-that moves to another interface, and takes it all back at its end.  It
+that moves to another interface, and takes it all back at its end.
+
+Or, without those lines, from the edge's web page while it runs
+(`management.port = 5644`, then `http://localhost:5644/`): a button
+"route all" at each peer sends all traffic through that one, and "stop"
+ends it; `n3n-be-ctl -k PASSWORD set_gateway 10.99.99.60` does the same.  It
 has to run as administrator for that, as it has for the TAP adapter's
 address.  The other edge needs `filter.allow_routing = true`, IP
 forwarding and NAT; see [Routing](../advanced/Routing.md).
