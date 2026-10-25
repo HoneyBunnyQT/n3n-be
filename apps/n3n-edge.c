@@ -65,6 +65,7 @@
 #include "../src/peer_info.h"        // for peer_info, peer_info_t
 #include "../src/reload.h"           // for n3n_reload_setup, n3n_reload_request
 #include "../src/resolve.h"          // for resolve_check, resolve_forked
+#include "../src/route_all.h"        // for route_all_init, route_all_down
 
 #ifdef HAVE_LIBCRYPTO
 #include <openssl/crypto.h>          // for OpenSSL_version
@@ -1040,6 +1041,11 @@ int n3n_edge_main (int argc, char* argv[]) {
     if(conf.community.encrypt_key && !strcmp((char*)conf.community.community_name, conf.community.encrypt_key))
         traceEvent(TRACE_WARNING, "community and encryption key must differ, otherwise security will be compromised");
 
+    // all traffic through an exit peer: known before the first socket
+    if(route_all_init(&conf) < 0) {
+        exit(1);
+    }
+
     if((eee = edge_init(&conf, &rc)) == NULL) {
         traceEvent(TRACE_ERROR, "failed in edge_init");
         exit(1);
@@ -1294,6 +1300,7 @@ int n3n_edge_main (int argc, char* argv[]) {
             traceEvent(TRACE_ERROR, "unable to drop privileges [%u/%s]", errno, strerror(errno));
             exit(1);
         }
+        route_all_after_setuid();
     }
 
     if((getuid() == 0) || (getgid() == 0))
@@ -1320,6 +1327,7 @@ int n3n_edge_main (int argc, char* argv[]) {
 #endif
 
     /* Cleanup */
+    route_all_down(eee);
     tuntap_close(&eee->tap.device);
     edge_term(eee);
 

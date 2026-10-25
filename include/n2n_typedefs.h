@@ -478,7 +478,9 @@ struct n3n_conf_tap {
     struct n2n_ip_subnet tuntap_v4;
     char *address6;                   // tuntap.address6: NULL, "auto" or an address/len, see ipv6.h
     char *prefix6;                    // tuntap.prefix6: NULL for the default
-    struct n2n_ip_subnet gateway;     // TUN: the peer for addresses outside the subnet, 0: none
+    struct n2n_ip_subnet gateway;     // the exit peer: for addresses outside the subnet (TUN, route_all), 0: none
+    bool route_all;                   // all of the host's traffic through the gateway, see route_all.h
+    struct n2n_ip_subnet dns;         // with route_all: the DNS server, 0: none
     uint8_t tuntap_ip_mode;                          /**< Interface IP address allocated mode, eg. DHCP. */
     int type;                                        /**< N3N_TUNTAP_TAP or N3N_TUNTAP_TUN */
     uint32_t fd;                                     /**< a device opened already, 0: open one */

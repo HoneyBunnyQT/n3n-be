@@ -36,6 +36,7 @@
 #include "role_client.h"
 #include "tun.h"              // for tun_to_frame, tun_from_frame
 #include "role_tap.h"
+#include "route_all.h"        // for route_all_up
 #include "sn_selection.h"
 #include "sock.h"             // for sock_batch_begin, sock_batch_end
 #include "edge_threads.h"
@@ -1006,6 +1007,10 @@ int edge_tap_open (struct n3n_runtime_data *eee) {
 #endif
     }
     if((fd >= 0) && (edge_ipv6_setup(eee) < 0)) {
+        return -1;
+    }
+    // with tuntap.route_all: all traffic into the device, see route_all.h
+    if((fd >= 0) && (route_all_up(eee) < 0)) {
         return -1;
     }
     return fd;

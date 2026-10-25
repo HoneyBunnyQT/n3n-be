@@ -33,6 +33,7 @@ role and by concern.
 | `punch.c` | hole punching through the NATs between two edges |
 | `role_tap.c` | the TAP device, encoding and sending its frames, the handler of a PACKET (`edge_rx_packet()`) |
 | `tun.c` | TUN mode (`tuntap.type = tun`): the Ethernet header and ARP in place of the kernel |
+| `route_all.c` | all of the host's traffic through an exit peer (`tuntap.route_all`): the routes, the DNS server, the edge's own sockets kept outside, on Linux and Windows |
 | `embed.c` | `n3n_edge_run()`: an edge inside another program, such as the Android app (`include/n3n/embed.h`) |
 
 ## The supernode

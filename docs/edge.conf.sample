@@ -18,6 +18,13 @@ macaddr=DE:AD:BE:EF:99:99
 #
 address=1.2.3.4
 
+# All of this computer's traffic through another edge of the community, at
+# this address in it (Linux and 64-bit Windows), with a DNS server reached
+# through it; see docs/advanced/Routing.md:
+#       gateway=1.2.3.1
+#       route_all=true
+#       dns=1.1.1.1
+
 # For DHCP use:
 #       address_mode=dhcp
 # and also

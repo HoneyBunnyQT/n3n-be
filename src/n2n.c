@@ -37,6 +37,7 @@
 #include "n2n_define.h"
 #include "n2n_typedefs.h"
 #include "n2n_wire.h"        // for fill_n3nsock
+#include "route_all.h"       // for route_all_socket
 
 #ifdef _WIN32
 #include "win32/defs.h"
@@ -73,6 +74,12 @@ SOCKET n3n_socket (int domain, int type, int protocol) {
     SOCKET fd = socket(domain, type, protocol);
 
     if(((int)fd >= 0) && socket_hook && !socket_hook(socket_hook_ctx, (int)fd)) {
+        closesocket(fd);
+        errno = EACCES;
+        return -1;
+    }
+    // with tuntap.route_all, kept out of the routes into the tunnel
+    if(((int)fd >= 0) && !route_all_socket(fd, domain)) {
         closesocket(fd);
         errno = EACCES;
         return -1;

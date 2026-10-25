@@ -55,6 +55,7 @@
 #include "role_tap.h"
 #include "punch.h"                   // for punch_round, punch_note_rx, ...
 #include "resolve.h"                 // for resolve_create_thread, resolve_c...
+#include "route_all.h"               // for route_all_down
 #include "sn_selection.h"            // for sn_selection_criterion_common_da...
 #include "local_link.h"              // for local_link_to_relay, local_link_is_sock
 #include "sock.h"                    // for bind_entry_for_family, sendto_bind, ...
@@ -2104,6 +2105,9 @@ void edge_tap_reopen (struct n3n_runtime_data *eee) {
 #ifndef _WIN32
     mainloop_unregister_fd(eee->tap.device.fd);
 #endif
+    // the routes of tuntap.route_all go with the device, and come again
+    // with it in edge_tap_open()
+    route_all_down(eee);
     tuntap_close(&(eee->tap.device));
     edge_tap_open(eee);
 #ifndef _WIN32

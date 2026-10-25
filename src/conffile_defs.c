@@ -796,15 +796,49 @@ static struct n3n_conf_option section_tuntap[] = {
         .name = "gateway",
         .type = n3n_conf_ip_subnet,
         .offset = offsetof(n2n_edge_conf_t, tap.gateway),
-        .desc = "TUN: the peer that takes packets for other networks",
-        .help = "With tuntap.type = tun, packets for addresses outside the "
-                "community's subnet go to this peer (its address in the "
-                "community), to be routed on from there - an exit node, "
-                "e.g. for all traffic when the system routes it into the "
-                "device.  That peer needs filter.allow_routing = true, IP "
-                "forwarding and, for the internet, NAT.  Without it, such "
-                "packets are dropped.  A TAP device leaves this to the "
-                "routes of the system (see tools/n3n-route).",
+        .desc = "The peer that takes packets for other networks",
+        .help = "The address in the community of a peer that routes on "
+                "what is for other networks - an exit node.  That peer "
+                "needs filter.allow_routing = true, IP forwarding and, for "
+                "the internet, NAT.  With tuntap.type = tun, packets for "
+                "addresses outside the community's subnet go to it, "
+                "otherwise they are dropped; with tuntap.route_all, all of "
+                "the host's traffic goes through it.  A TAP device without "
+                "tuntap.route_all leaves this to the routes of the system "
+                "(see docs/advanced/Routing.md).",
+    },
+    {
+        .name = "route_all",
+        .type = n3n_conf_bool,
+        .offset = offsetof(n2n_edge_conf_t, tap.route_all),
+        .desc = "Route all of the host's traffic through tuntap.gateway",
+        .help = "As the Android app's \"Route all traffic through a "
+                "peer\": the edge routes everything into its device, to "
+                "the exit peer tuntap.gateway, sets tuntap.dns if given, "
+                "and keeps its own traffic - to the supernodes and to the "
+                "peers it reaches directly - out of the tunnel; at its end "
+                "it takes all that back.  Linux (a policy rule and a "
+                "routing table 0x6e33, the edge's sockets with that "
+                "firewall mark) and 64-bit Windows (routes 0.0.0.0/1 and "
+                "128.0.0.0/1, the edge's sockets bound to the interface of "
+                "the default route).  IPv6 goes into the device too, so "
+                "that it does not go around the exit peer; it gets through "
+                "only with tuntap.type = tun and tuntap.address6, to an "
+                "exit peer that routes IPv6.  Needs tuntap.address_mode "
+                "static or auto, see docs/advanced/Routing.md.",
+    },
+    {
+        .name = "dns",
+        .type = n3n_conf_ip_subnet,
+        .offset = offsetof(n2n_edge_conf_t, tap.dns),
+        .desc = "With tuntap.route_all: the DNS server to use",
+        .help = "An IPv4 address, reached through the exit peer - e.g. "
+                "1.1.1.1, or the exit peer's own address if it runs one.  "
+                "Set on the device for as long as the edge runs: on "
+                "Windows by netsh, on Linux by resolvectl "
+                "(systemd-resolved), for all names.  Unset, the DNS "
+                "servers stay as they are - and may be reached around "
+                "the tunnel.",
     },
     {
         .name = "address_mode",

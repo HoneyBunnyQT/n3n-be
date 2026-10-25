@@ -329,6 +329,21 @@ With \fBtcp://\fR on every supernode, the edge uses TCP only.  In
 \fBconnection.bind\fR, \fBtcp://\fR picks the address of the TCP connection,
 \fBudp://\fR those of the UDP sockets.
 
+.SH ALL TRAFFIC THROUGH AN EXIT PEER
+With \fBtuntap.route_all\fR=true, all of the host's traffic goes through the
+peer \fBtuntap.gateway\fR names (its address in the community), which takes
+it on to the internet, as with a VPN service; \fBtuntap.dns\fR sets the DNS
+server meanwhile.  The edge keeps its own traffic, to its supernodes and to
+the peers it reaches directly, outside the tunnel, and takes it all back at
+its end.  Linux and 64-bit Windows:
+
+.RS
+.B n3n-be-edge start mynetwork -O tuntap.gateway=10.0.0.1 -O tuntap.route_all=true -O tuntap.dns=1.1.1.1
+.RE
+
+The exit peer needs \fBfilter.allow_routing\fR=true, IP forwarding and NAT.
+See docs/advanced/Routing.md.
+
 .SH SERVICE MANAGERS
 Under systemd with \fBType=notify\fR (as the packaged units are), the edge
 tells systemd when it is up, its status for \fBsystemctl status\fR and that
