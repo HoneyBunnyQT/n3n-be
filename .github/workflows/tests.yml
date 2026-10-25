@@ -393,7 +393,7 @@ jobs:
           key: openwrt-${{ matrix.sdk_ver }}-${{ matrix.name }}
 
       - name: Get sdk
-        if: steps.cache-openwrt.outputs-cache-hit != 'true'
+        if: steps.cache-openwrt.outputs.cache-hit != 'true'
         run: |
           wget -q ${{ matrix.sdk }} -O openwrt-sdk.tar.xz
           tar xf openwrt-sdk.tar.xz
