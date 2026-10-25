@@ -9,7 +9,11 @@ PKG_RELEASE:=1
 
 # These are defaults for compiling without any environmental overrides
 # (eg, the github action calculates the correct overrides for each build)
-PKG_VERSION:=$(BUILD_VERSION)
+# as apk (OpenWrt 25.12 on) takes a version, which git describe's is not:
+# 3.4.8-137-g50f0f88 is 3.4.8.137~50f0f88, after 3.4.8 and before 3.4.9,
+# as OpenWrt's own packages from git have it; a tag's 3.4.8 stays
+PKG_VERSION:=$(shell echo '$(BUILD_VERSION)' | \
+	sed -E 's/^([0-9.]+)-([0-9]+)-g([0-9a-f]+)$$/\1.\2~\3/')
 PKG_SOURCE_URL?=$(BUILD_SOURCE_URL)
 PKG_SOURCE_VERSION?=$(BUILD_SOURCE_REF)
 PKG_MIRROR_HASH:=skip
