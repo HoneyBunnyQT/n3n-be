@@ -9,6 +9,7 @@ What is in here
 
 - n3n-be.exe, the program: "n3n-be.exe edge" starts it as an edge,
   "n3n-be.exe supernode" as a supernode
+- n3n-be-tray.exe, the edge in the notification area (see "The tray app")
 - edge.conf.sample and supernode.conf.sample, configurations to start from
 - n3n-be-ctl, the management client (a Python 3 script)
 - LICENSES: n3n-be is free software under the GNU Affero GPL, version 3;
@@ -50,6 +51,21 @@ n3n-be-edge@home.  "sc stop n3n-be-edge" and "sc start n3n-be-edge" (or
 the Services app) stop and start it - a stop takes back what the edge
 set up, as Ctrl-C does -, "sc control n3n-be-edge paramchange" reloads
 its configuration, and "n3n-be.exe edge service uninstall" removes it.
+
+The tray app
+------------
+
+n3n-be-tray.exe shows the edge's service in the notification area: a grey
+ring when it is stopped, pink while it connects, a pink disk once
+connected, with a white dot while all traffic goes through another edge.
+Its menu connects and disconnects, routes all traffic through one of the
+peers ("Route all traffic through"), opens the web page and the log, and
+starts the tray with Windows; without a service, "Install the service..."
+does the above (Windows asks for an administrator).  It runs as the user,
+not as administrator: "service install" lets the user who installs the
+service start and stop it, and leaves a management password for the tray
+in %USERPROFILE%\n3n-be\edge.tray - so install it as the user who uses
+the tray.  "n3n-be-tray.exe home" is the one of the session home.
 
 A supernode takes %USERPROFILE%\n3n-be\supernode.conf, started with
 "n3n-be.exe supernode".  The management interface listens on a TCP port

@@ -55,3 +55,10 @@ The handlers of each role are listed in a table by message type,
 sources in `src/` directly (`android/app/src/main/cpp/CMakeLists.txt`), so
 a file added to or removed from the edge may need a line there too; see
 [its README](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md).
+
+On Windows, `apps/n3n-service.c` runs the edge as a service, and
+`apps/n3n-be-tray.c` is the tray app (`n3n-be-tray.exe`), a client of its
+management API through `src/mgmt_client.c`: a JSON-RPC call to the port on
+localhost and a small JSON reader, nothing of the daemon's
+(`tools/tests-mgmt-client` tests it); see
+[Windows](../build/windows.md#the-tray-app).

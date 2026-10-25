@@ -120,6 +120,43 @@ has to run as administrator for that, as it has for the TAP adapter's
 address.  The other edge needs `filter.allow_routing = true`, IP
 forwarding and NAT; see [Routing](../advanced/Routing.md).
 
+### The tray app
+
+`n3n-be-tray.exe` shows the edge in the notification area and does the
+above from its menu, without command prompts: as the user who is logged
+in, not as an administrator, as a client of the service's management port.
+`n3n-be-tray.exe home` is the one of the session home.
+
+- Its icon: a grey ring when there is no service or it is stopped, a pink
+  ring while it starts and registers, a pink disk once it is connected,
+  with a white dot while all traffic goes through an exit peer, an amber
+  ring when the service runs but its management port does not answer.
+  The tooltip and the menu's first line say the same in words.
+- Connect and Disconnect start and stop the service.
+- "Route all traffic through" lists the peers; one of them sends all
+  traffic through it, "None: directly" ends that (`set_gateway`, with the
+  password below).  It takes `tuntap.dns` as it is.
+- "Open the web page", "Show the log" (in an administrator's Notepad, as
+  the log is for administrators only), and "Start with Windows" (the
+  tray, at login: `HKCU\...\Run`).
+- Without a service, "Install the service..." runs `service install` as
+  administrator (Windows asks), after asking for a configuration file if
+  there is none in `%USERPROFILE%\n3n-be` yet.
+
+So that it may do so, `service install` gives the configuration in
+`%ProgramData%\n3n-be` a management password of its own if it has none but
+the default one (which anyone on the computer knows), writes it with the
+port to `%USERPROFILE%\n3n-be\edge.tray` for the tray (`home.tray` for the
+session home), and lets the user who installs it start and stop the
+service.  So install it as the user who uses the tray: an administrator
+who is asked by Windows is the same user, an administrator's account
+typed in for another user is not.  `service uninstall` removes the
+`.tray` file.
+
+An edge in a console answers the tray too, on the default port and with
+the default password, or with what a `.tray` file of the session says;
+Connect and Disconnect are for the service only.
+
 ## Windows XP
 
 There is deliberate support for compiling the n3n project to work on Windows

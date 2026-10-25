@@ -542,7 +542,8 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       off, by reload, the page's own button, refused outside the subnet
       and by an edge started without it.  Found on the way: Windows left
       its IPv4 routes behind (deleted with next hop 0).  Open:
-      try it on Windows (CI only builds it there); the tray app (below);
+      try it on Windows (CI only builds it there); the tray app (below)
+      switches it;
       macOS (`IP_BOUND_IF`, utun); the Android app taking
       `tuntap.route_all` and `tuntap.dns` from a configuration it imports
       (it ignores them now); IPv6 through an exit peer; blocking what
@@ -599,13 +600,29 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       checkpoint going up, stopped and not started again, uninstalled -
       no TAP adapter there, so not RUNNING) and under Wine (install,
       start, log, the restart after a failure; Wine's sockets fail the
-      edge itself).  Open: step 2, the tray app in plain Win32 C - the
-      state in its icon, connect and disconnect, "route all traffic
-      through" a peer (`set_gateway`), the page, the log, importing a
-      configuration, start with Windows - as the logged-in user, with a
-      management password the service writes at its install for the
-      user who installed it to read; step 3, maybe an installer that
-      brings the TAP driver along (its licence first), or Wintun
+      edge itself).  Step 2, done: the tray app (`apps/n3n-be-tray.c`,
+      `n3n-be-tray.exe [session]`, in the release zip), plain Win32 C as
+      the logged-in user, a client of the management port through
+      `src/mgmt_client.c` (JSON-RPC over HTTP to localhost and a small
+      JSON reader; `tests-mgmt-client`).  The state in its icon (drawn at
+      the notification area's size: grey ring, pink ring, pink disk,
+      with a white dot while routing all traffic, amber ring when the
+      port does not answer) and tooltip, polled every 2s on a thread of
+      its own; connect and disconnect; "Route all traffic through" the
+      peers or none (`set_gateway`); the web page; the log (elevated
+      Notepad); "Install the service..." (elevated, a configuration
+      file asked for first if there is none); start with Windows
+      (HKCU Run).  For it, `service install` gives the configuration a
+      management password of its own when it has only the default one,
+      writes port and password to `%USERPROFILE%\n3n-be\SESSION.tray`
+      (removed at the uninstall), and lets the installing user start,
+      stop and reload the service (its DACL).  Tested: on CI's Windows
+      runners (`tests/windows/service.sh`: the tray file, the password,
+      the DACL, the client with and without the password), and under
+      Wine against Linux edges (icon, menu, peers, an error and a wrong
+      password in a balloon, start with Windows, quit).  Open: trying it
+      on Windows itself; DNS from the tray; step 3, maybe an installer
+      that brings the TAP driver along (its licence first), or Wintun
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`
