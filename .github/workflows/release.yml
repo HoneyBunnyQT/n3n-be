@@ -3,7 +3,8 @@ name: Release
 
 # The packages of a release, built from its tag - .deb for four
 # architectures, .rpm, the Arch package, the signed Android app, a zip of
-# the Windows programs and a tarball of the macOS ones - and,
+# the Windows programs, a tarball of the macOS ones and the OpenWrt
+# packages (openwrt.yml) - and,
 # if asked, a draft GitHub Release of the tag with them, their SHA256SUMS
 # and attestations of where they were built.  See
 # docs/develop/Releasing.md.
@@ -368,6 +369,12 @@ jobs:
           path: dist/*.tar.gz
           if-no-files-found: ignore
 
+  openwrt:
+    name: OpenWrt
+    uses: ./.github/workflows/openwrt.yml
+    with:
+      ref: ${{ inputs.tag }}
+
   release:
     name: Draft GitHub Release
     if: ${{ inputs.draft }}
@@ -378,6 +385,7 @@ jobs:
       - apk
       - windows
       - macos
+      - openwrt
     runs-on: ubuntu-latest
     permissions:
       contents: write

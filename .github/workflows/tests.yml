@@ -242,7 +242,9 @@ jobs:
 
       # the runner's user is an administrator
       - name: The edge as a Windows service
-        run: tests/windows/service.sh apps/n3n-be.exe tools/tests-mgmt-client.exe
+        run: >-
+          tests/windows/service.sh apps/n3n-be.exe
+          tools/tests-mgmt-client.exe
         shell: bash
 
       - if: ${{ failure() }}
@@ -355,117 +357,10 @@ jobs:
           name: packages-rpm
           path: rpmbuild/RPMS/x86_64/*.rpm
 
-  package_ipk:
+  package_openwrt:
     name: Package for OpenWrt
-    runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
-
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - name: arm32
-            sdk_ver: 22.03.3
-            sdk: https://mirror-03.infra.openwrt.org/releases/22.03.3/targets/armvirt/32/openwrt-sdk-22.03.3-armvirt-32_gcc-11.2.0_musl_eabi.Linux-x86_64.tar.xz
-          - name: arm64
-            sdk_ver: 22.03.3
-            sdk: https://downloads.openwrt.org/releases/22.03.3/targets/armvirt/64/openwrt-sdk-22.03.3-armvirt-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-          - name: mips_24kc
-            sdk_ver: 22.03.3
-            sdk: https://downloads.openwrt.org/releases/22.03.3/targets/lantiq/xrx200/openwrt-sdk-22.03.3-lantiq-xrx200_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-          - name: i386_pentium4
-            sdk_ver: 22.03.3
-            sdk: https://downloads.openwrt.org/releases/22.03.3/targets/x86/generic/openwrt-sdk-22.03.3-x86-generic_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-          - name: x86_64
-            sdk_ver: 22.03.3
-            sdk: https://downloads.openwrt.org/releases/22.03.3/targets/x86/64/openwrt-sdk-22.03.3-x86-64_gcc-11.2.0_musl.Linux-x86_64.tar.xz
-
-    defaults:
-      run:
-        working-directory: openwrt
-
-    steps:
-      - name: Cache entire openwrt dir
-        id: cache-openwrt
-        uses: actions/cache@v6
-        with:
-          path: openwrt
-          key: openwrt-${{ matrix.sdk_ver }}-${{ matrix.name }}
-
-      - name: Get sdk
-        if: steps.cache-openwrt.outputs.cache-hit != 'true'
-        run: |
-          wget -q ${{ matrix.sdk }} -O openwrt-sdk.tar.xz
-          tar xf openwrt-sdk.tar.xz
-          mv openwrt-sdk-* openwrt
-        working-directory: ./
-
-      - name: Checkout
-        uses: actions/checkout@v7
-        with:
-          path: n3n
-          fetch-depth: 0
-
-      - name: Fix Checkout
-        run: |
-          git fetch --force --tags
-        working-directory: n3n
-
-      - name: Set environment for OpenWRT
-        run: |
-          echo "BUILD_VERSION=$(scripts/version.sh)" >> "$GITHUB_ENV"
-          echo "BUILD_SOURCE_URL=https://github.com/${{github.repository}}" >> "$GITHUB_ENV"
-          echo "BUILD_SOURCE_REF=$GITHUB_REF" >> "$GITHUB_ENV"
-          cat "$GITHUB_ENV"
-        working-directory: n3n
-
-      - name: Copy package definition into openwrt
-        run: |
-          # the openwrt dir comes from the cache, with the definition of an
-          # earlier run in it: cp -r into it would put this one beside it
-          rm -rf openwrt/package/n3n openwrt/package/n3n-be
-          cp -r n3n/packages/openwrt openwrt/package/n3n-be
-        working-directory: ./
-
-      - name: Configure OpenWrt
-        run: |
-          make defconfig
-
-      - name: Build openwrt packages
-        run: |
-          echo "Build for $BUILD_VERSION"
-          export
-          make package/n3n-be/clean V=s
-          # packages of earlier runs, from the cache of the openwrt dir
-          rm -f bin/packages/*/base/n3n-*.ipk
-          # the checkout, for compile too: else compile wants the source
-          # downloaded, which only works for the default branch
-          make package/n3n-be/prepare USE_SOURCE_DIR=$GITHUB_WORKSPACE/n3n V=s
-          make package/n3n-be/compile USE_SOURCE_DIR=$GITHUB_WORKSPACE/n3n V=s
-
-# FIXME: add a way to run the test suite!
-#      - name: Run embedded tests
-#        run: |
-#          make test
-
-      - name: Save config used
-        if: always()
-        run: |
-          cp openwrt/.config config.${{ matrix.name }}
-        working-directory: ./
-
-      - name: Upload config file used for build
-        if: always()
-        uses: actions/upload-artifact@v6
-        with:
-          name: openwrt-config-${{ matrix.name }}
-          path: config.*
-
-      - name: Upload ipk
-        uses: actions/upload-artifact@v6
-        with:
-          name: packages-ipk-${{ matrix.name }}
-          path: openwrt/bin/packages/*/base/*.ipk
+    uses: ./.github/workflows/openwrt.yml
 
   binaries_windows:
     name: Binaries for Windows (x86_64-pc-mingw64)

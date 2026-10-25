@@ -1,0 +1,184 @@
+---
+name: OpenWrt packages
+
+# n3n-be-edge and n3n-be-supernode for OpenWrt, built with the SDK of a
+# release for each package architecture below: .apk for 25.12 (whose
+# package manager is apk), .ipk for 24.10 (opkg) while routers still run
+# it.  The programs are linked statically, so the release only decides
+# the package format; the architecture has to match the router's exactly
+# ("apk --print-arch", "opkg print-architecture").  Called by tests.yml
+# for each push and by release.yml for a tag; docs/build/openwrt.md.
+
+# yamllint disable-line rule:truthy
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The tag to build, empty for the commit of the run"
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: OpenWrt ${{ matrix.release }} ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # per package architecture, a target that has it.  A new point
+        # release needs no new build (static programs), only a new
+        # series does
+        include:
+          # virtual machines (armsr: ARM SystemReady) and PCs
+          - release: 25.12.6
+            target: x86/64
+            arch: x86_64
+          - release: 25.12.6
+            target: armsr/armv8
+            arch: aarch64_generic
+          - release: 25.12.6
+            target: armsr/armv7
+            arch: arm_cortex-a15_neon-vfpv4
+          # routers: MediaTek Filogic (most of the Wi-Fi 6/7 ones)
+          - release: 25.12.6
+            target: mediatek/filogic
+            arch: aarch64_cortex-a53
+          # MT7621 (many Wi-Fi 5 and 6 ones)
+          - release: 25.12.6
+            target: ramips/mt7621
+            arch: mipsel_24kc
+          # Qualcomm Atheros (ath79)
+          - release: 25.12.6
+            target: ath79/generic
+            arch: mips_24kc
+          # armv7: IPQ40xx (FRITZ!Box 4040, GL.iNet, many mesh units),
+          # Marvell (Linksys WRT, Turris Omnia), Broadcom Northstar
+          - release: 25.12.6
+            target: ipq40xx/generic
+            arch: arm_cortex-a7_neon-vfpv4
+          - release: 25.12.6
+            target: mvebu/cortexa9
+            arch: arm_cortex-a9_vfpv3-d16
+          - release: 25.12.6
+            target: bcm53xx/generic
+            arch: arm_cortex-a9
+          # 24.10, out of support since 2026-09: the most common ones
+          - release: 24.10.7
+            target: mediatek/filogic
+            arch: aarch64_cortex-a53
+          - release: 24.10.7
+            target: ramips/mt7621
+            arch: mipsel_24kc
+          - release: 24.10.7
+            target: ipq40xx/generic
+            arch: arm_cortex-a7_neon-vfpv4
+
+    defaults:
+      run:
+        working-directory: openwrt
+
+    steps:
+      - name: Cache the SDK
+        id: cache-openwrt
+        uses: actions/cache@v6
+        with:
+          path: openwrt
+          key: openwrt-sdk-${{ matrix.release }}-${{ matrix.arch }}
+
+      - name: Get the SDK
+        if: steps.cache-openwrt.outputs.cache-hit != 'true'
+        working-directory: ./
+        env:
+          RELEASE: ${{ matrix.release }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          base="https://downloads.openwrt.org/releases/$RELEASE/targets/$TARGET"
+          # its name has the compiler's version in it: from the list of
+          # the target's files, which also has its checksum
+          wget -q "$base/sha256sums"
+          sdk=$(grep -o 'openwrt-sdk-[^ ]*\.tar\.[a-z]*$' sha256sums)
+          echo "$sdk"
+          wget -q "$base/$sdk"
+          grep " \*$sdk\$" sha256sums | sha256sum -c
+          tar -xf "$sdk"
+          rm "$sdk" sha256sums
+          mv openwrt-sdk-*/ openwrt
+
+      - uses: actions/checkout@v7
+        with:
+          path: n3n
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+        working-directory: n3n
+
+      - name: Set environment for OpenWrt
+        run: |
+          echo "BUILD_VERSION=$(scripts/version.sh)" >> "$GITHUB_ENV"
+          echo "BUILD_SOURCE_URL=https://github.com/${{github.repository}}" \
+            >> "$GITHUB_ENV"
+          echo "BUILD_SOURCE_REF=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          cat "$GITHUB_ENV"
+        working-directory: n3n
+
+      - name: Copy package definition into openwrt
+        run: |
+          # the openwrt dir comes from the cache, with the definition of an
+          # earlier run in it: cp -r into it would put this one beside it
+          rm -rf openwrt/package/n3n openwrt/package/n3n-be
+          cp -r n3n/packages/openwrt openwrt/package/n3n-be
+        working-directory: ./
+
+      - name: Configure OpenWrt
+        run: |
+          make defconfig
+
+      - name: Build the packages
+        run: |
+          echo "Build for $BUILD_VERSION"
+          make package/n3n-be/clean V=s
+          # packages of earlier runs, from the cache of the openwrt dir
+          find bin -name 'n3n-be-*' -delete 2>/dev/null || true
+          # the checkout, for compile too: else compile wants the source
+          # downloaded, which only works for the default branch
+          make package/n3n-be/prepare USE_SOURCE_DIR="$GITHUB_WORKSPACE/n3n" \
+            V=s
+          make package/n3n-be/compile USE_SOURCE_DIR="$GITHUB_WORKSPACE/n3n" \
+            V=s
+
+      - name: Collect the packages
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          mkdir -p ../dist
+          # where the SDK puts them says their architecture: a wrong one
+          # in the matrix finds nothing here
+          found=$(find "bin/packages/$ARCH" \
+            -name 'n3n-be-*.apk' -o -name 'n3n-be-*.ipk')
+          if [ -z "$found" ]; then
+            echo "::error::no packages in bin/packages/$ARCH"
+            find bin -name 'n3n-be-*'
+            exit 1
+          fi
+          for f in $found; do
+            case "$f" in
+              # NAME-VERSION.apk, without the architecture: added, as
+              # the release has those of all of them side by side
+              *.apk) cp "$f" "../dist/$(basename "$f" .apk)_$ARCH.apk" ;;
+              *) cp "$f" ../dist/ ;;
+            esac
+          done
+          ls -l ../dist
+
+      - name: Upload the packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: openwrt-${{ matrix.release }}-${{ matrix.arch }}
+          path: dist/*
