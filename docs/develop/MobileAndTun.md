@@ -110,10 +110,10 @@ This is what hin2n, the Android app of n2n, does as well.
   the UDP probe of the TCP fallback, multicast) has to be passed to
   `VpnService.protect()`, or its packets go back into the VPN.  One hook
   in `open_socket()` and the few other places that make sockets does it.
-- **No daemon**: no fork, no dropping of privileges, no `/run/n3n`: the
+- **No daemon**: no fork, no dropping of privileges, no `/run/n3n-be`: the
   session directory and the management socket go to the app's private
   directory.  The app reads the state with the management API over that
-  socket (`get_info`, `get_edges`, `get_packetstats`), as `n3nctl` does.
+  socket (`get_info`, `get_edges`, `get_packetstats`), as `n3n-be-ctl` does.
 - **Network changes**: when the phone moves from WiFi to mobile data, the
   edge has to register again; the sockets, bound to `[::]` and protected,
   stay.  The app gets told by Android (`ConnectivityManager`) and tells the

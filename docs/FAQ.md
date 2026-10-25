@@ -19,10 +19,19 @@ and older use other protocols.
 
 ### Can n3n-be replace an installed n3n?
 
-Yes, it is a drop-in replacement: the same program names, the same
-configuration files in `/etc/n3n`, the same systemd units.  Its packages
-replace an installed `n3n` package, and the edges and supernodes go on
-with their configuration as it is.  `n3n-edge -V` tells which one runs.
+It goes next to it: n3n-be has names of its own - the programs
+`n3n-be-edge`, `n3n-be-supernode` and `n3n-be-ctl`, its configuration in
+`/etc/n3n-be`, the systemd units `n3n-be-edge@NAME` and so on - so both
+can be installed at once.  On the wire they speak the same protocol
+(v3): n3n-be's edges and supernodes work with n3n's.
+
+To move an edge or a supernode from n3n to n3n-be, copy its configuration
+from `/etc/n3n` to `/etc/n3n-be`, check it against
+[the options](configure/Options.md) (n3n's newer versions have a
+configuration of their own), and enable n3n-be's unit instead of n3n's.
+`n3n-be-edge -V` tells which one runs.  n3n-be up to 3.4.8 had n3n's
+names; see [Installing](quick_start/Install.md#upgrading-from-n3n-be-348-or-older)
+for an upgrade from it.
 
 ### Where are the binaries for Windows?
 
@@ -40,14 +49,14 @@ its `usr/local/sbin/`.
 
 ### How do I know whether two edges reach each other directly?
 
-`n3nctl edges` on an edge lists its peers: `p2p` for those it reaches
+`n3n-be-ctl edges` on an edge lists its peers: `p2p` for those it reaches
 directly, `pSp` for those through the supernode.
 
 ```
-$ sudo n3nctl -s mynetwork edges
+$ sudo n3n-be-ctl -s mynetwork edges
 ```
 
-Without Python for `n3nctl`, `curl --unix-socket` on the management
+Without Python for `n3n-be-ctl`, `curl --unix-socket` on the management
 socket does the same, or a `management.port` and a web browser on the
 same host.  See the [Management API](internals/ManagementAPI.md).
 
@@ -63,7 +72,7 @@ directly over UDP, it stays on UDP (the supernodes are down then, rather
 than blocked).  Every three `connection.register_interval`s (a minute by
 default) it pings its supernode over UDP, and goes back to UDP as soon
 as that gets an answer - after leaving the airport, say.
-`n3nctl get_info` shows the transport in use (`transport`), and the log
+`n3n-be-ctl get_info` shows the transport in use (`transport`), and the log
 says when it changes.
 
 To use TCP from the start, set `connection.connect_tcp = true`, or give
@@ -80,7 +89,7 @@ supernode = sn.example.org:7654
 supernode = tcp://sn.example.org:443
 ```
 
-`n3nctl get_supernodes` shows each supernode's `transports` and
+`n3n-be-ctl get_supernodes` shows each supernode's `transports` and
 `tcp_sockaddr`.  The fallback does not work with several packet threads
 (`daemon.threads`), which need UDP.
 
@@ -152,7 +161,7 @@ supernode never needs.  See [Communities](configure/Communities.md) and
 ### Which edges are connected to my supernode?
 
 ```
-$ sudo n3nctl -s supernode edges
+$ sudo n3n-be-ctl -s supernode edges
 ```
 
 lists them, with their addresses, MAC address and description.  With a

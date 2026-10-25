@@ -26,7 +26,7 @@ no configuration to start with: it listens on port 7654, UDP and TCP,
 for IPv6 and IPv4, and serves any community.
 
 ```sh
-sudo systemctl enable --now n3n-supernode
+sudo systemctl enable --now n3n-be-supernode
 ```
 
 Open port 7654 in the host's firewall, for UDP (and TCP, for networks
@@ -40,7 +40,7 @@ see [Federation](../configure/Federation.md); for now it does no harm.
 ## 2. The edges
 
 On each computer, write the configuration of the network into
-`/etc/n3n/mynetwork.conf`:
+`/etc/n3n-be/mynetwork.conf`:
 
 ```ini
 [community]
@@ -57,11 +57,11 @@ supernode = sn.example.org:7654
 Then start the edge, which also starts it at every boot:
 
 ```sh
-sudo systemctl enable --now n3n-edge@mynetwork
+sudo systemctl enable --now n3n-be-edge@mynetwork
 ```
 
 The file name, `mynetwork`, is the edge's session name: the name of its
-service (`n3n-edge@mynetwork`) and of its virtual network device
+service (`n3n-be-edge@mynetwork`) and of its virtual network device
 (`mynetwork0`).
 
 Each edge gets an address in the community from the supernode, from a
@@ -79,7 +79,7 @@ address_mode = static
 Ask the edge whether it has reached the supernode:
 
 ```
-$ sudo n3nctl -s mynetwork supernodes
+$ sudo n3n-be-ctl -s mynetwork supernodes
 version             c macaddr           sockaddr          up la
 3.4.8               1 66:8F:C9:85:C7:71 203.0.113.1:7654  9  6s
 ```
@@ -88,16 +88,16 @@ and which other edges it knows, `p2p` for those it reaches directly,
 `pSp` for those through the supernode:
 
 ```
-$ sudo n3nctl -s mynetwork edges
+$ sudo n3n-be-ctl -s mynetwork edges
 mod ip4addr         macaddr           sockaddr            desc   la
 p2p 10.221.157.2/24 AA:D1:D5:E4:65:AF 198.51.100.7:52179  laptop 9s
 ```
 
-Its own address is in `sudo n3nctl -s mynetwork get_info` (`ip4addr`);
+Its own address is in `sudo n3n-be-ctl -s mynetwork get_info` (`ip4addr`);
 `ping` the address of the other edge to see the traffic go through.
 
 If an edge does not get there, its log says why:
-`journalctl -u n3n-edge@mynetwork`.  The [FAQ](../FAQ.md) has the
+`journalctl -u n3n-be-edge@mynetwork`.  The [FAQ](../FAQ.md) has the
 common cases.
 
 ## Where to go from here

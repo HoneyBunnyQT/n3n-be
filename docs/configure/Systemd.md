@@ -10,13 +10,13 @@ and is not built differently for it.
 
 ## systemd
 
-The packages bring units for systemd: `n3n-edge.service` (session "edge"),
-`n3n-edge@NAME.service` (session NAME, `/etc/n3n/NAME.conf`) and
-`n3n-supernode.service`.
+The packages bring units for systemd: `n3n-be-edge.service` (session "edge"),
+`n3n-be-edge@NAME.service` (session NAME, `/etc/n3n-be/NAME.conf`) and
+`n3n-be-supernode.service`.
 
 ```
-sudo systemctl enable --now n3n-edge@home
-systemctl status n3n-edge@home
+sudo systemctl enable --now n3n-be-edge@home
+systemctl status n3n-be-edge@home
 ```
 
 The units are of `Type=notify`: n3n tells systemd
@@ -45,7 +45,7 @@ false`): a daemon that forks is not the process systemd watches.
 
 Without `NOTIFY_SOCKET` in its environment, n3n does none of the above, and
 behaves as it always did: OpenRC, runit, s6, a container's entry point or a
-terminal start it in the foreground (`n3n-edge start NAME`), or in the
+terminal start it in the foreground (`n3n-be-edge start NAME`), or in the
 background with `daemon.background = true`.
 
 With a unit of your own of `Type=simple`, systemd does not set
@@ -53,6 +53,6 @@ With a unit of your own of `Type=simple`, systemd does not set
 
 ## Watching n3n otherwise
 
-The management interface tells the same and more: `n3nctl -s NAME get_info`,
-`n3nctl -s NAME supernodes`, and the web page (see
+The management interface tells the same and more: `n3n-be-ctl -s NAME get_info`,
+`n3n-be-ctl -s NAME supernodes`, and the web page (see
 [Management API](../internals/ManagementAPI.md)).

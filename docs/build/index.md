@@ -25,7 +25,7 @@ make test               # optional: the unit and integration tests
 sudo make install       # optional
 ```
 
-`make install` puts the programs in `/usr/local/sbin`, `n3nctl` in
+`make install` puts the programs in `/usr/local/sbin`, `n3n-be-ctl` in
 `/usr/local/bin`, and the man pages and documentation next to them;
 `make dpkg` makes a Debian package instead, see [Linux](linux.md).
 

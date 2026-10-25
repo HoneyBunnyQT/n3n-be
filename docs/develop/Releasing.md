@@ -21,7 +21,7 @@ From the tag, the workflow `Release` builds:
 | `n3n-be-3.4.8-1-x86_64.pkg.tar.zst` | Arch Linux | in an `archlinux:base-devel` container, from `packages/arch/PKGBUILD` |
 | `n3n-be-android-3.4.8.apk` | Android 7.0 and newer | signed with the release key, see below |
 | `n3n-be-3.4.9-macos-universal.tar.gz` | macOS 11 and newer, Apple Silicon and Intel | on `macos-latest`, one binary for both, signed ad hoc; with the README of `packages/macos/`.  Only for tags with the edge on utun (after 3.4.8): before, the edge needed a kernel extension, and the job leaves the tarball out |
-| `n3n-be-3.4.8-windows-x86_64.zip` | Windows 10 and newer, 64 bit | on `windows-latest` as tests.yml builds and tests it, but linked statically (no `libwinpthread-1.dll` of the toolchain to bring along); `n3n.exe` alone, without the copies `n3n-edge.exe` and `n3n-supernode.exe` (`n3n.exe edge`, `n3n.exe supernode`), the sample configurations, `n3nctl`, the licences and a README (`packages/windows/README.txt`, from the workflow's commit, so that older tags get it too) |
+| `n3n-be-3.4.8-windows-x86_64.zip` | Windows 10 and newer, 64 bit | on `windows-latest` as tests.yml builds and tests it, but linked statically (no `libwinpthread-1.dll` of the toolchain to bring along); `n3n-be.exe` alone, without the copies `n3n-be-edge.exe` and `n3n-be-supernode.exe` (`n3n-be.exe edge`, `n3n-be.exe supernode`), the sample configurations, `n3n-be-ctl`, the licences and a README (`packages/windows/README.txt`, from the workflow's commit); for tags with the names of n3n-be's own, after 3.4.8 |
 | `SHA256SUMS` | checking the downloads | |
 
 With "draft" ticked, it then makes a draft GitHub Release of the tag with
@@ -31,12 +31,18 @@ built from (`gh attestation verify FILE --repo HoneyBunnyQT/n3n-be`).  A
 draft is seen only by those who can write to the repository; it becomes
 public when someone publishes it, by hand, after a look at it.
 
-The packages are named `n3n-be`.  They install the same programs as
-upstream's `n3n` packages (`n3n`, `n3n-edge`, `n3n-supernode`, `n3nctl`,
-the systemd units) and so provide, conflict with and replace `n3n`: one
-goes in place of the other.  The user `n3n`, which the supernode's unit
-runs as and the edge drops its privileges to, comes from a sysusers.d file
-(and from the postinst of the .deb).
+The packages are named `n3n-be`, and what they install has names of its
+own: the programs `n3n-be`, `n3n-be-edge`, `n3n-be-supernode` and
+`n3n-be-ctl`, the configuration in `/etc/n3n-be`, the session directories
+in `/run/n3n-be`, the systemd units `n3n-be-edge@.service`,
+`n3n-be-edge.service` and `n3n-be-supernode.service`, the man pages, and
+the user `n3n-be`, which the supernode's unit runs as and the edge drops
+its privileges to (from a sysusers.d file, and the postinst of the .deb).
+So they install next to upstream's `n3n` packages, whose programs read a
+configuration of another format.  Up to 3.4.8 they had n3n's names, and
+provided, conflicted with and replaced `n3n`; an upgrade from one of those
+carries its configuration and services over (`/usr/lib/n3n-be/migrate`,
+see [Installing](../quick_start/Install.md)).
 
 The .deb of armhf and i386 are cross built, where dpkg-shlibdeps finds no
 libraries to look at: they do not say which version of libc6 they need.
@@ -47,7 +53,7 @@ which the README says how to take off.  The edge runs on macOS's own utun
 device (`tuntap.type = tun`), which needs no driver.
 
 The Windows programs need the TAP driver of OpenVPN (tap-windows6), which
-the zip does not bring, as before; the job fails if `n3n.exe` needs a DLL
+the zip does not bring, as before; the job fails if `n3n-be.exe` needs a DLL
 that is not Windows' own.  They are not signed: SmartScreen warns on the
 first start.
 

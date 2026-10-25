@@ -56,7 +56,7 @@ Without it, the device is called after the session, with a `0`:
 `edge0` for the session `edge`, `mynetwork0` for `mynetwork.conf`.  On
 Windows, where the TAP adapters come with fixed names, `tuntap.name`
 picks one of them, by name, if there is more than one;
-`n3n-edge help adaptors` lists them.
+`n3n-be-edge help adaptors` lists them.
 
 ## IPv4 address
 
@@ -166,7 +166,7 @@ that such services find each other over n3n-be.
 **Multicast** does not pass by default.  `filter.allow_multicast = true`
 lets it through, on each edge that is to send or to receive it: each
 drops it both ways otherwise, and counts it (`multicast_drop` in
-`n3nctl get_packetstats`).  With the option, n3n-be carries multicast as
+`n3n-be-ctl get_packetstats`).  With the option, n3n-be carries multicast as
 a switch does: a frame to a multicast MAC goes to every edge of the
 community.
 

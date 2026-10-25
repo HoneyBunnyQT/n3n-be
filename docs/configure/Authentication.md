@@ -38,14 +38,14 @@ An edge that ends without unregistering - killed with `kill -9`, or its
 host crashed - blocks its MAC and IP address until the supernode forgets
 it, after a minute or two. An edge started again with the same addresses
 gets the error above until then. End edges with Ctrl-C, `kill` (SIGTERM),
-or `n3nctl -k PASSWORD stop`, and they unregister.
+or `n3n-be-ctl -k PASSWORD stop`, and they unregister.
 `supernode.spoofing_protection = false` turns the check off, for the
 communities without users.
 
 ## Users and passwords
 
 Each user has a password, from which, together with the user name,
-`n3n-edge tools keygen` makes a public key (Curve25519).  The supernode
+`n3n-be-edge tools keygen` makes a public key (Curve25519).  The supernode
 is given the public keys, the edges their user names and passwords - the
 passwords never leave the edges.
 
@@ -59,9 +59,9 @@ of the community could take them over.)
 For each user, with their password:
 
 ```
-$ n3n-edge tools keygen honeybunny cutie
+$ n3n-be-edge tools keygen honeybunny cutie
 * honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa
-$ n3n-edge tools keygen evilrabbit carrotthief
+$ n3n-be-edge tools keygen evilrabbit carrotthief
 * evilrabbit JMhQ8icD-cRekgmAl0ylVJFOMaDIPXuEjIm3ajasHIe
 ```
 
@@ -72,7 +72,7 @@ and for the federation, with its name (see
 keep it secret):
 
 ```
-$ n3n-edge tools keygen myFederation
+$ n3n-be-edge tools keygen myFederation
 auth.pubkey=XhnQB26arLouAf3VXjGoAPTjTRIgEJ01Yi30Fhuqc7K
 ```
 
@@ -104,9 +104,9 @@ name and password only, not on the community, so a user's line can be
 moved to another community as it is.
 
 To change a password, replace the user's line with a new one; to lock a
-user out (evilrabbit, or a stolen laptop), delete it.  Then `n3nctl reload`
+user out (evilrabbit, or a stolen laptop), delete it.  Then `n3n-be-ctl reload`
 (or SIGHUP) makes the supernode read its configuration and community file
-again; `n3nctl reload_communities` reads only the file.  A reload also
+again; `n3n-be-ctl reload_communities` reads only the file.  A reload also
 changes the community's header keys, which every edge then gets anew from
 its supernode - but a locked out one gets none: it cannot reach the other
 edges directly any more either (see below for several supernodes).

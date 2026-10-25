@@ -40,7 +40,7 @@ notable acceleration from optionally compiling with openSSL support.
 The`-k <key>` command line parameter supplies the key. As even non-privileged
 users might get to see the command line parameters (try `ps -Af | grep edge`),
 the key can also be supplied through the `N3N_KEY` environment variable: `sudo
-N3N_KEY=mysecretpass n3n-edge start -c mynetwork -a 192.168.100.1 -l
+N3N_KEY=mysecretpass n3n-be-edge start -c mynetwork -a 192.168.100.1 -l
 sn.example.org:7654`, or better in the config file.
 
 Providing a key (with a community.key option) without specifying any cipher
@@ -67,7 +67,7 @@ block to the one before and stays plain C.
 On Intel CPUs, Twofish usually is the slowest of the ciphers present. However,
 on Raspberry Pi 3B+, Twofish was observed to be faster than AES-CTS. Your
 mileage may vary. Cipher speed's can be compared running the
-`n3n-edge test benchmark` tool.
+`n3n-be-edge test benchmark` tool.
 
 ### AES
 
@@ -111,7 +111,7 @@ SPECK is recommended by the NSA for offical use in case AES implementation is no
 
 On modern Intel CPUs, SPECK performs even faster than openSSL's ChaCha20 as it takes advantage of SSSE3, AVX2, or AVX512 if available - chosen when the edge starts, by what the CPU has, so a build needs no `-march` for it (`src/crypto/speck.c`; every variant gives the same bytes, `tests-speck` checks them against plain C). On Raspberry's ARM CPU, it is second place behind ChaCha20 and before Twofish.  A NEON version is there for ARM, but only taken with `-DSPECK_ARM_NEON`: on many ARM cores the plain C version is as fast, see [Build time Configuration](../build/BuildConfig.md).
 
-`n3n-edge test benchmark` shows how fast each cipher is in the build at
+`n3n-be-edge test benchmark` shows how fast each cipher is in the build at
 hand.
 
 ### Random Numbers

@@ -14,15 +14,15 @@ interface, whatever runs in it: a supernode with its own edge
 
 A Quick start example query:
 ```
-curl --unix-socket /run/n3n/edge/mgmt http://x/v1 -d '{"jsonrpc": "2.0", "method": "get_edges", "id": 1}' |jq
+curl --unix-socket /run/n3n-be/edge/mgmt http://x/v1 -d '{"jsonrpc": "2.0", "method": "get_edges", "id": 1}' |jq
 ```
 or
 ```
-n3nctl edges
+n3n-be-ctl edges
 ```
 
-The supernode listens the same way, at `/run/n3n/supernode/mgmt` for the
-default session name: `n3nctl -s supernode edges`.  A TCP port is opened as
+The supernode listens the same way, at `/run/n3n-be/supernode/mgmt` for the
+default session name: `n3n-be-ctl -s supernode edges`.  A TCP port is opened as
 well with the `management.port` option.
 
 In addition to the main JsonRPC interface, there are a small number of simple
@@ -31,13 +31,13 @@ human UI or interoperation with other systems.
 
 Example fetching the list of HTTP pages:
 ```
-curl --unix-socket /run/n3n/edge/mgmt http://x/help
+curl --unix-socket /run/n3n-be/edge/mgmt http://x/help
 ```
 
 ## The web page
 
 `http://localhost:5644/` (with `management.port = 5644`), or
-`curl --unix-socket /run/n3n/edge/mgmt http://x/`, is one page for whatever
+`curl --unix-socket /run/n3n-be/edge/mgmt http://x/`, is one page for whatever
 runs in the process: a section "Edge" and a section "Supernode", each where
 it runs, and on top what belongs to the whole process - the log level, with
 buttons for more and less, and a button to stop n3n.
@@ -86,7 +86,7 @@ by name as well:
 - `/v1/supernode`: the supernode.
 
 Asking for a role that does not run in the process gets an error.
-`n3nctl -r edge get_info` asks the edge.
+`n3n-be-ctl -r edge get_info` asks the edge.
 
 ## Listening sockets
 
@@ -96,7 +96,7 @@ default (simply "edge" for the edge and "supernode" for the supernode)
 This session name is used to calculate the path to use for the Unix Domain
 socket:
 
-- `/run/n3n/$sessionname/mgmt`
+- `/run/n3n-be/$sessionname/mgmt`
 
 This directory is created if is does not exist, and is created with the
 same owner/group that the daemon will run as.  The administrator can adjust
@@ -108,7 +108,7 @@ running.
 
 Note that since Windows does not support Unix Domain sockets, it listens on
 TCP/5644 by default (and creates an empty session directory in
-%USERPROFILE%\n3n)
+%USERPROFILE%\n3n-be)
 
 ## List the HTTP endpoints
 
@@ -116,7 +116,7 @@ Make a request to `/help` to get a list of the HTTP endpoints.
 
 eg:
 ```
-curl --unix-socket /run/n3n/edge/mgmt http://x/help
+curl --unix-socket /run/n3n-be/edge/mgmt http://x/help
 ```
 
 ## List the JsonRPC Methods
@@ -126,20 +126,20 @@ returned, along with a short description.
 
 eg:
 ```
-curl --unix-socket /run/n3n/edge/mgmt http://x/v1 -d '{"jsonrpc": "2.0", "method": "help", "id": 1}' |jq
+curl --unix-socket /run/n3n-be/edge/mgmt http://x/v1 -d '{"jsonrpc": "2.0", "method": "help", "id": 1}' |jq
 ```
 or
 ```
-n3nctl help
+n3n-be-ctl help
 ```
 
 ## The Methods
 
-Every method answers a JsonRPC request; `n3nctl` passes any method on,
-`n3nctl <method>`, and prints the answer as a table, or as JSON with
+Every method answers a JsonRPC request; `n3n-be-ctl` passes any method on,
+`n3n-be-ctl <method>`, and prints the answer as a table, or as JSON with
 `--raw`.  It has short names for some: `edges`, `supernodes` and `mac`.
 Those marked with a key need the password (see Authentication below):
-`n3nctl -k <password> stop`.
+`n3n-be-ctl -k <password> stop`.
 
 | method | edge | supernode | what |
 |--------|------|-----------|------|
@@ -153,20 +153,20 @@ Those marked with a key need the password (see Authentication below):
 | `get_timestamps` | yes | yes | when things last happened, as Unix times: `start_time`, `last_register_req`, `last_rx_p2p`, `last_rx_super`, `last_sn_fwd`, `last_sn_reg`, `last_sweep` |
 | `get_mac` | yes | | the MAC addresses the edge has seen behind its peers (with routing and bridging) |
 | `get_verbose` | yes | yes | the log level |
-| `set_verbose` (key) | yes | yes | set the log level: `n3nctl -k n3n set_verbose 3` |
+| `set_verbose` (key) | yes | yes | set the log level: `n3n-be-ctl -k n3n set_verbose 3` |
 | `reload` (key) | yes | yes | read the configuration again and apply what can change while running: `{"loaded": true, "applied": [...], "restart": [...]}`, the options changed and those waiting for a restart, see [Configuration Files](../configure/ConfigurationFiles.md#reloading) |
 | `reload_communities` (key) | | yes | read the community file again, see [Communities](../configure/Communities.md) |
 | `stop` (key) | yes | yes | stop the daemon |
 | `post.test` | yes | yes | send an event on the topic `test` |
 
 The edge of a supernode with `supernode.tap` is asked at `/v1/edge` of the
-supernode's interface (`n3nctl -r edge ...`); it also shows in the
+supernode's interface (`n3n-be-ctl -r edge ...`); it also shows in the
 supernode's `get_edges`, at `127.0.0.1:0`.
 
 Each daemon also has metrics in the Prometheus text format at `/metrics`,
 for example
 ```
-curl --unix-socket /run/n3n/edge/mgmt http://x/metrics
+curl --unix-socket /run/n3n-be/edge/mgmt http://x/metrics
 ```
 
 ## Events Stream
@@ -200,7 +200,7 @@ anyone who can reach `management.port`, should not stop the daemon.
 The names of communities with header encryption are hidden from requests
 without the password: `get_edges`, `get_communities` and `get_supernodes`
 show `***` for them, and the edge's `get_communities` answers 403.  With
-the password (`n3nctl -k <password> get_communities`) they show.
+the password (`n3n-be-ctl -k <password> get_communities`) they show.
 
 ## Pagination
 
@@ -221,5 +221,5 @@ requester.
 
 Add the offset and limit values to the param dictionary.
 
-The n3nctl tool has an example on how to use this implemented in its
+The n3n-be-ctl tool has an example on how to use this implemented in its
 JsonRPC.get() method

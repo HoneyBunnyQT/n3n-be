@@ -104,7 +104,7 @@ The built-in benchmark runs every test in several threads at once and
 reports the total:
 
 ```
-n3n-edge test benchmark -Otest.benchmark_threads=4
+n3n-be-edge test benchmark -Otest.benchmark_threads=4
 ```
 
 Run it with 1, 2, 4 and so on up to the number of cores.  Where the total

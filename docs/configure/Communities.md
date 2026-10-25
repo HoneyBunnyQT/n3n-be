@@ -92,8 +92,8 @@ A network after the name is the range for its addresses; a line
 Both can be used together: the supernode takes the communities of both.
 For a community in both, the section wins and the file only gives what
 the section leaves out (its network, its users); the log says so.  On a
-reload (`n3nctl reload`, SIGHUP) the supernode reads both again;
-`n3nctl reload_communities` reads only the file.
+reload (`n3n-be-ctl reload`, SIGHUP) the supernode reads both again;
+`n3n-be-ctl reload_communities` reads only the file.
 
 ### Name patterns
 
@@ -147,11 +147,11 @@ Each option of a community section can also be given with `-O`, as
 For a simple setup, that makes the files needless:
 
 ```sh
-n3n-supernode start \
+n3n-be-supernode start \
     -O community.home.header_encryption=true \
     -O "community.home.user=honeybunny fur+Ke3-CM51Akgmq81+fD4WeyVHXMqS08+2SLu7fJa"
 
-n3n-edge start \
+n3n-be-edge start \
     -O community.home.key=secret \
     -O community.home.header_encryption=true \
     -O community.home.supernode=sn.example.org:7654 \

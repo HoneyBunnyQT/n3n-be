@@ -79,9 +79,9 @@ supernodes to handle packets on several threads - see
 
 ### `--disable-relay`
 
-Build the edge only, without the supernode (the relay role).  The `n3n`
-program then has only the edge role: `n3n-edge` is installed, `n3n-supernode`
-is not, and `n3n` lists only `edge`.  For devices that are only ever an edge,
+Build the edge only, without the supernode (the relay role).  The `n3n-be`
+program then has only the edge role: `n3n-be-edge` is installed, `n3n-be-supernode`
+is not, and `n3n-be` lists only `edge`.  For devices that are only ever an edge,
 such as small routers: the code is about a sixth smaller (on x86_64, 377 KB
 instead of 453 KB of program text).  The `[supernode]` options still show in
 the config dump, they are just not used.
@@ -170,7 +170,7 @@ can take in the optionally specified compiler flag `-O3`:
 
 `./configure CFLAGS="-O3"`
 
-The `n3n-edge test benchmark` tool can be used before and after to measure the
+The `n3n-be-edge test benchmark` tool can be used before and after to measure the
 speed-ups (some code paths will speed up by over 200%!) There is no known risk
 in terms of unstable code or so.
 
@@ -203,13 +203,13 @@ edge takes the fastest one the CPU it runs on has - a build for the
 baseline of x86-64 or aarch64, as distributions make them, uses AVX2 or
 AVX-512 for SPECK and ChaCha20 and AES-NI or the ARMv8 AES instructions
 for AES where the CPU has them, and Twofish its AVX-512 decryption where
-there are VBMI and GFNI too.  `n3n-edge help transform` names the one
-taken and those there are, and `n3n-edge test benchmark speck_encr
+there are VBMI and GFNI too.  `n3n-be-edge help transform` names the one
+taken and those there are, and `n3n-be-edge test benchmark speck_encr
 aes_encr cc20_encr` (and `_decr`, and `tf_decr`) measures each of them,
 slowest first.  `community.cipher = AES/plain C` asks for
 one of them instead (see [Options](../configure/Options.md)).  The same
 holds for the arithmetic of the forward error correction (see
-[FEC](../advanced/FEC.md#the-arithmetic)), measured by `n3n-edge test
+[FEC](../advanced/FEC.md#the-arithmetic)), measured by `n3n-be-edge test
 benchmark fec_repair`; its variants all give the same, so there is
 nothing to choose.  On Windows,
 AVX2 and AVX-512 are left out: GCC does not align its stack there for
@@ -235,7 +235,7 @@ whether a CPU has them.
 Both are built for little endian ARM only; a big endian ARM host uses the
 plain C versions.
 
-To see what they bring on a particular board, compare `n3n-edge test
+To see what they bring on a particular board, compare `n3n-be-edge test
 benchmark` of a build with and one without the flags.  Results are welcome
 in an issue, as so far the NEON and ARMv8 versions are only tested for
 correctness (under qemu, see [Testing](../develop/testing.md)).
@@ -245,7 +245,7 @@ correctness (under qemu, see [Testing](../develop/testing.md)).
 By default, SPECK does not take advantage of ARM NEON hardware acceleration even if compiled with `-march=native`. The reason is that the NEON implementation proved to be slower than the 64-bit scalar code on Raspberry Pi 3B+, see [here](https://github.com/ntop/n2n/issues/563).
 
 The NEON version is built wherever the build has NEON (all aarch64; 32 bit
-ARM with `-mfpu=neon`), and `n3n-edge test benchmark speck_encr` measures
+ARM with `-mfpu=neon`), and `n3n-be-edge test benchmark speck_encr` measures
 it next to plain C - but the edge takes plain C unless asked for NEON with
 the `SPECK_ARM_NEON` macro:
 

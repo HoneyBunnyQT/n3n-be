@@ -23,7 +23,7 @@ to allow in the system settings, no signing.  The edge uses it with
 and needs root for it, as for any tunnel:
 
 ```bash
-sudo apps/n3n-edge -O tuntap.type=tun -c mynet -k secret \
+sudo apps/n3n-be-edge -O tuntap.type=tun -c mynet -k secret \
     -l sn.example.org:7654 -a 10.0.0.5/24 start
 ```
 
@@ -33,7 +33,7 @@ the address on it, adds the route of the community's subnet into it, and
 the IPv6 address and prefix with `tuntap.address6`; all of it goes away
 with the device when the edge stops.  The device carries IP, not Ethernet:
 no bridging, and the edge does ARP for it, so it shares a community with
-the TAP edges of other systems.  `n3nctl` finds the edge under `/var/run/n3n`.
+the TAP edges of other systems.  `n3n-be-ctl` finds the edge under `/var/run/n3n-be`.
 
 A TAP device (the default, `tuntap.type = tap`) needs a third-party kernel
 extension on macOS (`tuntaposx`, `/dev/tapN`), which recent versions make

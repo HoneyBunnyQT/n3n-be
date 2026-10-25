@@ -56,6 +56,6 @@ drops all traffic but ICMP inside `192.168.100.0/24`.
 The rules are for TCP, UDP and ICMP over IPv4 only: ARP, IPv6 and every
 other protocol pass whatever the rules say.
 
-A new set of rules takes effect on a reload (`n3nctl reload`, SIGHUP),
+A new set of rules takes effect on a reload (`n3n-be-ctl reload`, SIGHUP),
 see [Configuration Files](../configure/ConfigurationFiles.md#reloading) -
 with packet threads (`daemon.threads`), only at the next start.

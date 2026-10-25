@@ -1,6 +1,6 @@
 .TH "n3n_v3" 7 "Oct 1, 2026" "version 3" "Background"
 .SH NAME
-n3n, n3n-edge, n3n-supernode, n3nctl \- the n3n decentralised peer-to-peer
+n3n-be, n3n-be-edge, n3n-be-supernode, n3n-be-ctl \- the n3n decentralised peer-to-peer
 network overlay VPN
 .SH DESCRIPTION
 n3n is a peer-to-peer network overlay or VPN system that provides layer 2 over
@@ -12,11 +12,11 @@ An n3n node has roles.  An \fIedge\fR is a client of the supernodes and has a
 TAP device: it is a member of one community, a virtual LAN.  A
 \fIsupernode\fR relays for the edges and introduces them to each other, and
 can be part of a federation of supernodes.  Both are one program,
-.BR n3n (8),
+.BR n3n-be (8),
 installed as
-.BR n3n-edge (8)
+.BR n3n-be-edge (8)
 and
-.BR n3n-supernode (8).
+.BR n3n-be-supernode (8).
 A supernode can be an edge too (\fBsupernode.tap\fR).
 .SH PROTOCOLS
 n3n is aiming to remain protocol compatible with n2n-3.  n2n-3, in turn
@@ -91,8 +91,8 @@ f supernodes which over and over again is sorted according to reported workload.
 
 .SH MANAGEMENT CONSOLE
 Edge and supernode in n3n provide a JsonRPC management API. On a unix system,
-they both create Unix domain sockets in /run/n3n based on the session name
-given to the running daemon.  The script n3nctl can be used to query these, as
+they both create Unix domain sockets in /run/n3n-be based on the session name
+given to the running daemon.  The script n3n-be-ctl can be used to query these, as
 well as generic curl commands, or - by enabling the TCP port - any web browser.
 
 .SH SUPERNODE AUTHENTICATION
@@ -157,7 +157,7 @@ deri (at) ntop.org - original author of n2n
 Don Bindner
 (--) - significant contributions to n2n-1
 .SH SEE ALSO
-n3n(8) n3n-edge(8) n3n-supernode(8)
+n3n-be(8) n3n-be-edge(8) n3n-be-supernode(8)
 .br
 the documentation contained in the source code
 .br

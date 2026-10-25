@@ -54,7 +54,7 @@ also come from the environment, `N3N_FEDERATION`.
 With user/password authentication, every supernode of the federation
 needs the same users - the same `[community NAME]` sections or community
 file - and the edges the federation's public key, `auth.pubkey`, which
-`n3n-edge tools keygen <federation name>` prints.
+`n3n-be-edge tools keygen <federation name>` prints.
 
 ## How it works
 

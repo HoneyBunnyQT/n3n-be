@@ -1,29 +1,29 @@
-.TH n3n-edge 8  "1 Oct 2026" "version 3" "SUPERUSER COMMANDS"
+.TH n3n-be-edge 8  "1 Oct 2026" "version 3" "SUPERUSER COMMANDS"
 .SH NAME
-n3n-edge \- VPN edge node daemon
+n3n-be-edge \- VPN edge node daemon
 .SH SYNOPSIS
-.B n3n-edge
+.B n3n-be-edge
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
 .B n3n edge
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n-edge start
+.B n3n-be-edge start
 [\fIsessionname\fR] [\fB\-c \fR<\fIcommunity\fR>] [\fB\-l \fR<\fIsupernode host:port\fR>]
 .br
-.B n3n-edge --help
+.B n3n-be-edge --help
 .SH DESCRIPTION
 n3n is a peer-to-peer VPN system - it is the LAN you have when you have noLAN.
 
-.B n3n-edge
+.B n3n-be-edge
 is a daemon for n3n which creates a TAP interface to expose
 the n3n virtual LAN, providing an "edge node".  It is the edge role of the
-.BR n3n (8)
+.BR n3n-be (8)
 program, which also runs as
-.BR "n3n edge" .
+.BR "n3n-be edge" .
 
 On startup
-.B n3n-edge
+.B n3n-be-edge
 will load any config file, then any environment variables and
 then load the settings from the command line.  Once it has the full config
 loaded, it will register with the supernode and create and setup the TAP
@@ -36,14 +36,14 @@ Some of the most common options also have a shortcut version and you can see
 all of them with:
 
 .RS
-.B n3n-edge help options
+.B n3n-be-edge help options
 .RE
 
 The ciphers and compressions built in, with the implementation each one
 uses, are listed by:
 
 .RS
-.B n3n-edge help transform
+.B n3n-be-edge help transform
 .RE
 .TP
 .SH Generic Options
@@ -106,7 +106,7 @@ When running the \fBstart\fR command, the edge will use the given sessionname
 (Or "edge" if none is given) to search for a config file:
 
 .RS
-/etc/n3n/\fB<sessionname>\fR.conf
+/etc/n3n-be/\fB<sessionname>\fR.conf
 
 \fI%USERPROFILE%\fR\\n3n\\\fB<sessionname>\fR.conf (On Windows)
 .RE
@@ -115,7 +115,7 @@ This file is an INI style file and a full description of the options is
 available with the commandline:
 
 .RS
-.B n3n-edge help config
+.B n3n-be-edge help config
 .RE
 
 or in docs/configure/Options.md.  The community can also be given in a
@@ -125,7 +125,7 @@ it takes that one section, and stops with an error if the configuration has
 more than one community.
 
 .RS
-.B n3n-edge debug config load_dump
+.B n3n-be-edge debug config load_dump
 [\fIsessionname\fR]
 .RE
 
@@ -153,14 +153,14 @@ set the password for user-password authentication (Equivalent to auth.password)
 For the simplest testing, without any encryption:
 
 .RS
-.B n3n-edge start -c mynetwork -l supernode.ntop.org:7777
+.B n3n-be-edge start -c mynetwork -l supernode.ntop.org:7777
 .RE
 .TP
 .SH Config file example
 .RE
 
 Showing the same configuration as the above simple example.
-Create a file \fB/etc/n3n/mynetwork.conf\fR with these contents:
+Create a file \fB/etc/n3n-be/mynetwork.conf\fR with these contents:
 
 .nf
 .RS
@@ -174,14 +174,14 @@ supernode=supernode.ntop.org:7777
 Then start the daemon in the foreground:
 
 .RS
-.B n3n-edge start mynetwork
+.B n3n-be-edge start mynetwork
 .RE
 
 .TP
 .SH Complex example with a config file
 .RE
 
-Create a config file \fB/etc/n3n/mynetwork.conf\fR with these contents:
+Create a config file \fB/etc/n3n-be/mynetwork.conf\fR with these contents:
 
 .nf
 .RS
@@ -205,7 +205,7 @@ bind = 50001
 Then start the daemon with:
 
 .RS
-.B n3n-edge start mynetwork
+.B n3n-be-edge start mynetwork
 .RE
 
 Will start the edge with TAP device n3n0 on community "mynetwork" with
@@ -221,7 +221,7 @@ This will configure the edge with the same settings as the above config file
 but do it entirely from the commandline.
 
 .nf
-.B n3n-edge start \\\\
+.B n3n-be-edge start \\\\
     \--daemon \\
     \-O tuntap.name=n3n0 \\
     \-c mynetwork \\
@@ -241,7 +241,7 @@ To build a simple network, on a second computer setup another edge with
 similar parameters, eg:
 
 .nf
-.B n3n-edge start \\\\
+.B n3n-be-edge start \\\\
     \-O tuntap.name=n3n0 \\
     \-c mynetwork \\
     \-k encryptme \\
@@ -267,24 +267,24 @@ With a key (\fB-k\fR, \fBcommunity.key\fR or N3N_KEY) the payload is
 encrypted with \fBcommunity.cipher\fR, AES if no cipher is given; all edges
 of a community need the same key and cipher.  All ciphers take the
 fastest variant this CPU has; \fBcommunity.cipher\fR=AES/plainc asks for
-one of those \fBn3n-edge help transform\fR lists instead, and does not
+one of those \fBn3n-be-edge help transform\fR lists instead, and does not
 change what goes over the wire.  Without a key, the edge sends
 the payload in cleartext (cipher null), which is useful for debugging as the
 packet contents can be seen clearly.
 
 \fBcommunity.header_encryption\fR also encrypts the headers, which hides the
 community name and adds replay protection; the supernode needs to know such
-a community (see n3n-supernode(8)).  With \fBauth.password\fR the edge
+a community (see n3n-be-supernode(8)).  With \fBauth.password\fR the edge
 authenticates with a user name (\fBconnection.description\fR) and password
-instead, see docs/configure/Authentication.md.  \fBn3n-edge test
+instead, see docs/configure/Authentication.md.  \fBn3n-be-edge test
 benchmark\fR shows how fast each cipher is in this build.
 
 .SH NAT TRAVERSAL
 By default the edge opens a UDP socket for IPv6 and one for IPv4, on ports the
 system picks (\fBconnection.bind\fR=[::]:0), and sends each packet from the
 socket of its destination's family.  From the answers of its supernodes, it
-tells how its NAT maps it: \fBn3nctl get_info\fR shows that as nat4 and nat6,
-and \fBn3nctl get_edges\fR shows it for peers not reached directly yet.
+tells how its NAT maps it: \fBn3n-be-ctl get_info\fR shows that as nat4 and nat6,
+and \fBn3n-be-ctl get_edges\fR shows it for peers not reached directly yet.
 Towards a peer behind a NAT that maps each destination to a port of its own,
 the edge tries a few more of the peer's ports in each round of registrations
 (\fBconnection.punch_ports\fR).  Behind such a NAT itself, it opens more
@@ -309,7 +309,7 @@ supernode every three \fBconnection.register_interval\fRs and goes back to
 UDP as soon as one is answered.  Over TCP, the configured supernodes come
 first; one learned from the federation is tried at its UDP port, and
 reached over UDP only once it refuses there.  \fBconnection.connect_tcp\fR=true uses TCP
-from the start, and only TCP.  \fBn3nctl get_info\fR shows the transport in
+from the start, and only TCP.  \fBn3n-be-ctl get_info\fR shows the transport in
 use.
 
 A supernode given with \fBudp://\fR or \fBtcp://\fR in front is used over that
@@ -338,7 +338,7 @@ runs the same under any other service manager.  See
 docs/configure/Systemd.md.
 
 .SH RELOAD
-\fBn3nctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs
+\fBn3n-be-ctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs
 in a terminal, where SIGHUP stops it, as Ctrl-C does) has the edge read its
 configuration again.  What can change while running - the supernodes, the
 register interval, the filter rules, \fBlogging.verbose\fR,
@@ -353,7 +353,7 @@ threads.  This needs Linux and a build with \fB--enable-pthread\fR, see
 docs/advanced/Threads.md.
 
 .SH MANAGEMENT INTERFACE
-Edge always provides JsonAPI listening on a Unix Domain socket in /run/n3n and
+Edge always provides JsonAPI listening on a Unix Domain socket in /run/n3n-be and
 optionally a TCP port (if configured with the management.port option), and a
 web page with its state, which reads in a text browser too:
 \fBlynx http://localhost:5644/\fR with \fBmanagement.port\fR=5644.
@@ -376,7 +376,7 @@ deri (at) ntop.org - original author of n2n
 Don Bindner
 (--) - significant contributions to n2n-1
 .SH SEE ALSO
-n3n(8) n3n-supernode(8) n3n(7) ip(8) tunctl(8)
+n3n-be(8) n3n-be-supernode(8) n3n-be(7) ip(8) tunctl(8)
 .br
 the documentation contained in the source code
 .br

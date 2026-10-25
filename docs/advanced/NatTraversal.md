@@ -75,7 +75,7 @@ does show a hard NAT, so one supernode with two ports in its
 The class shows in the edge's management interface:
 
 ```
-n3nctl get_info
+n3n-be-ctl get_info
     "nat4": "easy (port changed)",
     "nat6": "easy (port kept)",
 ```
@@ -206,7 +206,7 @@ So while frames go to a peer directly, the edge sends it a REGISTER twice a
 second, and counts the REGISTER_ACKs that come back from the peer's
 address; every REGISTER to the peer there counts, also the regular ones.
 After 20 of them, the share that went unanswered is the loss of the direct
-path, which `n3nctl get_edges` shows (`loss`, in percent) and the
+path, which `n3n-be-ctl get_edges` shows (`loss`, in percent) and the
 management page (`lost`).  With `connection.p2p_max_loss`
 percent or more lost (20 by default, see below), the peer's frames go through the
 supernode - as long as one answers - while the edge keeps asking the peer

@@ -311,6 +311,25 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       takes header keys only where they changed, and logs that.  The
       lab: about 50 ms held; b gets no new keys after sn1's reload, a
       does.  Not for `fixes`
+- [x] Names of its own (2026-10-25), see Decisions: `n3n-be` and the
+      links `n3n-be-edge`, `n3n-be-supernode`; `n3n-be-ctl`;
+      `/etc/n3n-be`, `/run/n3n-be` (`%USERPROFILE%\n3n-be`); the units
+      `n3n-be-edge@.service`, `n3n-be-edge.service`,
+      `n3n-be-supernode.service`; the user `n3n-be`; the man pages
+      `n3n-be*`; syslog's `n3n-be`; the packages without Provides,
+      Conflicts, Replaces `n3n` (deb, rpm, Arch; OpenWrt's are
+      `n3n-be-edge`, `n3n-be-supernode`).  An upgrade runs
+      `/usr/lib/n3n-be/migrate`
+      (deb postinst, rpm %posttrans, Arch post_upgrade), once: the
+      configuration copied from `/etc/n3n` (which stays) with its paths
+      made `/etc/n3n-be`, the services enabled and running under the new
+      names; a unit file still there is n3n's, left alone, and so is
+      `/etc/n3n` with n3n installed.  Tried: the .deb of 3.4.8, then the
+      new one - config, both services, the user carried over.  An edge
+      that finds only `/etc/n3n/NAME.conf` says so.  The lab: binaries by
+      role, the run directory by name (older versions `/run/n3n`);
+      interop 12 of 12 (UML).  The metrics' names, the management
+      password and the protocol stay
 - [x] The management page, steadier (2026-10-24): the path badge of one
       width, the loss in a column of its own (`lost`: with FEC the
       peer's report of the way to it, else the probes'), a column `FEC`
@@ -955,6 +974,14 @@ release has it - as FEC was; there is no branch for it (see Decisions
   is analysed, has test vectors, and says what each message proves.  One
   cipher suite, no negotiation.  See PeerProtocol.md for the reasons and
   for path MTU, DNS SRV and signed QR codes, which were postponed to v4.
+- 2026-10-25: n3n-be has names of its own - programs, configuration and
+  run directories, units, user, man pages, packages - as upstream's
+  maintainer asked: n3n goes towards one binary `n3n` and a configuration
+  of another format, so the same names would run programs that read
+  different files, and the packages went in place of each other.  n3n-be
+  installs next to n3n now, and stays compatible on the wire; an upgrade
+  from an n3n-be of n3n's names carries its configuration and services
+  over.
 
 ## Scratchpad
 
@@ -970,7 +997,8 @@ watched by `upstream.yml`.  Its branches: `main`, where all work happens,
 and `fixes`.  3.4.8 is released (2026-10-15, rebuilt 2026-10-18 with the
 Windows zip); `release.yml` builds a release from a tag.
 
-On `main` since 3.4.8, not released yet: the edge on macOS's utun device
+On `main` since 3.4.8, not released yet: names of its own (`n3n-be-edge`,
+`/etc/n3n-be`, ...), so that it installs next to n3n, the edge on macOS's utun device
 (and the macOS tarball with it), FEC (under development, see Next), the
 lossy direct path (`connection.p2p_max_loss`), the supernode holding its
 answer until the federation could refuse it (user/password), the address

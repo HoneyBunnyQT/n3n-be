@@ -32,9 +32,9 @@ their NATs let them, and through a supernode where they do not.
   needs.  One supernode serves many communities, several supernodes can
   form a federation, and a supernode can be an edge as well.
 
-Both are one program, `n3n`, installed also as `n3n-edge` and
-`n3n-supernode`, for Linux, Windows, macOS, the BSDs, OpenWrt and
-Android.
+Both are one program, `n3n-be`, installed also as `n3n-be-edge` and
+`n3n-be-supernode`, for Linux, Windows, macOS, the BSDs, OpenWrt and
+Android.  Its names are its own, so that it installs next to n3n.
 
 ## Getting started
 
@@ -79,7 +79,7 @@ tests with releases of n3n and n2n (see [Testing](develop/testing.md)).
   [Roadmap](develop/Roadmap.md), [Contributing](Contributing.md)
 - [Security Policy](SECURITY.md): how to report a vulnerability
 
-The man pages `n3n(8)`, `n3n-edge(8)`, `n3n-supernode(8)` and `n3n(7)`
+The man pages `n3n(8)`, `n3n-be-edge(8)`, `n3n-be-supernode(8)` and `n3n(7)`
 come with the program.  The documentation is also a website, built with
 [MkDocs](https://www.mkdocs.org/): `pip install mkdocs`, then `make docs`
 (into `site/`) or `make docs_serve` to read it at http://127.0.0.1:8000.

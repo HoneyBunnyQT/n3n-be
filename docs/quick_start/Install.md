@@ -14,10 +14,11 @@ download:
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-All of them have the same program, `n3n`: as an edge it is also called
-`n3n-edge`, as a supernode `n3n-supernode`.  `n3nctl`, the command line
-tool to look into a running edge or supernode, comes with it (it needs
-Python 3).
+All of them have the same program, `n3n-be`: as an edge it is also
+called `n3n-be-edge`, as a supernode `n3n-be-supernode`.  `n3n-be-ctl`,
+the command line tool to look into a running edge or supernode, comes with
+it (it needs Python 3).  The names are n3n-be's own, not n3n's, so that it
+installs next to n3n.
 
 ## Debian and Ubuntu
 
@@ -28,8 +29,8 @@ Packages for Debian 12 and newer and Ubuntu 22.04 and newer, on `amd64`,
 sudo apt install ./n3n-be_3.4.8-1_amd64.deb
 ```
 
-with the file name of the version and architecture you downloaded.  The
-package replaces the `n3n` package of upstream n3n, if there is one.
+with the file name of the version and architecture you downloaded.  It
+installs next to the `n3n` package of upstream n3n, if there is one.
 There is no apt repository for n3n-be yet: updates come the same way,
 from the releases.  (`pkg.n3n.dev` is upstream's repository; it installs
 upstream's `n3n`, not n3n-be.)
@@ -46,7 +47,7 @@ sudo dnf install ./n3n-be-3.4.8-1.x86_64.rpm
 sudo pacman -U n3n-be-3.4.8-1-x86_64.pkg.tar.zst
 ```
 
-The Linux packages put the configuration in `/etc/n3n/` and bring
+The Linux packages put the configuration in `/etc/n3n-be/` and bring
 systemd units, which are not enabled until you configure them: see
 [Your First Network](Config.md) and [Running as a
 Service](../configure/Systemd.md).
@@ -61,8 +62,8 @@ project, which comes with OpenVPN or on its own from
 installers).
 
 Then run, in a command prompt started as administrator,
-`n3n.exe edge` (or `n3n.exe supernode`).  The configuration goes into
-`%USERPROFILE%\n3n\edge.conf`; the `README.txt` in the zip has the
+`n3n-be.exe edge` (or `n3n-be.exe supernode`).  The configuration goes into
+`%USERPROFILE%\n3n-be\edge.conf`; the `README.txt` in the zip has the
 details.  The programs are not signed: SmartScreen may warn the first
 time ("More info", "Run anyway").
 
@@ -76,7 +77,7 @@ with `tuntap.type = tun` - nothing to install:
 tar -xzf n3n-be-*-macos-universal.tar.gz
 xattr -dr com.apple.quarantine n3n-be-*-macos-universal
 cd n3n-be-*-macos-universal
-sudo ./n3n-edge start -O tuntap.type=tun -c mynetwork -k mysecret \
+sudo ./n3n-be-edge start -O tuntap.type=tun -c mynetwork -k mysecret \
     -l sn.example.org:7654
 ```
 
@@ -102,6 +103,38 @@ is:
 ./autogen.sh && ./configure && make
 sudo make install
 ```
+
+## Upgrading from n3n-be 3.4.8 or older
+
+n3n-be up to 3.4.8 went by n3n's names: the programs `n3n-edge`,
+`n3n-supernode` and `n3nctl`, its configuration in `/etc/n3n`, its
+sessions in `/run/n3n`, its services `n3n-edge@NAME`, `n3n-edge` and
+`n3n-supernode`, its user `n3n` - and its packages replaced n3n's.  Since
+then it has names of its own, so that it installs next to n3n, whose
+newer versions read a configuration of another format:
+
+| up to 3.4.8 | now |
+|-------------|-----|
+| `n3n-edge`, `n3n-supernode`, `n3n` | `n3n-be-edge`, `n3n-be-supernode`, `n3n-be` |
+| `n3nctl` | `n3n-be-ctl` |
+| `/etc/n3n/` | `/etc/n3n-be/` |
+| `/run/n3n/` | `/run/n3n-be/` |
+| `n3n-edge@NAME.service`, `n3n-edge.service`, `n3n-supernode.service` | `n3n-be-edge@NAME.service`, `n3n-be-edge.service`, `n3n-be-supernode.service` |
+| the user `n3n` | the user `n3n-be` |
+| `%USERPROFILE%\n3n\` (Windows) | `%USERPROFILE%\n3n-be\` |
+
+The .deb, .rpm and Arch packages carry an older n3n-be over when they
+upgrade it (`/usr/lib/n3n-be/migrate`, once): the configuration is copied
+from `/etc/n3n` to `/etc/n3n-be` - `/etc/n3n` stays, with the paths to
+`/etc/n3n` in the copied files made those to `/etc/n3n-be` - and the
+services that were enabled are enabled under their new names, those that
+ran are started again.  What belongs to an n3n installed next to it is
+left alone.
+
+Installed from source, on Windows or macOS, move the configuration
+yourself, and change the scripts and services that start the old
+programs.  An edge or supernode that finds no configuration of its own,
+but one in the old place, says so in its log.
 
 ## Next
 

@@ -13,7 +13,7 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 | lint: C style (uncrustify 0.77.1), python, shell, yaml, man pages | `make lint` | yes |
 | unit tests: the programs `tools/tests-*`, against `tests/*.expected` | `make test.units` | yes |
 | builtin tests: commands of the program itself, see below | `make test.builtin` | yes |
-| integration tests: supernodes and edges on this host, checked with `n3nctl` | `make test.integration` | yes |
+| integration tests: supernodes and edges on this host, checked with `n3n-be-ctl` | `make test.integration` | yes |
 | fuzz targets: the receive path (header decryption, PDU decoders, transforms, TCP framing), their regression corpus and generated seeds replayed; libFuzzer searching, see [tests/fuzz](https://github.com/HoneyBunnyQT/n3n-be/blob/main/tests/fuzz/README.md) | `make test.fuzz`; `make fuzz FUZZ=libfuzzer`; at running daemons `run.py @spray`, see [Testing behind NATs](netns_testing.md#mutated-pdus-spray) | yes: replayed in `make test` and under the sanitizers; libFuzzer a minute per target on every push and pull request (`fuzz.yml`); the long searches and the spray scenarios run nightly out of band (a private repository, so a crash is not disclosed before its fix); spray for 20s with the NAT tests |
 | NAT tests: edges and supernodes in network namespaces behind emulated NATs, see [Testing behind NATs](netns_testing.md) | `make test.netns` (the quick ones), `make test.netns.full` (needs root) | yes, all of them on every push (`netns.yml`); the interop ones in `interop.yml`, with upstream's last release and n2n, and weekly with upstream n3n's current main (`upstream.yml`) |
 | macOS: an edge on a `utun` device, pinged through it (IPv4 and IPv6) from the host by way of a second edge on a socketpair (`tuntap.fd`) | `sudo python3 tests/macos/utun.py` on a Mac | yes, in the macOS job of `tests.yml` |
@@ -104,12 +104,12 @@ initfunc.  The harness is in `src/benchmark/`.
 
 ## Running built in tests
 
-`n3n-edge test check`
+`n3n-be-edge test check`
 
 This can optionally be followed by the names of the tests to run: a name
 runs all its variants, `name,variant` one of them (`aes_encr,AES-NI`),
 `name,` the one without a variant - the fastest the CPU has - and `ALL`
-also those that do not run by default.  `n3n-edge test list` lists them.
+also those that do not run by default.  `n3n-be-edge test list` lists them.
 
 If all the tests that run were successful, an "OK" is output on stdout and the
 program exitcode is set to zero.
@@ -121,7 +121,7 @@ from the test and can be used for further debugging of tests.
 
 ## Running benchmarks
 
-`n3n-edge test benchmark`
+`n3n-be-edge test benchmark`
 
 This takes the same names as `test check`.  Each test runs for a second
 (`-Otest.benchmark_seconds=N`; 0 runs it once), in rounds of a growing
@@ -140,7 +140,7 @@ Many CI runners have no performance counters in their virtual machines.
 To still see from one commit to the next whether a test needs more work,
 there is
 
-`n3n-edge test fakebench`
+`n3n-be-edge test fakebench`
 
 which counts the instructions per loop by single-stepping each test with
 ptrace (Linux only), as CSV.  It is slow, and an instruction is not a
@@ -149,7 +149,7 @@ numbers of some tests from run to run.
 
 ### The whole packet path
 
-`n3n-edge test benchmark` measures the parts on their own: ciphers,
+`n3n-be-edge test benchmark` measures the parts on their own: ciphers,
 compression, hashes.  How fast frames get through the edges and
 supernodes as a whole - the tap device, the transforms, the sockets, the
 kernel's network stack in between - `tests/netns/bench.py` measures, in
@@ -219,7 +219,7 @@ in them to help with replicating any tests.
 Most development happens on 64 bit little endian x86, but n3n also runs on
 big endian hosts (some MIPS, PowerPC, s390x), on 32 bit ones and on CPUs that
 trap on unaligned memory accesses - typically routers.  The expected outputs
-of the unit tests and of `n3n-edge test check` are the same for all of them,
+of the unit tests and of `n3n-be-edge test check` are the same for all of them,
 so a cross compiled tree can run them under qemu-user:
 
 ```

@@ -13,7 +13,7 @@ bind=7777
 
 [supernode]
 #        Optionally specifies the allowed communities as listed in community.list file.
-#community_file=/etc/n3n/community.list
+#community_file=/etc/n3n-be/community.list
 
 # If multiple supernodes ("supernode federation") is desired, the following
 # two options are needed:

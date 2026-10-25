@@ -30,9 +30,9 @@ unencrypted.
 The cipher is `community.cipher`: AES by default, or ChaCha20, Speck or
 Twofish.  ChaCha20 and Speck are the fastest on most machines, and the
 ones that [users and passwords](Authentication.md) need.
-`n3n-edge help transform` lists the ciphers of a build and the
+`n3n-be-edge help transform` lists the ciphers of a build and the
 implementation each uses (OpenSSL, AES-NI, AVX2, NEON, plain C...),
-which depends on the CPU; `n3n-edge test benchmark` measures them.  See
+which depends on the CPU; `n3n-be-edge test benchmark` measures them.  See
 [Cryptography](../internals/Crypto.md) for a comparison.
 
 ## Header encryption
@@ -64,7 +64,7 @@ for your own communities keeps others from using it.
 ## The management interface
 
 Each daemon has a management interface (see the
-[Management API](../internals/ManagementAPI.md)), which `n3nctl` uses:
+[Management API](../internals/ManagementAPI.md)), which `n3n-be-ctl` uses:
 
 - It listens on a Unix socket that only the user the daemon runs as and
   root can use (`management.unix_sock_perms`), and on a TCP port only if
@@ -79,6 +79,6 @@ Each daemon has a management interface (see the
 ## Privileges
 
 The daemons drop their privileges once the device and the sockets are
-set up: to the user `n3n` (or `nobody`) by default, see `daemon.userid`
+set up: to the user `n3n-be` (or `nobody`) by default, see `daemon.userid`
 and `daemon.groupid`.  The configuration file has to be readable for
 that user, or a reload finds none.

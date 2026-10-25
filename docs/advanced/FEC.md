@@ -35,7 +35,7 @@ on every edge of the community.  An edge that does not know it drops the
 PACKETs that carry it ("decompression: failed: unsupported" in its log), as
 with a compression it does not know - so first every edge, then the
 setting.  The supernodes pass such PACKETs on as any others; they need
-nothing.  It can be changed while the edge runs (`n3nctl reload`).
+nothing.  It can be changed while the edge runs (`n3n-be-ctl reload`).
 
 - `none`, the default: PACKETs as ever, which every version of n3n reads
 - `auto`: frames to a peer go in groups, and after each group as many
@@ -222,13 +222,13 @@ why `auto` backs off then (see above).
 
 ## Seeing it work
 
-`n3nctl get_packetstats`:
+`n3n-be-ctl get_packetstats`:
 
 - `fec`: `tx_pkt` repairs sent, `rx_pkt` frames undone
 - `fec_lost`: `rx_pkt` frames from peers found missing by their sequence
   numbers, whether undone or not - the loss of the way in
 
-`n3nctl get_edges --raw` shows, for each peer, `fec`: what the peer
+`n3n-be-ctl get_edges --raw` shows, for each peer, `fec`: what the peer
 tells of the way to it (`loss`, `burst`, `residual`), what the edge makes
 of it (`margin`, `scale`, and `k` and `m` of its last group), and what it
 sees of the way from the peer (`rx_loss`, `rx_burst`, `rx_residual`), see
@@ -305,7 +305,7 @@ ciphers' are - the fastest one the CPU has:
   and the Atoms from Tremont, AMD from Zen 4)
 
 They all give the same, byte for byte, so edges with different ones
-understand each other.  `n3n-edge test benchmark fec_repair` measures
+understand each other.  `n3n-be-edge test benchmark fec_repair` measures
 each of them, making a repair of 8 frames of 512 bytes:
 
 | variant | MB/s of frames | a repair takes |

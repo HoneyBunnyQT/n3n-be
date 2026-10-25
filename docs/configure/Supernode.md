@@ -21,7 +21,7 @@ host with a public address.
 With the [packages](../quick_start/Install.md):
 
 ```sh
-sudo systemctl enable --now n3n-supernode
+sudo systemctl enable --now n3n-be-supernode
 ```
 
 That is all it needs to start with: it listens on port 7654, UDP and
@@ -34,14 +34,14 @@ configuration:
 supernode = sn.example.org:7654
 ```
 
-Its configuration, if it needs one, goes into `/etc/n3n/supernode.conf`;
+Its configuration, if it needs one, goes into `/etc/n3n-be/supernode.conf`;
 see [Configuration Files](ConfigurationFiles.md).  Without the packages,
-`n3n-supernode start` runs it in the foreground.
+`n3n-be-supernode start` runs it in the foreground.
 
 To see the edges registered at it:
 
 ```sh
-sudo n3nctl -s supernode edges
+sudo n3n-be-ctl -s supernode edges
 ```
 
 ## Ports and addresses
@@ -146,7 +146,7 @@ network, say.  For heavy traffic, run a separate edge next to the
 supernode.
 
 The management interface answers for both: the web page has a section
-for each, and `n3nctl -s supernode -r edge edges` asks the edge.  The
+for each, and `n3n-be-ctl -s supernode -r edge edges` asks the edge.  The
 supernode lists its own edge at `127.0.0.1:0`.  It needs the privileges
 to open the TAP device at the start, before it drops them, and is not
 available on Windows yet.  Bringing the two roles together into one code

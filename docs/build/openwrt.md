@@ -38,38 +38,39 @@ or local builds)
 
 You need both the openwrt repository and the n3n repository checked out
 for this.  In these instructions, we assume that `openwrt` is the directory
-where your openwrt checkout is located and `n3n` is the directory for
-the n3n repository.
+where your openwrt checkout is located and `n3n-be` is the directory for
+the n3n-be repository.
 
 ```
-git clone https://github.com/HoneyBunnyQT/n3n-be n3n
-N2N_PKG_VERSION=$(n3n/scripts/version.sh)
+git clone https://github.com/HoneyBunnyQT/n3n-be n3n-be
+N2N_PKG_VERSION=$(n3n-be/scripts/version.sh)
 export N2N_PKG_VERSION
 echo $N2N_PKG_VERSION
 
-cp -r n3n/packages/openwrt openwrt/package/n3n
+cp -r n3n-be/packages/openwrt openwrt/package/n3n-be
 
 cd openwrt
 make oldconfig
-# In the VPN section, select "m" for n3n-edge and n3n-supernode
+# In the VPN section, select "m" for n3n-be-edge and n3n-be-supernode
 
-make package/n3n/clean V=s
-make package/n3n/prepare USE_SOURCE_DIR=$(realpath ../n3n) V=s
-make package/n3n/compile V=s
+make package/n3n-be/clean V=s
+make package/n3n-be/prepare USE_SOURCE_DIR=$(realpath ../n3n-be) V=s
+make package/n3n-be/compile V=s
 ```
 
-If everything went fine, two ipk will be generated, one for the n3n-edge
-and the other for n3n-supernode. They can be found with `find . -name "n3n*.ipk"`,
+If everything went fine, two ipk will be generated, one for the n3n-be-edge
+and the other for n3n-be-supernode. They can be found with `find . -name "n3n-be*.ipk"`,
 copied to the target device, and installed with `opkg install`.  Each holds
-the whole `n3n` program, under the name of its daemon.
+the whole `n3n-be` program, under the name of its daemon; the configuration
+is in `/etc/n3n-be`.
 
 The github action described in `.github/workflows/openwrt.yml` implements
 an automated version of the above steps.
 
 ## Configuration
 
-The edge node can be started with `/etc/init.d/n3n-edge start`.
-Its configuration file is `/etc/n3n/edge.conf`.
+The edge node can be started with `/etc/init.d/n3n-be-edge start`.
+Its configuration file is `/etc/n3n-be/edge.conf`.
 
-The supernode can be started with `/etc/init.d/n3n-supernode start`.
-Its configuration file is `/etc/n3n/supernode.conf`.
+The supernode can be started with `/etc/init.d/n3n-be-supernode start`.
+Its configuration file is `/etc/n3n-be/supernode.conf`.

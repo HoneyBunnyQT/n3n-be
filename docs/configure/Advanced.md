@@ -31,10 +31,10 @@ An edge is in one community.  For more, run one edge for each, each with
 a configuration file (a session) of its own and its own device:
 
 ```sh
-sudo systemctl enable --now n3n-edge@home n3n-edge@office
+sudo systemctl enable --now n3n-be-edge@home n3n-be-edge@office
 ```
 
-with `/etc/n3n/home.conf` and `/etc/n3n/office.conf`.  Give the two
+with `/etc/n3n-be/home.conf` and `/etc/n3n-be/office.conf`.  Give the two
 communities different subnets, or the system will not know which device
 an address is behind.
 

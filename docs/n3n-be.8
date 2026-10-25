@@ -1,66 +1,72 @@
-.TH n3n 8  "1 Oct 2026" "version 3" "SUPERUSER COMMANDS"
+.TH n3n-be 8  "25 Oct 2026" "version 3" "SUPERUSER COMMANDS"
 .SH NAME
-n3n \- the n3n peer-to-peer VPN, edge and supernode in one program
+n3n-be \- the n3n-be peer-to-peer VPN, edge and supernode in one program
 .SH SYNOPSIS
-.B n3n edge
+.B n3n-be edge
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n supernode
+.B n3n-be supernode
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n-edge
+.B n3n-be-edge
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n-supernode
+.B n3n-be-supernode
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .SH DESCRIPTION
-n3n is a peer-to-peer VPN system - it is the LAN you have when you have noLAN.
+n3n-be is a peer-to-peer VPN system - it is the LAN you have when you have noLAN.
 
-Both daemons of n3n are one program.  It takes the role of the name it is
+Both daemons of n3n-be are one program.  It takes the role of the name it is
 started as: installed as
-.B n3n-edge
+.B n3n-be-edge
 and
-.BR n3n-supernode ,
+.BR n3n-be-supernode ,
 links to
-.B n3n
+.B n3n-be
 (copies on Windows), it is that daemon, with the same options, commands and
 configuration.  Started as
-.BR n3n ,
+.BR n3n-be ,
 the first argument names the role:
-.B n3n edge start
+.B n3n-be edge start
 is the same as
-.BR "n3n-edge start" .
+.BR "n3n-be-edge start" .
 Without a role, it lists the roles it has.
+.PP
+The names are n3n-be's own - not n3n's
+.BR n3n-edge ,
+.B n3n-supernode
+and /etc/n3n - so that it installs next to n3n, whose programs read a
+configuration of another format; n3n-be up to 3.4.8 had n3n's names.
 .TP
 .B edge
 A node of the virtual network, with a TAP device: see
-.BR n3n-edge (8).
+.BR n3n-be-edge (8).
 .TP
 .B supernode
 The introduction registry and relay of the edges: see
-.BR n3n-supernode (8).
+.BR n3n-be-supernode (8).
 A supernode can be an edge of one community too, with
 \fBsupernode.tap\fR=true.
 .PP
 A build with
 .B ./configure --disable-relay
 has the edge only: no
-.B n3n-supernode
+.B n3n-be-supernode
 then, and
-.B n3n
+.B n3n-be
 knows only the role
 .BR edge .
 .SH EXAMPLES
 .TP
-.B n3n edge start mynetwork
-the same as \fBn3n-edge start mynetwork\fR
+.B n3n-be edge start mynetwork
+the same as \fBn3n-be-edge start mynetwork\fR
 .TP
-.B n3n supernode -h
+.B n3n-be supernode -h
 the help of the supernode
 .SH EXIT STATUS
 2 if no role was given or found, otherwise that of the role.
 .SH SEE ALSO
-n3n-edge(8) n3n-supernode(8) n3n(7)
+n3n-be-edge(8) n3n-be-supernode(8) n3n-be(7)
 .br
 the documentation found in n3n-be's \fBdocs/\fR folder, also at
 https://github.com/HoneyBunnyQT/n3n-be/tree/main/docs

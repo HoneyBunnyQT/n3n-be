@@ -17,7 +17,7 @@ Short descriptions of these scripts are below.
 
 ## End user scripts
 
-### `n3nctl`
+### `n3n-be-ctl`
 
 This python script provides an easy command line interface to the running
 n3n processes.  It uses the management API and if there is only one daemon
@@ -26,12 +26,12 @@ to its Unix domain socket.  it can talk to both the edge and the supernode
 daemons.
 
 Example:
-- `scripts/n3nctl --help`
-- `scripts/n3nctl help`
-- `scripts/n3nctl -s supernode edges`
-- `scripts/n3nctl -s supernode -r edge edges`: the peers of the supernode's
+- `scripts/n3n-be-ctl --help`
+- `scripts/n3n-be-ctl help`
+- `scripts/n3n-be-ctl -s supernode edges`
+- `scripts/n3n-be-ctl -s supernode -r edge edges`: the peers of the supernode's
   own edge (`supernode.tap`)
-- `scripts/n3nctl -k PASSWORD reload`: read the configuration again, see
+- `scripts/n3n-be-ctl -k PASSWORD reload`: read the configuration again, see
   [Configuration Files](configure/ConfigurationFiles.md#reloading)
 
 The methods it can call are described in the
@@ -132,7 +132,7 @@ and compared with the expected output.
 The builtin tests run commands of the program itself (`test config
 roundtrip`, a config with community sections, `tools keygen`); the
 integration tests start supernodes and edges on this host and check them
-through the management API with `n3nctl`, also over TCP and with the web
+through the management API with `n3n-be-ctl`, also over TCP and with the web
 UI.
 
 ### `test_qemu.sh`

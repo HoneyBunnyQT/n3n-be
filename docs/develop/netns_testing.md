@@ -6,7 +6,7 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 # Testing edges and supernodes behind NATs
 
 `tests/netns/` builds a small internet out of Linux network namespaces and
-runs the real `apps/n3n-edge` and `apps/n3n-supernode` in it: two federated
+runs the real `apps/n3n-be-edge` and `apps/n3n-be-supernode` in it: two federated
 supernodes, and two sites, each an edge behind one or more NAT routers.
 It sends counted frames through the VPN and checks what arrived, the
 edges' p2p and supernode counters, the supernodes' forwarding counters,
@@ -189,8 +189,8 @@ tree built for another CPU, under qemu-user, next to the host's build:
 what goes over the wire has to come out the same whatever the byte order
 and whichever version of a cipher a build has.  `versions.sh cross` builds
 the tree as it is (with the changes not committed) into
-`tests/netns/versions/NAME`; the scenarios run its `n3n-edge` and
-`n3n-supernode`, small scripts that start the binary under qemu.  Unlike
+`tests/netns/versions/NAME`; the scenarios run its `n3n-be-edge` and
+`n3n-be-supernode`, small scripts that start the binary under qemu.  Unlike
 the interop ones, these are checked as this tree: NAT class, descriptions,
 and no IPv6 needed.
 
@@ -405,7 +405,7 @@ one depends on the order it tries the learned ones in;
 `auth` of a `Scenario` turns on header encryption (`"header"`), or that
 and user/password authentication (`"userpw"`): the supernodes then get a
 community file, with a user for each edge whose public key comes from
-`n3n-edge tools keygen`, as docs/configure/Authentication.md describes.
+`n3n-be-edge tools keygen`, as docs/configure/Authentication.md describes.
 A `Site(on_supernode="sn2")` is the TAP device of that supernode, which then
 runs with `supernode.tap` and the site's settings of the community, the
 tuntap device and auth: it has no edge daemon of its own, so the checks that

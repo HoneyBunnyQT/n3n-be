@@ -49,17 +49,17 @@ In order to run n3n on Windows, you will need the following:
 - If OpenSSL has been linked dynamically, the corresponding `.dll` file should
   be available onto the target computer.
  
-The build gives `n3n.exe` and copies of it as `n3n-edge.exe` and
-`n3n-supernode.exe`, see [n3n(8)](../n3n.8).  `n3n-edge.exe` reads the
-`%USERPROFILE%\n3n\edge.conf` file if no session name is given, and
-`n3n-supernode.exe` the `%USERPROFILE%\n3n\supernode.conf` file.
-`n3n.exe edge` and `n3n.exe supernode` are the same; the zip of a release
-has `n3n.exe` only, and so these.
+The build gives `n3n-be.exe` and copies of it as `n3n-be-edge.exe` and
+`n3n-be-supernode.exe`, see [n3n(8)](../n3n-be.8).  `n3n-be-edge.exe` reads the
+`%USERPROFILE%\n3n-be\edge.conf` file if no session name is given, and
+`n3n-be-supernode.exe` the `%USERPROFILE%\n3n-be\supernode.conf` file.
+`n3n-be.exe edge` and `n3n-be.exe supernode` are the same; the zip of a release
+has `n3n-be.exe` only, and so these.
  
 Example [edge.conf](../edge.conf.sample)
 and [supernode.conf](../supernode.conf.sample) are available.
  
-See `n3n-edge.exe --help` and `n3n-supernode.exe --help` for a full list of
+See `n3n-be-edge.exe --help` and `n3n-be-supernode.exe --help` for a full list of
 supported options.  On Windows the management interface listens on a TCP
 port (`management.port`), as there are no Unix domain sockets, and a
 supernode cannot be an edge too (`supernode.tap`) yet.

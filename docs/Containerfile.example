@@ -1,11 +1,11 @@
 #
-# A simple example of how to build a docker container for n3n-edge
+# A simple example of how to build a docker container for n3n-be-edge
 #
 # Build with the command:
 # podman build \
 #   --device=/dev/net/tun \
 #   --cap-add=NET_ADMIN \
-#   -t=n3n \
+#   -t=n3n-be \
 #   -f docs/Containerfile.example \
 #   .
 #
@@ -13,32 +13,32 @@
 # To build in rootless mode:
 # podman build \
 #   --build-arg SKIP_TESTS=1 \
-#   -t=n3n \
+#   -t=n3n-be \
 #   -f docs/Containerfile.example \
 #   .
 #
-# Start a n3n session with:
+# Start an n3n-be session with:
 # podman run \
 #   --rm \
 #   -it \
-#   --name=n3n \
+#   --name=n3n-be \
 #   --device=/dev/net/tun \
 #   --cap-add=NET_ADMIN \
-#   -v "$PWD"/n3n:/etc/n3n/ \
-#   n3n start -vvvv
+#   -v "$PWD"/n3n-be:/etc/n3n-be/ \
+#   n3n-be start -vvvv
 #
-# Start an n3n supernode with the following, where 1234 is the port
+# Start an n3n-be supernode with the following, where 1234 is the port
 # configured in your supernode config file:
 # podman run
 #   --rm \
 #   -it \
-#   --name=n3n-supernode \
+#   --name=n3n-be-supernode \
 #   -p1234:1234/udp \
 #   --device=/dev/net/tun \
 #   --cap-add=NET_ADMIN \
-#   -v "$PWD"/n3n:/etc/n3n/ \
-#   --entrypoint=/n3n-supernode \
-#   n3n start -vvvv
+#   -v "$PWD"/n3n-be:/etc/n3n-be/ \
+#   --entrypoint=/n3n-be-supernode \
+#   n3n-be start -vvvv
 
 FROM docker.io/library/debian:12 AS builder
 
@@ -61,9 +61,10 @@ RUN if [ 0 -eq "$SKIP_TESTS" ]; then make test; fi
 
 FROM docker.io/library/debian:12
 
-COPY --from=builder /n3n/apps/n3n-edge /n3n-edge
-COPY --from=builder /n3n/apps/n3n-supernode /n3n-supernode
+# the one program, and its names for the roles (in apps/, links to it)
+COPY --from=builder /n3n/apps/n3n-be /n3n-be
+RUN ln -s n3n-be /n3n-be-edge && ln -s n3n-be /n3n-be-supernode
 
-VOLUME [ "/etc/n3n" ]
-ENTRYPOINT ["/n3n-edge"]
+VOLUME [ "/etc/n3n-be" ]
+ENTRYPOINT ["/n3n-be-edge"]
 CMD ["start"]

@@ -1,25 +1,25 @@
-.TH n3n-supernode 8  "1 Oct 2026" "version 3" "USER COMMANDS"
+.TH n3n-be-supernode 8  "1 Oct 2026" "version 3" "USER COMMANDS"
 .SH NAME
-n3n-supernode \- n3n supernode daemon
+n3n-be-supernode \- n3n supernode daemon
 .SH SYNOPSIS
-.B n3n-supernode
+.B n3n-be-supernode
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n-supernode start
+.B n3n-be-supernode start
 [\fIsessionname\fR]
 .br
 .B n3n supernode
 [\fIoptions..\fR] [command] [\fIcommand args\fR]
 .br
-.B n3n-supernode --help
+.B n3n-be-supernode --help
 .SH DESCRIPTION
 N3N is a peer-to-peer VPN system - it is the LAN you have when you have noLAN.
 
 The Supernode is a node introduction registry, broadcast conduit and packet
 relay node for the n3n system.  It is the supernode role of the
-.BR n3n (8)
+.BR n3n-be (8)
 program, which also runs as
-.BR "n3n supernode" .
+.BR "n3n-be supernode" .
 
 Once it has the full config loaded, the supernode begins listening on the
 addresses of \fBconnection.bind\fR, UDP and TCP, for node registrations, and
@@ -29,7 +29,7 @@ answers edges on each of them alike.  An address with \fBudp://\fR or
 \fBtcp://\fR in front is for that transport only, for example
 \fBbind = udp://[::]:7654 tcp://[::]:443\fR; the edges then need to be told
 of the TCP port, see \fBcommunity.supernode\fR in
-.BR n3n-edge (8).  The
+.BR n3n-be-edge (8).  The
 supernode can service any number of communities and routes packets only between
 members of the same community. The supernode does not hold the community
 encryption key and so cannot snoop or inject packets into the community.
@@ -40,15 +40,15 @@ not cross between communities.
 All logging goes to stdout, or with \fBdaemon.background\fR to syslog.
 
 The configuration file is found as for the edge, by the session name
-(default "supernode"): /etc/n3n/\fB<sessionname>\fR.conf.  All options are
-described by \fBn3n-edge help config\fR and in docs/configure/Options.md.
+(default "supernode"): /etc/n3n-be/\fB<sessionname>\fR.conf.  All options are
+described by \fBn3n-be-edge help config\fR and in docs/configure/Options.md.
 
 .SH OPTIONS
 Some of the most common options also have a shortcut version and you can see
 all of them with:
 
 .RS
-.B n3n-supernode help options
+.B n3n-be-supernode help options
 .RE
 .TP
 .SH OPTIONS
@@ -110,8 +110,8 @@ community_regex = myCommunity[0-9][0-9]
 .fi
 .PP
 With any allowed communities given, the supernode takes no others.  A reload
-(\fBn3nctl reload_communities\fR) reads the community file again; a
-reload of the whole configuration (\fBn3nctl reload\fR, SIGHUP) takes in
+(\fBn3n-be-ctl reload_communities\fR) reads the community file again; a
+reload of the whole configuration (\fBn3n-be-ctl reload\fR, SIGHUP) takes in
 changed \fB[community\fR \fIname\fR\fB]\fR sections too, see RELOAD.
 .SH FEDERATION
 Supernodes with the same \fBsupernode.federation\fR name form a federation:
@@ -126,9 +126,9 @@ the privileges to open the TAP device at start, before it drops them.  See
 docs/configure/Supernode.md.
 .SH MANAGEMENT INTERFACE
 As the edge, the supernode answers JsonRPC requests and serves a web page on
-the Unix Domain socket /run/n3n/\fB<sessionname>\fR/mgmt, and on the TCP port
+the Unix Domain socket /run/n3n-be/\fB<sessionname>\fR/mgmt, and on the TCP port
 \fBmanagement.port\fR of localhost.  With \fBsupernode.tap\fR, the page has a
-section for its edge too, and \fBn3nctl -r edge\fR asks the edge.  See
+section for its edge too, and \fBn3n-be-ctl -r edge\fR asks the edge.  See
 docs/internals/ManagementAPI.md.
 .SH THREADS
 With \fBdaemon.threads\fR the supernode relays PACKETs on several threads.
@@ -140,16 +140,16 @@ docs/advanced/Threads.md.
 set the federation name so it is not visible at the command line
 .SH EXAMPLES
 .TP
-.B n3n-supernode start -v
+.B n3n-be-supernode start -v
 Start supernode listening on the default port (7654), IPv6 and IPv4, with
 verbose output.
 .TP
-.B n3n-supernode start \-O connection.bind='[::]:7654 [::]:7655'
+.B n3n-be-supernode start \-O connection.bind='[::]:7654 [::]:7655'
 Also listen on port 7655.  With two ports, an edge can see that its NAT maps
 every destination to a port of its own, even with just this supernode.
 .PP
 .SH RELOAD
-\fBn3nctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs
+\fBn3n-be-ctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs
 in a terminal, where SIGHUP stops it) has the supernode read its
 configuration again.  The communities, \fBlogging.verbose\fR and
 \fBmanagement.password\fR change at once, and so do the description, the
@@ -176,7 +176,7 @@ andrews (at) ntop.org
 .TP
 Don Bindner
 .SH SEE ALSO
-n3n(8) n3n-edge(8) n3n(7)
+n3n-be(8) n3n-be-edge(8) n3n-be(7)
 .br
 the documentation contained in the source code
 .br

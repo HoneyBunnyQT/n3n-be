@@ -14,7 +14,7 @@ the maintainers see it.
 
 What helps:
 
-- the version (`n3n-edge -V`, or the app's: a tap on the bunny), the
+- the version (`n3n-be-edge -V`, or the app's: a tap on the bunny), the
   system, and the role it concerns (edge, supernode, the Android app)
 - what an attacker needs - a member of the community (with its key), any
   host that can send packets to the edge or supernode, someone on the same

@@ -8,8 +8,8 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 # Configuration Files
 
 An edge or a supernode reads its configuration from a file named after
-its **session**: `n3n-edge start home` reads `/etc/n3n/home.conf`
-(`%USERPROFILE%\n3n\home.conf` on Windows).  Without a session name,
+its **session**: `n3n-be-edge start home` reads `/etc/n3n-be/home.conf`
+(`%USERPROFILE%\n3n-be\home.conf` on Windows).  Without a session name,
 the edge's session is `edge` and the supernode's `supernode`.  A path
 instead of a name, starting with `/` or `./`, reads that file.
 
@@ -17,7 +17,7 @@ The files are like INI files: sections in brackets, one `option = value`
 a line, `#` for comments:
 
 ```ini
-# /etc/n3n/home.conf
+# /etc/n3n-be/home.conf
 [community]
 name = mynetwork
 key = mysecretpass
@@ -30,20 +30,20 @@ address_mode = static
 ```
 
 ```sh
-sudo n3n-edge start home
+sudo n3n-be-edge start home
 ```
 
 Every setting can also be given, or overridden, on the command line, as
 `-O section.option=value`:
 
 ```sh
-sudo n3n-edge start home -O connection.description=laptop -O community.compression=lzo
+sudo n3n-be-edge start home -O connection.description=laptop -O community.compression=lzo
 ```
 
 The most common options have short forms as well (`-c`, `-k`, `-l`,
-`-a`, ...): `n3n-edge help options` lists them.  All the options, with
+`-a`, ...): `n3n-be-edge help options` lists them.  All the options, with
 their defaults, are in [Configuration Options](Options.md);
-`n3n-edge help config` shows the same.
+`n3n-be-edge help config` shows the same.
 
 ## Where the Settings Come From
 
@@ -52,7 +52,7 @@ what came before:
 
 1. the defaults; for the supernode, `N3N_FEDERATION` in the environment
    sets the default of `supernode.federation`
-2. the config file of the session name, `/etc/n3n/<sessionname>.conf`
+2. the config file of the session name, `/etc/n3n-be/<sessionname>.conf`
    (or a path given instead of a session name, starting with `/` or `./`)
 3. the environment: `N3N_KEY` (also sets the cipher to AES), `N3N_COMMUNITY`,
    `N3N_PASSWORD`
@@ -62,7 +62,7 @@ what came before:
 To see the result:
 
 ```
-n3n-edge debug config load_dump mysession
+n3n-be-edge debug config load_dump mysession
 ```
 
 ## Sections with a Name
@@ -78,7 +78,7 @@ after a space or a dot - the name may have dots of its own, the option is
 what follows the last one:
 
 ```
-n3n-edge start -O "community home.key=secret" -O community.home.cipher=AES
+n3n-be-edge start -O "community home.key=secret" -O community.home.cipher=AES
 ```
 
 Such an option sets that one option of the section: of the file's section
@@ -95,7 +95,7 @@ separated by spaces.
 
 ## Reloading
 
-A running edge or supernode reads its configuration again on `n3nctl -k
+A running edge or supernode reads its configuration again on `n3n-be-ctl -k
 PASSWORD reload`, on `systemctl reload` of the packaged units, or on SIGHUP
 - but not while it runs in a terminal: there SIGHUP says that the terminal
 is gone, and n3n stops, as before.  Ctrl-C (SIGINT) and SIGTERM stop it as
@@ -128,11 +128,11 @@ What differs and can change while running is applied at once:
 
 Everything else - the community, its key and cipher, `connection.bind`, the
 TAP device and its address, `daemon.*` and so on - waits for a restart: the
-log, and the answer of `n3nctl reload`, name those options, and the next
+log, and the answer of `n3n-be-ctl reload`, name those options, and the next
 reload names them again until then:
 
 ```
-$ n3nctl -k PASSWORD reload
+$ n3n-be-ctl -k PASSWORD reload
 {
     "applied": ["connection.register_interval"],
     "loaded": true,

@@ -14,11 +14,11 @@ Tools that come with n3n-be, for users and for development, in the
 
 ### `n3n-benchmark`
 
-This tool is deprecated as the function is now built-in to the n3n-edge with
-the `n3n-edge test benchmark` command.
+This tool is deprecated as the function is now built-in to the n3n-be-edge with
+the `n3n-be-edge test benchmark` command.
 
 It is not built by default, and no longer builds as it stands; use
-`n3n-edge test benchmark` (or `n3n edge test benchmark`), which also runs
+`n3n-be-edge test benchmark` (or `n3n-be edge test benchmark`), which also runs
 in several threads at once with `-Otest.benchmark_threads=N`.
 
 This C tool has n3n's basic transforms (the ciphers, compression, hash)
