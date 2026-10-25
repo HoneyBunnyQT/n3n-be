@@ -697,6 +697,16 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", gateway="b", route_all="switch", tags=["quick"]),
     Scenario(
+        "route-all-reload",
+        "tuntap.route_all without tuntap.gateway at the start, then the "
+        "other edge as tuntap.gateway in the configuration file and a "
+        "reload, and without it again",
+        # a reload reads the file as the user the edge dropped to: in CI
+        # the checkout, under the runner's home, is not readable for it
+        Site(["easy-kept"], conf={"daemon": {"userid": 0, "groupid": 0}}),
+        Site(["easy-changed"]),
+        "direct", gateway="b", route_all="reload"),
+    Scenario(
         "route-all-tun",
         "tuntap.route_all with a TUN edge, relayed: the same",
         Site(["hard-range"], conf={"tuntap": {"type": "tun"}}),

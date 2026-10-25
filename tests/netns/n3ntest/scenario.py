@@ -40,6 +40,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import tempfile
 import time
 
 from . import nat
@@ -261,7 +262,8 @@ class Scenario:
         # gateway's (tuntap.route_all): its own traffic is to stay outside,
         # the rest to go through the tunnel, see check_route_all().  With
         # "switch", it starts without tuntap.gateway and is switched to it
-        # and back while it runs, see check_route_all_switch()
+        # and back while it runs, see check_route_all_switch(); with
+        # "reload" also by a reload of its configuration file
         self.route_all = route_all
         # The "internet", the supernodes and the edges on it without NAT
         # have IPv6 next to IPv4 (dual stack)
@@ -987,7 +989,7 @@ class Run:
             conf["tuntap"].setdefault("address6", "auto")
         if self.sc.gateway == sname:
             conf.setdefault("filter", {})["allow_routing"] = True
-        elif self.sc.route_all == "switch":
+        elif self.sc.route_all in ("switch", "reload"):
             conf["tuntap"]["route_all"] = True
         elif self.sc.gateway:
             conf["tuntap"]["gateway"] = self.edges[self.sc.gateway]["overlay"]
@@ -1028,7 +1030,8 @@ class Run:
             cli = cli_options(sections, dotted=True) \
                 if self.sc.community_cli else []
             wrap = list(self.st.wrap)
-            if self.sc.route_all == "switch" and sname != self.sc.gateway:
+            if self.sc.route_all in ("switch", "reload") and \
+                    sname != self.sc.gateway:
                 wrap = self._fake_resolvectl() + wrap
             d = (N2nEdge if is_n2n(site.version) else Edge)(
                 self.lab, "edge-" + sname, e["ns"], self._session(sname),
@@ -2295,10 +2298,14 @@ class Run:
     def _fake_resolvectl(self):
         """A resolvectl first in the edge's PATH, which writes down what it
         is asked, and whether it has CAP_NET_ADMIN (bit 12 of CapEff): what
-        systemd-resolved asks of who sets a link's DNS server"""
-        bindir = os.path.join(self.workdir, "fakebin")
-        os.makedirs(bindir, exist_ok=True)
-        self.resolvectl_log = os.path.join(self.workdir, "resolvectl.log")
+        systemd-resolved asks of who sets a link's DNS server.  In a
+        directory of its own in /tmp, which the edge reaches after it
+        dropped its privileges - in CI, the workdir is below the runner's
+        home, which it cannot enter."""
+        bindir = tempfile.mkdtemp(prefix="n3ntest-fakebin-")
+        os.chmod(bindir, 0o755)
+        self.fakebin = bindir
+        self.resolvectl_log = os.path.join(bindir, "resolvectl.log")
         script = os.path.join(bindir, "resolvectl")
         with open(script, "w") as f:
             f.write("#!/bin/sh\n"
@@ -2329,10 +2336,10 @@ class Run:
 
     def check_route_all_switch(self):
         """tuntap.route_all without tuntap.gateway at the start: through the
-        exit peer once set_gateway names it, directly again with "", the
-        same by a reload of the configuration file, and through it from the
-        page's button; an edge that did not start with tuntap.route_all
-        refuses it (Linux, no mark on its sockets)"""
+        exit peer once set_gateway names it, directly again with "", (with
+        "reload") the same by a reload of the configuration file, and
+        through it from the page's button; an edge that did not start
+        with tuntap.route_all refuses it (Linux, no mark on its sockets)"""
         gw = self.sc.gateway
         src = [s for s in self.edges if s != gw][0]
         ns = self.edges[src]["ns"]
@@ -2385,9 +2392,10 @@ class Run:
                    "an exit peer outside the subnet: {}".format(refused))
 
         # the configuration file names the exit peer, a reload applies it;
-        # then without it again
+        # then without it again - where the edge can read the file again
         d = self.edges[src]["daemon"]
-        for with_it in (True, False):
+        for with_it in ((True, False) if self.sc.route_all == "reload"
+                        else ()):
             d.sections["tuntap"] = [(o, v) for o, v in d.sections["tuntap"]
                                     if o != "gateway"]
             if with_it:
@@ -2647,7 +2655,7 @@ class Run:
                     self.check_span(received, "roam", self.sc.roam_max_gap)
                 if self.check_alive("measurement"):
                     self.check_descriptions("description after")
-            if self.sc.route_all == "switch" and \
+            if self.sc.route_all in ("switch", "reload") and \
                     self.check_alive("measurement"):
                 self.check_route_all_switch()
             if self.sc.gateway and self.check_alive("measurement"):
@@ -2736,3 +2744,7 @@ class Run:
                 self.check("exit:" + name, False,
                            "on SIGTERM: {}".format(describe_exit(code)))
         self.lab.teardown()
+        if getattr(self, "fakebin", None):
+            if os.path.exists(self.resolvectl_log):
+                shutil.copy(self.resolvectl_log, self.workdir)
+            shutil.rmtree(self.fakebin, ignore_errors=True)
