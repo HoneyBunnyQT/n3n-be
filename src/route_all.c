@@ -524,6 +524,8 @@ static char *tap_name;
 static bool metric_set;
 static ULONG metric_original;
 static BOOLEAN metric_automatic;
+// the exit peer the routes go through
+static uint32_t up_gateway;
 
 
 // The interface of the best default route of a family, other than the TAP
@@ -654,12 +656,13 @@ static DWORD routes_add (ADDRESS_FAMILY family, uint32_t gateway) {
 }
 
 
-static void routes_del (ADDRESS_FAMILY family) {
+// The two halves of a family; a route is known by its next hop too
+static void routes_del (ADDRESS_FAMILY family, uint32_t gateway) {
 
     MIB_IPFORWARD_ROW2 row;
 
     for(int half = 0; half < 2; half++) {
-        route_row(&row, family, half, 0);
+        route_row(&row, family, half, gateway);
         DeleteIpForwardEntry2(&row);
     }
 }
@@ -715,17 +718,18 @@ static int all_up (const struct n3n_conf_tap *tap) {
     err = routes_add(AF_INET, tap->gateway.net_addr);
     if(err) {
         traceEvent(TRACE_ERROR, "tuntap.route_all: the routes through %s failed [%lu]", gw, err);
-        routes_del(AF_INET);
+        routes_del(AF_INET, tap->gateway.net_addr);
         return -1;
     }
     up = true;
+    up_gateway = tap->gateway.net_addr;
     err = routes_add(AF_INET6, 0);
     if(!err) {
         up6 = true;
     } else {
         traceEvent(TRACE_WARNING, "tuntap.route_all: IPv6 is not routed into the adapter [%lu], it goes around "
                    "the exit peer", err);
-        routes_del(AF_INET6);
+        routes_del(AF_INET6, 0);
     }
     if(!tap->metric) {
         metric_low();
@@ -878,9 +882,9 @@ void route_all_down (struct n3n_runtime_data *eee) {
     if(metric_set) {
         metric_back();
     }
-    routes_del(AF_INET);
+    routes_del(AF_INET, up_gateway);
     if(up6) {
-        routes_del(AF_INET6);
+        routes_del(AF_INET6, 0);
     }
     up = up6 = false;
     traceEvent(TRACE_NORMAL, "all traffic through the exit peer: the routes taken back");
