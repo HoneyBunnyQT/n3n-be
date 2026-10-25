@@ -113,7 +113,7 @@ static void fail (const char *what) {
 static int install (void) {
 
     char dir[MAX_PATH], conf[MAX_PATH + 80], user_conf[MAX_PATH + 80];
-    char exe[MAX_PATH], cmd[2 * MAX_PATH], display[120], desc[200];
+    char exe[MAX_PATH], cmd[2 * MAX_PATH], display[120], desc[MAX_PATH + 200];
     const char *profile = getenv("USERPROFILE");
     SC_HANDLE scm, svc;
 
