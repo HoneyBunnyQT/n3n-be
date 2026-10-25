@@ -6,7 +6,7 @@
  *
  * The program loads its configuration anew, all the way as at its start
  * (defaults, file, environment, command line).  Both are dumped as text,
- * as "n3n-edge debug config load_dump" does, and compared option by
+ * as "n3n-be-edge debug config load_dump" does, and compared option by
  * option: what differs from the start and can change while running is set
  * on the running configuration, the rest is reported as waiting for a
  * restart.  The comparison is with what runs: the start, then what each

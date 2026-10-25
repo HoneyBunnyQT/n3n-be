@@ -119,7 +119,7 @@ void _traceEvent (int eventTraceLevel, char* file, int line, char * format, ...)
 
     if(useSyslog) {
         if(!syslog_opened) {
-            openlog("n3n", LOG_PID, LOG_DAEMON);
+            openlog("n3n-be", LOG_PID, LOG_DAEMON);
             syslog_opened = 1;
         }
 

@@ -369,8 +369,8 @@ VERSIONS = os.path.join(os.path.dirname(os.path.dirname(
 
 
 def version_built(version):
-    return os.path.exists(os.path.join(VERSIONS, version, "n3n-edge")) \
-        or is_n2n(version)
+    return any(os.path.exists(os.path.join(VERSIONS, version, b))
+               for b in ("n3n-be-edge", "n3n-edge")) or is_n2n(version)
 
 
 def is_n2n(version):
@@ -395,16 +395,22 @@ def is_other(version):
 class Settings:
     """What the command line sets for all scenarios"""
 
-    def binary(self, name, version=None):
-        """n3n-edge or n3n-supernode of this tree, or of another version"""
+    def binary(self, role, version=None):
+        """The binary of a role, "edge" or "supernode": this tree's
+        (n3n-be-edge), or another version's by its own name - n3n-be-edge
+        (n3n-be from 2026-10-25 on), n3n-edge (n3n, n3n-be before) or n2n's
+        edge"""
         if not version:
-            return os.path.join(self.topdir, "apps", name)
+            return os.path.join(self.topdir, "apps", "n3n-be-" + role)
         if not version_built(version):
             raise LabError("version {} is not built: tests/netns/versions.sh "
                            "build {} REF".format(version, version))
         if is_n2n(version):
-            name = {"n3n-edge": "edge", "n3n-supernode": "supernode"}[name]
-        return os.path.join(self.versions, version, name)
+            return os.path.join(self.versions, version, role)
+        be = os.path.join(self.versions, version, "n3n-be-" + role)
+        if os.path.exists(be):
+            return be
+        return os.path.join(self.versions, version, "n3n-" + role)
 
     def __init__(self, topdir, workdir, register_interval=5, punch_ports=128,
                  frames=500, rate=200, size=64, loss=0.01, verbose=2,
@@ -412,8 +418,8 @@ class Settings:
                  spray_seconds=None, spray_seed=None):
         self.topdir = topdir
         self.workdir = workdir
-        self.edge_bin = os.path.join(topdir, "apps", "n3n-edge")
-        self.sn_bin = os.path.join(topdir, "apps", "n3n-supernode")
+        self.edge_bin = os.path.join(topdir, "apps", "n3n-be-edge")
+        self.sn_bin = os.path.join(topdir, "apps", "n3n-be-supernode")
         self.versions = VERSIONS
         self.register_interval = register_interval
         self.punch_ports = punch_ports
@@ -819,7 +825,7 @@ class Run:
         return "{}{}".format(self.prefix, name)
 
     def _keygen(self, *args):
-        """What "n3n-edge tools keygen" says, without the line's prefix"""
+        """What "n3n-be-edge tools keygen" says, without the line's prefix"""
         argv = [self.st.edge_bin, "tools", "keygen"] + list(args)
         out = subprocess.run(argv, capture_output=True, text=True).stdout
         out = out.strip()
@@ -900,7 +906,7 @@ class Run:
             cli = cli_options(sections) if self.sc.community_cli else []
             d = (N2nSupernode if is_n2n(version) else Supernode)(
                 self.lab, name, sn["ns"], self._session(name),
-                self.st.binary("n3n-supernode", version),
+                self.st.binary("supernode", version),
                 sections, wrap=self._sn_wrap(), cli=cli)
             d.start()
             self._log_left_out(name, d)
@@ -1012,7 +1018,7 @@ class Run:
                 if self.sc.community_cli else []
             d = (N2nEdge if is_n2n(site.version) else Edge)(
                 self.lab, "edge-" + sname, e["ns"], self._session(sname),
-                self.st.binary("n3n-edge", site.version), sections,
+                self.st.binary("edge", site.version), sections,
                 wrap=self.st.wrap, overlay_ip=e["overlay"], mac=e["mac"],
                 cli=cli)
             d.start()
@@ -2023,7 +2029,7 @@ class Run:
             sections[section] = [(o, v) for o, v in sections[section]
                                  if o not in options] + list(options.items())
         d = Edge(self.lab, "edge-spoof", b["ns"], self._session("spoof"),
-                 self.st.binary("n3n-edge", None), sections,
+                 self.st.binary("edge", None), sections,
                  wrap=self.st.wrap, overlay_ip="10.99.0.99", mac=a["mac"])
         d.start()
         try:

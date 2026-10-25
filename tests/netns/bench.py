@@ -229,7 +229,7 @@ def main():
     ap.add_argument("--compare", nargs=2, metavar=("OLD", "NEW"),
                     help="compare two --json files, and exit")
     ap.add_argument("--topdir", default=topdir,
-                    help="where apps/n3n-edge is (default: this tree)")
+                    help="where apps/n3n-be-edge is (default: this tree)")
     ap.add_argument("--workdir", default=os.path.join(HERE, "out-bench"),
                     help="logs and configs (default tests/netns/out-bench)")
     ap.add_argument("--wrap", default="",
@@ -258,7 +258,9 @@ def main():
         return 2
     labmod.cleanup_stale(PREFIX)
     os.makedirs(args.workdir, exist_ok=True)
-    os.makedirs("/run/n3n", mode=0o755, exist_ok=True)
+    # this tree's, and that of older versions (interop)
+    for d in ("/run/n3n-be", "/run/n3n"):
+        os.makedirs(d, mode=0o755, exist_ok=True)
 
     settings = Settings(topdir=os.path.abspath(args.topdir),
                         workdir=os.path.abspath(args.workdir), verbose=1,

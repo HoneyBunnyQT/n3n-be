@@ -216,7 +216,7 @@ def main():
                     "LeakSanitizer, which cannot check a daemon that "
                     "dropped its privileges")
     ap.add_argument("--topdir", default=topdir,
-                    help="where apps/n3n-edge is (default: this tree)")
+                    help="where apps/n3n-be-edge is (default: this tree)")
     ap.add_argument("--workdir",
                     default=os.path.join(HERE, "out"),
                     help="logs, configs and results (default tests/netns/out)")
@@ -296,7 +296,9 @@ def main():
     # The daemons' session directories go below it.  n3n makes it when it
     # is not there, but releases before 3.4.7 (interop) give up when
     # another daemon made it between their check and their mkdir().
-    os.makedirs("/run/n3n", mode=0o755, exist_ok=True)
+    # this tree's, and that of older versions (interop)
+    for d in ("/run/n3n-be", "/run/n3n"):
+        os.makedirs(d, mode=0o755, exist_ok=True)
 
     print_lock = threading.Lock()
 

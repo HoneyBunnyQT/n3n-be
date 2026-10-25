@@ -77,7 +77,7 @@ PREFIX=$(DESTDIR)/$(CONFIG_PREFIX)
 # Note that these two install dirs are outside of the CONFIG_PREFIX.
 # The ETCDIR is not configurable in the code, so no changes should be done
 # without code changes.
-ETCDIR=$(DESTDIR)/etc/n3n
+ETCDIR=$(DESTDIR)/etc/n3n-be
 CONFIG_RUNDIR?=$(DESTDIR)/run
 
 CONFIG_BINDIR?=$(PREFIX)/bin
@@ -85,7 +85,7 @@ CONFIG_SBINDIR?=$(PREFIX)/sbin
 CONFIG_MANDIR?=$(PREFIX)/share/man
 MAN7DIR=$(CONFIG_MANDIR)/man7
 MAN8DIR=$(CONFIG_MANDIR)/man8
-CONFIG_DOCDIR?=$(PREFIX)/share/doc/n3n
+CONFIG_DOCDIR?=$(PREFIX)/share/doc/n3n-be
 CONFIG_SYSTEMDDIR?=$(PREFIX)/lib/systemd/system
 CONFIG_SYSUSERSDIR?=$(PREFIX)/lib/sysusers.d
 
@@ -292,10 +292,10 @@ LINT_CCODE=\
 # TODO: change either the files or the linter to remove these failures
 LINT_EXCLUDE=include/uthash.h
 
-MANS+=docs/n3n.8.gz
-MANS+=docs/n3n-edge.8.gz
-MANS+=docs/n3n-supernode.8.gz
-MANS+=docs/n3n.7.gz
+MANS+=docs/n3n-be.8.gz
+MANS+=docs/n3n-be-edge.8.gz
+MANS+=docs/n3n-be-supernode.8.gz
+MANS+=docs/n3n-be.7.gz
 
 # This is the list of Debian/Ubuntu packages that are needed during the build.
 # Mostly of use in automated build systems.
@@ -413,7 +413,7 @@ lint.python:
 	flake8 \
 		scripts/benchmark2graphdata.py \
 		scripts/n3n-convert_old_conf \
-		scripts/n3nctl \
+		scripts/n3n-be-ctl \
 		tests/netns/run.py \
 		tests/netns/n3ntest/ \
 		tests/macos/utun.py \
@@ -439,11 +439,11 @@ lint.man:
 # needs the apps.  "make options.check" fails if it is not up to date.
 .PHONY: options options.check
 options: apps
-	python3 scripts/gen_options_md.py apps/n3n-edge apps/n3n-supernode \
+	python3 scripts/gen_options_md.py apps/n3n-be-edge apps/n3n-be-supernode \
 	    > docs/configure/Options.md
 
 options.check: apps
-	python3 scripts/gen_options_md.py apps/n3n-edge apps/n3n-supernode \
+	python3 scripts/gen_options_md.py apps/n3n-be-edge apps/n3n-be-supernode \
 	    | diff -u docs/configure/Options.md -
 
 # To generate coverage information, run configure with
@@ -509,7 +509,7 @@ distclean:
 	rm -f tests/*.out src/*.indent src/*.unc-backup*
 	rm -rf autom4te.cache/
 	rm -f config.mak config.log config.status configure include/config.h include/config.h.in
-	rm -f n3n.8.gz n3n-edge.8.gz n3n.7.gz n3n-supernode.8.gz
+	rm -f n3n-be.8.gz n3n-be-edge.8.gz n3n-be.7.gz n3n-be-supernode.8.gz
 	rm -f packages/debian/config.log packages/debian/config.status
 	rm -rf packages/debian/autom4te.cache/
 	rm -f packages/rpm/config.log packages/rpm/config.status
@@ -530,25 +530,25 @@ dpkg:
 install.bin: apps
 	$(MAKE) -C apps install CONFIG_SBINDIR=$(abspath $(CONFIG_SBINDIR))
 	$(INSTALL) -d $(CONFIG_BINDIR) $(ETCDIR)
-	$(INSTALL_PROG) scripts/n3nctl $(CONFIG_BINDIR)
+	$(INSTALL_PROG) scripts/n3n-be-ctl $(CONFIG_BINDIR)
 
 # TODO: dont install.systemd for a non systemd host
 .PHONY: install.systemd
 install.systemd:
 	$(INSTALL) -d $(CONFIG_SYSTEMDDIR)
-	$(INSTALL_DOC) packages/lib/systemd/system/n3n-edge@.service $(CONFIG_SYSTEMDDIR)
-	$(INSTALL_DOC) packages/lib/systemd/system/n3n-edge.service $(CONFIG_SYSTEMDDIR)
-	$(INSTALL_DOC) packages/lib/systemd/system/n3n-supernode.service $(CONFIG_SYSTEMDDIR)
+	$(INSTALL_DOC) packages/lib/systemd/system/n3n-be-edge@.service $(CONFIG_SYSTEMDDIR)
+	$(INSTALL_DOC) packages/lib/systemd/system/n3n-be-edge.service $(CONFIG_SYSTEMDDIR)
+	$(INSTALL_DOC) packages/lib/systemd/system/n3n-be-supernode.service $(CONFIG_SYSTEMDDIR)
 	$(INSTALL) -d $(CONFIG_SYSUSERSDIR)
-	$(INSTALL_DOC) packages/lib/sysusers.d/n3n.conf $(CONFIG_SYSUSERSDIR)
+	$(INSTALL_DOC) packages/lib/sysusers.d/n3n-be.conf $(CONFIG_SYSUSERSDIR)
 
 .PHONY: install.doc
 install: $(MANS)
 	$(INSTALL) -d $(MAN7DIR) $(MAN8DIR) $(CONFIG_DOCDIR)
-	$(INSTALL_DOC) docs/n3n.8.gz $(MAN8DIR)/
-	$(INSTALL_DOC) docs/n3n-edge.8.gz $(MAN8DIR)/
-	$(INSTALL_DOC) docs/n3n-supernode.8.gz $(MAN8DIR)/
-	$(INSTALL_DOC) docs/n3n.7.gz $(MAN7DIR)/
+	$(INSTALL_DOC) docs/n3n-be.8.gz $(MAN8DIR)/
+	$(INSTALL_DOC) docs/n3n-be-edge.8.gz $(MAN8DIR)/
+	$(INSTALL_DOC) docs/n3n-be-supernode.8.gz $(MAN8DIR)/
+	$(INSTALL_DOC) docs/n3n-be.7.gz $(MAN7DIR)/
 	$(INSTALL_DOC) docs/*.md docs/*.sample $(CONFIG_DOCDIR)/
 
 # TODO:

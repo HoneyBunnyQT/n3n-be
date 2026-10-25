@@ -393,7 +393,7 @@ class N3nVpnService : VpnService() {
             val rc = nativeRun(text, -1, filesDir.absolutePath)
             addLog("edge stopped ($rc)")
             main.post { edgeEnded() }
-        }, "n3n-edge")
+        }, "n3n-be-edge")
         edge = thread
         thread.start()
         if (watching == null) {

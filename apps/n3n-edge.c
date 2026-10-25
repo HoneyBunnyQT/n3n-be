@@ -403,7 +403,7 @@ static void cmd_test_list (int argc, char **argv, void *_conf) {
 }
 
 static void cmd_test_hashing (int argc, char **argv, void *conf) {
-    fprintf(stderr, "Deprecated: use `n3n-edge test check` instead\n");
+    fprintf(stderr, "Deprecated: use `n3n-be-edge test check` instead\n");
     cmd_test_check(argc, argv, conf);
 }
 
@@ -977,7 +977,7 @@ static BOOL WINAPI ConsoleCtrlHandler (DWORD sig) {
 
 /* *************************************************** */
 
-/** Entry point of the edge, see n3n.c */
+/** Entry point of the edge, see n3n-be.c */
 int n3n_edge_main (int argc, char* argv[]) {
 
     int rc;

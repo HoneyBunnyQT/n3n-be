@@ -21,12 +21,12 @@ docmd() {
 }
 
 # We dont have perms for writing to the /run dir, TODO: improve this
-sudo mkdir -p /run/n3n
-sudo chown "$USER" /run/n3n
+sudo mkdir -p /run/n3n-be
+sudo chown "$USER" /run/n3n-be
 
 # start a supernode
 echo -e "### supernode started\n"
-apps/n3n-supernode \
+apps/n3n-be-supernode \
     -vv \
     -Oconnection.bind=7001 \
     -Osupernode.macaddr=02:00:00:00:00:01 \
@@ -47,7 +47,7 @@ docmd "${BINDIR}"/scripts/test_packets \
     test_REGISTER_SUPER
 
 # Confirm that the registration is visible
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 get_edges --raw |grep -v last_seen |grep -v time_alloc
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn1 get_edges --raw |grep -v last_seen |grep -v time_alloc
 
 # Once registered, we can query for that registration
 docmd "${TOPDIR}"/scripts/test_packets \
@@ -76,7 +76,7 @@ docmd "${BINDIR}"/scripts/test_packets \
     --timeout 0 \
     test_UNREGISTER_SUPER
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 get_edges --raw
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 
 # An edge at the tunnel address of a known one takes its entry over only
 # when it shows the same token (the same edge, with another MAC); address
@@ -106,7 +106,7 @@ claim 02000000000d 0a090005 dddddddddddddddddddddddddddddddd 636c61696d2d64
 # e as a's twin, the same description: another address
 claim 02000000000e 00000000 eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee 636c61696d2d61
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 get_edges --raw |grep -v last_seen |grep -v time_alloc
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn1 get_edges --raw |grep -v last_seen |grep -v time_alloc
 
 # TCP
 #
@@ -121,4 +121,4 @@ docmd "${BINDIR}"/scripts/test_packets \
 # - remember that since we bound the port to TCP/7000 that becomes busy until
 #   the TIME-WAIT period ends
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn1 -k $AUTH stop
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn1 -k $AUTH stop

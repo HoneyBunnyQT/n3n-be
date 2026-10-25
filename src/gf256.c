@@ -8,7 +8,7 @@
  * crypto/speck.c): every one the architecture has is built, and the
  * fastest one the CPU at hand can run is taken.  They all give the same,
  * so edges with different ones understand each other; tests-fec holds
- * them to plain C, "n3n-edge test check" to the repair of the benchmark.
+ * them to plain C, "n3n-be-edge test check" to the repair of the benchmark.
  */
 
 #include <n3n/benchmark.h>  // for n3n_benchmark_register
@@ -96,7 +96,7 @@ static bool has_gfni_avx512 (void) {
 #endif
 
 
-// Slowest first, as measured (n3n-edge test benchmark fec_repair): whether
+// Slowest first, as measured (n3n-be-edge test benchmark fec_repair): whether
 // this CPU can run it (NULL: any of the architecture).  GFNI on its own,
 // 16 bytes at a time, is about as fast as SSSE3 - it is for the Atoms that
 // have it without AVX.  NEON is taken where it is built, unlike Speck's:

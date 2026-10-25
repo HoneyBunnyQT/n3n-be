@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Reading the configuration again while running: on SIGHUP, or by the
- * management API's "reload" (n3nctl reload).  What can change while
+ * management API's "reload" (n3n-be-ctl reload).  What can change while
  * running is applied, the rest waits for a restart, see reload.c.
  */
 

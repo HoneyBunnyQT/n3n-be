@@ -336,7 +336,7 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
     conf->groupid = getgid();
     if((conf->userid == 0) || (conf->groupid == 0)) {
         // Search a couple of usernames for one to use
-        pw = getpwnam("n3n");
+        pw = getpwnam("n3n-be");
         if(pw == NULL) {
             pw = getpwnam("nobody");
         }

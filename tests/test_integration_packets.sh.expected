@@ -61,7 +61,7 @@ recv:
  'num_sn': 0,
  'key_time': 0}
 
-### test: ./scripts/n3nctl -s ci_sn1 get_edges --raw
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 [
     {
         "community": "test",
@@ -186,7 +186,7 @@ test:
 010: 00 00 00 00 00 00 00 00  00 00 00 00 00 00 00 00   |                |
 020: 00 03                                              |  |
 
-### test: ./scripts/n3nctl -s ci_sn1 get_edges --raw
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 []
 
 ### test: ./scripts/test_packets --bind 7002 -s localhost:7001 --field edgeMac=02000000000a --field ipv4=00000000 --field masklen=24 --field desc=636c61696d2d61 --field auth_scheme=1 --field auth_token_size=16 --field auth_token=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa test_REGISTER_SUPER
@@ -345,7 +345,7 @@ recv:
  'num_sn': 0,
  'key_time': 0}
 
-### test: ./scripts/n3nctl -s ci_sn1 get_edges --raw
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 [
     {
         "community": "test",
@@ -454,6 +454,6 @@ recv:
  'uptime': 4294967295,
  'version': b'_stabilised_'}
 
-### test: ./scripts/n3nctl -s ci_sn1 -k n3n stop
+### test: ./scripts/n3n-be-ctl -s ci_sn1 -k n3n stop
 0
 

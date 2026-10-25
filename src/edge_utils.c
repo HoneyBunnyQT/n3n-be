@@ -2024,7 +2024,7 @@ void edge_init_conf_defaults (n2n_edge_conf_t *conf, char *sessionname) {
 #ifndef _WIN32
     struct passwd *pw = NULL;
     // Search a couple of usernames for one to use
-    pw = getpwnam("n3n");
+    pw = getpwnam("n3n-be");
     if(pw == NULL) {
         pw = getpwnam("nobody");
     }

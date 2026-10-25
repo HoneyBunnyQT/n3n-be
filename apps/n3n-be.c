@@ -2,10 +2,11 @@
  * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
  *
- * The one n3n binary.  Installed as n3n-edge or n3n-supernode (a link, or a
- * copy where there are no links), it is that daemon, with the same options;
- * as n3n, the first argument says which: "n3n edge start ..." is
- * "n3n-edge start ...".
+ * The one n3n-be binary.  Installed as n3n-be-edge or n3n-be-supernode (a
+ * link, or a copy where there are no links), it is that daemon, with the
+ * same options; as n3n-be, the first argument says which: "n3n-be edge
+ * start ..." is "n3n-be-edge start ...".  Its own names, not n3n's: n3n-be
+ * installs next to n3n, whose binaries read another configuration.
  */
 
 #include <stdio.h>      // for printf
@@ -17,13 +18,13 @@
 
 static const struct {
     const char *name;           // the name of the binary
-    const char *word;           // the first argument of "n3n"
+    const char *word;           // the first argument of "n3n-be"
     int (*main)(int argc, char *argv[]);
 } roles[] = {
-    { "n3n-edge", "edge", n3n_edge_main },
+    { "n3n-be-edge", "edge", n3n_edge_main },
 #ifndef N3N_NO_RELAY
     // not with ./configure --disable-relay
-    { "n3n-supernode", "supernode", n3n_supernode_main },
+    { "n3n-be-supernode", "supernode", n3n_supernode_main },
 #endif
 };
 
@@ -54,14 +55,14 @@ static void program_name (char *buf, size_t size, const char *argv0) {
 
 static void usage (void) {
 
-    printf("usage: n3n <role> [arguments]\n"
+    printf("usage: n3n-be <role> [arguments]\n"
            "\n"
            "The roles:\n");
     for(int i = 0; i < NUM_ROLES; i++) {
         printf("  %-12s the same as %s\n", roles[i].word, roles[i].name);
     }
     printf("\n"
-           "\"n3n edge -h\" shows the arguments of the edge, and so on.\n");
+           "\"n3n-be edge -h\" shows the arguments of the edge, and so on.\n");
 }
 
 
@@ -69,7 +70,7 @@ int main (int argc, char *argv[]) {
 
     char name[64];
 
-    program_name(name, sizeof(name), argc ? argv[0] : "n3n");
+    program_name(name, sizeof(name), argc ? argv[0] : "n3n-be");
 
     for(int i = 0; i < NUM_ROLES; i++) {
         if(!strcmp(name, roles[i].name)) {

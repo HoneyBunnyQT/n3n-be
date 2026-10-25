@@ -21,17 +21,17 @@ docmd() {
 }
 
 # We dont have perms for writing to the /run dir, TODO: improve this
-sudo mkdir -p /run/n3n
-sudo chown "$USER" /run/n3n
+sudo mkdir -p /run/n3n-be
+sudo chown "$USER" /run/n3n-be
 
 # start a supernode
-docmd "${BINDIR}"/apps/n3n-supernode start ci_sn \
+docmd "${BINDIR}"/apps/n3n-be-supernode start ci_sn \
     -v \
     --daemon \
     -Osupernode.macaddr=02:00:00:55:00:00
 
 # Start the edge in the background
-docmd sudo "${BINDIR}"/apps/n3n-edge start ci_edge1 \
+docmd sudo "${BINDIR}"/apps/n3n-be-edge start ci_edge1 \
     --daemon \
     -l localhost:7654 \
     -c test \
@@ -46,21 +46,21 @@ docmd sudo "${BINDIR}"/apps/n3n-edge start ci_edge1 \
 # available?
 sleep 0.1
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_edge1 get_communities
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 get_communities
 
-echo "### test: ${TOPDIR}/scripts/n3nctl -s ci_edge1 get_packetstats"
-"${TOPDIR}"/scripts/n3nctl -s ci_edge1 get_packetstats |jq '.[0:5]'
+echo "### test: ${TOPDIR}/scripts/n3n-be-ctl -s ci_edge1 get_packetstats"
+"${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 get_packetstats |jq '.[0:5]'
 # this is filtering out the type=multicast_drop line as that has a changing
 # number of packets counted
 echo
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_edge1 get_edges --raw |grep -v "last_seen"
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn get_edges --raw |grep -v -E "last_seen|time_alloc"
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 get_edges --raw |grep -v "last_seen"
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn get_edges --raw |grep -v -E "last_seen|time_alloc"
 
 
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_edge1 get_supernodes --raw
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 get_supernodes --raw
 
 # stop them both
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_edge1 -k $AUTH stop
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn -k $AUTH stop
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 -k $AUTH stop
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn -k $AUTH stop
 

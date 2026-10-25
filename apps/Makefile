@@ -18,13 +18,13 @@
 # LDFLAGS+=-L../libs/connslot
 # LDLIBS_LOCAL+=-lconnslot
 
-# One binary for all the roles, see n3n.c
-APPS+=n3n
+# One binary for all the roles, see n3n-be.c
+APPS+=n3n-be
 
 # and its names for each role: links to it, copies where there are no links
-LINKS+=n3n-edge
+LINKS+=n3n-be-edge
 ifneq ($(CONFIG_RELAY),no)
-LINKS+=n3n-supernode
+LINKS+=n3n-be-supernode
 ROLES+=n3n-supernode.c
 endif
 
@@ -49,24 +49,24 @@ $(APPS) $(EXAMPLES): ../src/libn3n.a
 
 example_edge_embed_tun: LDLIBS+=-lpthread
 
-n3n: n3n.c n3n-edge.c $(ROLES)
+n3n-be: n3n-be.c n3n-edge.c $(ROLES)
 
-$(LINKS): n3n
+$(LINKS): n3n-be
 	@echo "  LN      $@"
 ifeq ($(EXE),)
-	@ln -sf n3n $@
+	@ln -sf n3n-be $@
 else
-	@cp n3n$(EXE) $@$(EXE)
+	@cp n3n-be$(EXE) $@$(EXE)
 endif
 
 .PHONY: install
 install: $(addsuffix $(EXE),$(APPS))
 	$(INSTALL) -d $(CONFIG_SBINDIR)
-	$(INSTALL_PROG) n3n$(EXE) $(CONFIG_SBINDIR)/
+	$(INSTALL_PROG) n3n-be$(EXE) $(CONFIG_SBINDIR)/
 ifeq ($(EXE),)
-	for l in $(LINKS); do ln -sf n3n $(CONFIG_SBINDIR)/$$l; done
+	for l in $(LINKS); do ln -sf n3n-be $(CONFIG_SBINDIR)/$$l; done
 else
-	for l in $(LINKS); do $(INSTALL_PROG) n3n$(EXE) $(CONFIG_SBINDIR)/$$l$(EXE); done
+	for l in $(LINKS); do $(INSTALL_PROG) n3n-be$(EXE) $(CONFIG_SBINDIR)/$$l$(EXE); done
 endif
 
 %: %.c
@@ -76,7 +76,7 @@ endif
 # See comments in the topdir Makefile about how to generate coverage data.
 # gcc names the coverage data of a binary built in one step <binary>-<source>
 gcov:
-	gcov n3n-n3n n3n-n3n-edge $(ROLES:%.c=n3n-%)
+	gcov n3n-be-n3n-be n3n-be-n3n-edge $(ROLES:%.c=n3n-be-%)
 
 clean:
 	rm -f $(APPS) $(LINKS) $(EXAMPLES)

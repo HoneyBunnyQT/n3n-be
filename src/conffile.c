@@ -1319,14 +1319,14 @@ static char *find_config (char *name) {
 
     char *userprofile = getenv("USERPROFILE");
     if(userprofile) {
-        snprintf(profiledir, sizeof(profiledir), "%s/n3n", userprofile);
+        snprintf(profiledir, sizeof(profiledir), "%s/n3n-be", userprofile);
     }
 #endif
 
     // TODO: Are there other places that should be searched?
     char *searchpath[] = {
 #ifndef _WIN32
-        "/etc/n3n",
+        "/etc/n3n-be",
 #endif
 #ifdef _WIN32
         profiledir,
@@ -1344,6 +1344,19 @@ static char *find_config (char *name) {
             char *filename = strdup(buf);
             return filename;
         }
+    }
+    // where n3n-be kept it until 2026-10, and n3n keeps its own, in a format
+    // of its own: not read, but said
+    char old[1024];
+#ifndef _WIN32
+    snprintf(old, sizeof(old), "/etc/n3n/%s.conf", name);
+#else
+    snprintf(old, sizeof(old), "%s/n3n/%s.conf", userprofile ? userprofile : ".", name);
+#endif
+    if(access(old, R_OK) == 0) {
+        traceEvent(TRACE_WARNING, "no %s.conf of n3n-be, but %s: n3n-be's configuration is in a "
+                   "directory n3n-be of its own (n3n's in n3n), move it there if it is n3n-be's",
+                   name, old);
     }
     return NULL;
 }
@@ -1845,7 +1858,7 @@ static int mkdir_p (const char *pathname, int mode, int uid, int gid) {
     return 0;
 }
 
-// Where the session directories go instead of CONFIG_RUNDIR/n3n, for an app
+// Where the session directories go instead of CONFIG_RUNDIR/n3n-be, for an app
 // that embeds n3n (n3n/embed.h)
 static char *rundir;
 
@@ -1871,7 +1884,7 @@ int n3n_config_setup_sessiondir (n2n_edge_conf_t *conf) {
 
 
 #ifndef _WIN32
-    const char *basedir = rundir ? rundir : CONFIG_RUNDIR "/n3n";
+    const char *basedir = rundir ? rundir : CONFIG_RUNDIR "/n3n-be";
 #endif
 #ifdef _WIN32
     char basedir[1024];
@@ -1886,7 +1899,7 @@ int n3n_config_setup_sessiondir (n2n_edge_conf_t *conf) {
         return -1;
     }
 
-    snprintf(basedir, sizeof(basedir), "%s/n3n", userprofile);
+    snprintf(basedir, sizeof(basedir), "%s/n3n-be", userprofile);
 #endif
 
     if(mkdir_p(basedir, 0755, conf->userid, conf->groupid) == -1) {

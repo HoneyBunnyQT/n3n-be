@@ -33,7 +33,7 @@ jobs:
 
       - name: Run benchmark
         run: |
-          sudo ./apps/n3n-edge test fakebench | tee benchmark.csv
+          sudo ./apps/n3n-be-edge test fakebench | tee benchmark.csv
           ./scripts/benchmark2graphdata.py <benchmark.csv >benchmark.json
 
       - name: Download previous benchmark data

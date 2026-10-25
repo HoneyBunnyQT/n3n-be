@@ -37,7 +37,10 @@ case "$1" in
         rm -rf "${src:?}" "${DIR:?}/${name:?}"
         git clone -q "$repo" "$src"
         git -C "$src" checkout -q "$ref"
-        if [ -d "$src/apps" ]; then
+        if [ -e "$src/apps/n3n-be.c" ]; then
+            # n3n-be from 2026-10-25 on: its own names
+            target=apps; bins="apps/n3n-be-edge apps/n3n-be-supernode"
+        elif [ -d "$src/apps" ]; then
             target=apps; bins="apps/n3n-edge apps/n3n-supernode"
         else
             # n2n: its edge and supernode at the top
@@ -78,13 +81,13 @@ case "$1" in
         (cd "$src" && ./autogen.sh && ./configure --host="$host" \
             CFLAGS="-g -O2 $cflags" && make -j4 apps) >"$DIR/$name.log" 2>&1 || {
             echo "build for $arch failed, see $DIR/$name.log" >&2; exit 1; }
-        cp -L "$src/apps/n3n" "$DIR/$name/n3n"
-        # n3n-edge and n3n-supernode, as the scenarios run them: the one
-        # binary under qemu, its role from the name it is given
-        for b in n3n-edge n3n-supernode; do
+        cp -L "$src/apps/n3n-be" "$DIR/$name/n3n-be"
+        # n3n-be-edge and n3n-be-supernode, as the scenarios run them: the
+        # one binary under qemu, its role from the name it is given
+        for b in n3n-be-edge n3n-be-supernode; do
             cat >"$DIR/$name/$b" <<EOT
 #!/bin/sh
-exec $qemu -L /usr/$host -0 $b "\$(dirname "\$0")/n3n" "\$@"
+exec $qemu -L /usr/$host -0 $b "\$(dirname "\$0")/n3n-be" "\$@"
 EOT
             chmod +x "$DIR/$name/$b"
         done

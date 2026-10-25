@@ -49,7 +49,7 @@ while read -r i; do
 done <"$OUT/list"
 
 # The builtin tests, without the lines naming the commands
-sed "s|\"\$BINDIR\"/apps/n3n-edge|$* ./apps/n3n-edge|" scripts/test_builtin_edge.sh \
+sed "s|\"\$BINDIR\"/apps/n3n-be-edge|$* ./apps/n3n-be-edge|" scripts/test_builtin_edge.sh \
     | bash 2>/dev/null | grep -v "^### test:" >"$OUT/builtin"
 grep -v "^### test:" tests/test_builtin_edge.sh.expected >"$OUT/builtin.expected"
 check builtin "$OUT/builtin.expected"

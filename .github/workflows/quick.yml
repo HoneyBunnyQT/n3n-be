@@ -118,7 +118,7 @@ jobs:
           ./autogen.sh
           ./configure --disable-relay
           make -j4 all
-          test ! -e apps/n3n-supernode
+          test ! -e apps/n3n-be-supernode
           make test.units test.builtin
 
   cross_qemu:

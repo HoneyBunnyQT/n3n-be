@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: Copyright Hamish Coleman
  * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
- * The harness of "n3n-edge test list | check | benchmark" (n3n/benchmark.h;
+ * The harness of "n3n-be-edge test list | check | benchmark" (n3n/benchmark.h;
  * "test fakebench" is in trace.c).  Ciphers, hashes, the compression and
  * the packet path register items: a context, a function that works on one
  * buffer of test data (testdata.c), and what its output should be.

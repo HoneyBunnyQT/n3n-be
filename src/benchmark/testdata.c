@@ -7,7 +7,7 @@
  * see enum n3n_test_data in n3n/benchmark.h.  Most of them are, or end
  * in, the same 512 bytes: 0 to 15, 32 times over.  What a cipher, a hash
  * or the compression makes of them was taken from that code once and is
- * kept here, so that "n3n-edge test check" shows when the output of any
+ * kept here, so that "n3n-be-edge test check" shows when the output of any
  * of their variants changes; tools/tests-* hold the ciphers to their
  * published test vectors.
  */

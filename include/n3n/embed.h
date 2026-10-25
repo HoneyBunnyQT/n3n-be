@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  *
  * Running an edge inside another program - the Android app, or any other
- * that brings its own TUN device - instead of as the n3n-edge daemon.
+ * that brings its own TUN device - instead of as the n3n-be-edge daemon.
  * Linux and Android only, see src/embed.c.
  */
 
@@ -26,7 +26,7 @@ struct n3n_embed {
     void (*log)(void *ctx, int level, const char *line);
 
     // Where the session directory with the management socket goes, instead
-    // of /run/n3n - the app's own directory.  NULL: /run/n3n.
+    // of /run/n3n-be - the app's own directory.  NULL: /run/n3n-be.
     const char *rundir;
 
     // The name of the session (its directory, the management socket's);

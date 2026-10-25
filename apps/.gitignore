@@ -1,10 +1,10 @@
 # Main apps
-n3n
-n3n.exe
-n3n-edge
-n3n-supernode
-n3n-edge.exe
-n3n-supernode.exe
+n3n-be
+n3n-be.exe
+n3n-be-edge
+n3n-be-supernode
+n3n-be-edge.exe
+n3n-be-supernode.exe
 
 # Examples
 example_edge_embed_quick_edge_init

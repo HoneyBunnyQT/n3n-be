@@ -1,5 +1,5 @@
 dnl> Do not add anything above
-AC_INIT([n3n], m4_esyscmd([scripts/version.sh | tr -d '\n']))
+AC_INIT([n3n-be], m4_esyscmd([scripts/version.sh | tr -d '\n']))
 dnl> Do not add anything above
 
 # Older versions of the autotools expect to find install-sh here.
@@ -44,7 +44,7 @@ case "$host_os" in
 esac
 
 # macOS and the BSDs have no /run (and on macOS it cannot be made): their
-# /var/run, where n3nctl looks too
+# /var/run, where n3n-be-ctl looks too
 case "$host_os" in
     linux*)
         default_rundir="/run"

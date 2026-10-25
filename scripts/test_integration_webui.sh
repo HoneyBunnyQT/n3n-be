@@ -21,17 +21,17 @@ docmd() {
 }
 
 # We dont have perms for writing to the /run dir, TODO: improve this
-sudo mkdir -p /run/n3n
-sudo chown "$USER" /run/n3n
+sudo mkdir -p /run/n3n-be
+sudo chown "$USER" /run/n3n-be
 
 # start a supernode
-docmd "${BINDIR}"/apps/n3n-supernode start ci_sn \
+docmd "${BINDIR}"/apps/n3n-be-supernode start ci_sn \
     -v \
     --daemon \
     -Osupernode.macaddr=02:00:00:55:00:00
 
 # Start the edge in the background
-docmd sudo "${BINDIR}"/apps/n3n-edge start ci_edge1 \
+docmd sudo "${BINDIR}"/apps/n3n-be-edge start ci_edge1 \
     --daemon \
     -l localhost:7654 \
     -c test \
@@ -46,16 +46,16 @@ docmd sudo "${BINDIR}"/apps/n3n-edge start ci_edge1 \
 sleep 0.1
 
 # The page is made by the daemon: its sections, as a text browser sees them
-docmd curl --unix-socket /run/n3n/ci_edge1/mgmt http://x/ -o /tmp/index.html
+docmd curl --unix-socket /run/n3n-be/ci_edge1/mgmt http://x/ -o /tmp/index.html
 docmd grep -o '<h[23]>[A-Za-z ]*' /tmp/index.html
 
 # An HTTP/1.0 client (lynx) reads until the connection closes
-docmd timeout 5 curl -s --http1.0 --unix-socket /run/n3n/ci_edge1/mgmt http://x/ -o /dev/null
+docmd timeout 5 curl -s --http1.0 --unix-socket /run/n3n-be/ci_edge1/mgmt http://x/ -o /dev/null
 
-docmd curl --unix-socket /run/n3n/ci_edge1/mgmt http://x/script.js -o /tmp/script.js
+docmd curl --unix-socket /run/n3n-be/ci_edge1/mgmt http://x/script.js -o /tmp/script.js
 docmd diff -u src/management_script.js /tmp/script.js
 
 # stop them both
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_edge1 -k $AUTH stop
-docmd "${TOPDIR}"/scripts/n3nctl -s ci_sn -k $AUTH stop
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_edge1 -k $AUTH stop
+docmd "${TOPDIR}"/scripts/n3n-be-ctl -s ci_sn -k $AUTH stop
 

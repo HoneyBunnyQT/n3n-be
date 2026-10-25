@@ -341,7 +341,7 @@ int n2n_transop_tf_init (const n2n_edge_conf_t *conf, n2n_trans_op_t *ttt) {
         impl = tf_impl_find(asked);
         if(!impl) {
             traceEvent(TRACE_WARNING, "cipher Twofish/%s: no such variant on this CPU, using %s "
-                       "(n3n-edge help transform lists them)", asked, tf_impl_chosen()->name);
+                       "(n3n-be-edge help transform lists them)", asked, tf_impl_chosen()->name);
         }
     }
     if(impl) {

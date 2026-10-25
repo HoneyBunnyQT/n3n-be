@@ -483,7 +483,7 @@ static BOOL WINAPI ConsoleCtrlHandler (DWORD sig) {
 
 /* *************************************************** */
 
-/** Entry point of the supernode, see n3n.c */
+/** Entry point of the supernode, see n3n-be.c */
 int n3n_supernode_main (int argc, char * argv[]) {
     static struct n3n_runtime_data sss_node;
 

@@ -1,19 +1,17 @@
 [Unit]
-Description=n3n supernode process
-Documentation=man:n3n-supernode(8)
-After=network-online.target
+Description=n3n-be edge process
+Documentation=man:n3n-be-edge(8)
+After=network-online.target nfw.target
 Wants=network-online.target
 
 [Service]
-# n3n tells systemd when it is up, how it is doing (systemctl status) and
+# n3n-be tells systemd when it is up, how it is doing (systemctl status) and
 # that its main loop still runs; see docs/configure/Systemd.md
 Type=notify
 NotifyAccess=main
 WatchdogSec=60
-User=n3n
-Group=n3n
-RuntimeDirectory=n3n
-ExecStart=/usr/sbin/n3n-supernode start
+ExecStartPre=
+ExecStart=/usr/sbin/n3n-be-edge start
 # reads the configuration again: what can change while running changes,
 # see docs/configure/ConfigurationFiles.md
 ExecReload=/bin/kill -HUP $MAINPID

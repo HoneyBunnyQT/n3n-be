@@ -14,7 +14,17 @@ import sys
 
 from .lab import wait_for
 
-RUNDIR = "/run/n3n"
+# Where a daemon puts its session directories: n3n-be's, as this tree's,
+# /run/n3n-be; n3n's and n3n-be's before 2026-10-25 /run/n3n
+RUNDIR = "/run/n3n-be"
+RUNDIR_OLD = "/run/n3n"
+
+
+def rundir_of(binary):
+    """The run directory of a daemon of this binary, by its name"""
+    if os.path.basename(binary).startswith("n3n-be"):
+        return RUNDIR
+    return RUNDIR_OLD
 
 
 class MgmtError(Exception):
@@ -39,8 +49,8 @@ class Mgmt:
     the daemon's network namespace.
     """
 
-    def __init__(self, session):
-        self.path = os.path.join(RUNDIR, session, "mgmt")
+    def __init__(self, session, rundir=RUNDIR):
+        self.path = os.path.join(rundir, session, "mgmt")
         self.id = 0
 
     def available(self):
@@ -49,7 +59,7 @@ class Mgmt:
     def call(self, method, params=None, timeout=3.0):
         """The result of a method; a list too long for one reply (error
         507, overflow, with the number of rows that fit) fetched page by
-        page, as n3nctl does"""
+        page, as n3n-be-ctl does"""
         reply = self._call(method, params, timeout)
         error = reply.get("error")
         if not error or error.get("code") != 507 or params is not None:
@@ -210,7 +220,7 @@ class Daemon:
         self.wrap = list(wrap)
         # options on the command line, before the subcommand: ["-O", ...]
         self.cli = list(cli)
-        self.mgmt = Mgmt(session)
+        self.mgmt = Mgmt(session, rundir_of(binary))
         self.proc = None
         # The config file name gives the session name
         self.conf = os.path.join(lab.workdir, session + ".conf")

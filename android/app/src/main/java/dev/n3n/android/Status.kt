@@ -12,7 +12,7 @@ import java.io.File
 
 /**
  * What the running edge says about itself, from its management API on the
- * unix socket in the app's directory (session "app"), as n3nctl asks it.
+ * unix socket in the app's directory (session "app"), as n3n-be-ctl asks it.
  * Blocking: not on the UI thread.
  */
 object Status {

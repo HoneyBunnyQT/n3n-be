@@ -3,7 +3,7 @@
  * SPDX-FileCopyrightText: Copyright Hamish Coleman
  * SPDX-FileCopyrightText: Copyright Honey Bunny QT
  *
- * "n3n-edge test fakebench": the instructions an item takes per loop,
+ * "n3n-be-edge test fakebench": the instructions an item takes per loop,
  * counted by single-stepping it, for CI runners whose virtual machines
  * give no performance counters (counters.c).  Slow, and only a rough
  * measure - an instruction is not a cycle - but the same on any machine,

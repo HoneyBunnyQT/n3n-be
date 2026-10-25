@@ -1,8 +1,8 @@
-### test: ./apps/n3n-supernode start ci_sn1 --daemon -Oconnection.bind=7001 -Osupernode.macaddr=02:00:00:00:70:01 -Osupernode.peer=localhost:7002
+### test: ./apps/n3n-be-supernode start ci_sn1 --daemon -Oconnection.bind=7001 -Osupernode.macaddr=02:00:00:00:70:01 -Osupernode.peer=localhost:7002
 
-### test: ./apps/n3n-supernode start ci_sn2 --daemon -Oconnection.bind=7002 -Osupernode.macaddr=02:00:00:00:70:02 -Osupernode.peer=localhost:7001
+### test: ./apps/n3n-be-supernode start ci_sn2 --daemon -Oconnection.bind=7002 -Osupernode.macaddr=02:00:00:00:70:02 -Osupernode.peer=localhost:7001
 
-### test: ./scripts/n3nctl -s ci_sn1 get_communities
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_communities
 [
     {
         "community": "-/-",
@@ -12,7 +12,7 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn2 get_communities
+### test: ./scripts/n3n-be-ctl -s ci_sn2 get_communities
 [
     {
         "community": "-/-",
@@ -22,7 +22,7 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn1 get_packetstats
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_packetstats
 [
     {
         "rx_pkt": 0,
@@ -81,7 +81,7 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn2 get_packetstats
+### test: ./scripts/n3n-be-ctl -s ci_sn2 get_packetstats
 [
     {
         "rx_pkt": 0,
@@ -140,7 +140,7 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn1 get_edges --raw
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 [
     {
         "community": "-/-",
@@ -163,7 +163,7 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn2 get_edges --raw
+### test: ./scripts/n3n-be-ctl -s ci_sn2 get_edges --raw
 [
     {
         "community": "-/-",
@@ -186,19 +186,19 @@
     }
 ]
 
-### test: ./scripts/n3nctl -s ci_sn1 set_verbose 1
+### test: ./scripts/n3n-be-ctl -s ci_sn1 set_verbose 1
 This request requires an authentication key
 
 0
-### test: ./scripts/n3nctl -s ci_sn1 get_verbose
+### test: ./scripts/n3n-be-ctl -s ci_sn1 get_verbose
 2
 
-### test: ./scripts/n3nctl -s ci_sn1 -k n3n set_verbose 1
+### test: ./scripts/n3n-be-ctl -s ci_sn1 -k n3n set_verbose 1
 1
 
-### test: ./scripts/n3nctl -s ci_sn1 -k n3n stop
+### test: ./scripts/n3n-be-ctl -s ci_sn1 -k n3n stop
 0
 
-### test: ./scripts/n3nctl -s ci_sn2 -k n3n stop
+### test: ./scripts/n3n-be-ctl -s ci_sn2 -k n3n stop
 0
 

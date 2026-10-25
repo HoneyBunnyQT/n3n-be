@@ -355,7 +355,7 @@ int n2n_transop_aes_init (const n2n_edge_conf_t *conf, n2n_trans_op_t *ttt) {
         impl = aes_impl_find(asked);
         if(!impl) {
             traceEvent(TRACE_WARNING, "cipher AES/%s: no such variant on this CPU, using %s "
-                       "(n3n-edge help transform lists them)", asked, aes_impl_chosen()->name);
+                       "(n3n-be-edge help transform lists them)", asked, aes_impl_chosen()->name);
         }
     }
     if(impl) {

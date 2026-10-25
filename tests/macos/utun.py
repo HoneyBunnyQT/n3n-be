@@ -14,7 +14,7 @@ answers all the way back.
 
     sudo python3 tests/macos/utun.py [DIR]
 
-DIR has n3n-edge and n3n-supernode (apps/ of the tree by default).  Needs
+DIR has n3n-be-edge and n3n-be-supernode (apps/ of the tree by default).  Needs
 root: utun, ifconfig, route.
 """
 
@@ -173,8 +173,8 @@ def ping(family, addr, count):
 def main():
     apps = sys.argv[1] if len(sys.argv) > 1 \
         else os.path.join(HERE, "..", "..", "apps")
-    edge_bin = os.path.join(apps, "n3n-edge")
-    sn_bin = os.path.join(apps, "n3n-supernode")
+    edge_bin = os.path.join(apps, "n3n-be-edge")
+    sn_bin = os.path.join(apps, "n3n-be-supernode")
     if os.geteuid() != 0:
         print("needs root: sudo python3 " + " ".join(sys.argv))
         return 2

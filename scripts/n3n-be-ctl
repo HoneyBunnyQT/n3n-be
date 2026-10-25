@@ -3,7 +3,8 @@
 # Copyright (C) Hamish Coleman
 # SPDX-License-Identifier: GPL-2.0-only
 #
-# Simple script to query the management interface of a running n3n edge node
+# Simple script to query the management interface of a running n3n-be edge
+# or supernode (n3n's own is n3nctl)
 
 import argparse
 import base64
@@ -379,7 +380,7 @@ def subcmd_default(rpc, args):
 
 def main():
     ap = argparse.ArgumentParser(
-            description='Query the running local n3n edge')
+            description='Query the running local n3n-be edge')
     ap.add_argument('-s', '--sessionname', action='store',
                     help='Which session to use')
     ap.add_argument('-u', '--mgmturl', action='store',
@@ -414,7 +415,7 @@ def main():
     else:
         raise ValueError("No run directory found")
 
-    opener = urllib.request.build_opener(UnixHandler(f"{rundir}/n3n"))
+    opener = urllib.request.build_opener(UnixHandler(f"{rundir}/n3n-be"))
     urllib.request.install_opener(opener)
 
     if args.sessionname is not None:
@@ -423,13 +424,13 @@ def main():
     if args.mgmturl is None:
         # try to guess the sessionname
         try:
-            sessiondirs = os.listdir(f"{rundir}/n3n")
+            sessiondirs = os.listdir(f"{rundir}/n3n-be")
         except FileNotFoundError:
             sessiondirs = []
 
         sessions = []
         for dirname in sessiondirs:
-            if os.path.exists(f"{rundir}/n3n/{dirname}/mgmt"):
+            if os.path.exists(f"{rundir}/n3n-be/{dirname}/mgmt"):
                 sessions.append(dirname)
 
         if len(sessions) == 0:
