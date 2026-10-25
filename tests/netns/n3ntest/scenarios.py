@@ -689,6 +689,14 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", gateway="b", route_all=True, tags=["quick"]),
     Scenario(
+        "route-all-switch",
+        "tuntap.route_all without tuntap.gateway at the start: through the "
+        "other edge once the management API or the page names it, and "
+        "back, while the edges stay direct",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", gateway="b", route_all="switch", tags=["quick"]),
+    Scenario(
         "route-all-tun",
         "tuntap.route_all with a TUN edge, relayed: the same",
         Site(["hard-range"], conf={"tuntap": {"type": "tun"}}),

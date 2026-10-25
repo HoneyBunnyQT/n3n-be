@@ -259,7 +259,9 @@ class Scenario:
         self.gateway = gateway
         # The other edge routes all of its host's traffic through the
         # gateway's (tuntap.route_all): its own traffic is to stay outside,
-        # the rest to go through the tunnel, see check_route_all()
+        # the rest to go through the tunnel, see check_route_all().  With
+        # "switch", it starts without tuntap.gateway and is switched to it
+        # and back while it runs, see check_route_all_switch()
         self.route_all = route_all
         # The "internet", the supernodes and the edges on it without NAT
         # have IPv6 next to IPv4 (dual stack)
@@ -985,6 +987,8 @@ class Run:
             conf["tuntap"].setdefault("address6", "auto")
         if self.sc.gateway == sname:
             conf.setdefault("filter", {})["allow_routing"] = True
+        elif self.sc.route_all == "switch":
+            conf["tuntap"]["route_all"] = True
         elif self.sc.gateway:
             conf["tuntap"]["gateway"] = self.edges[self.sc.gateway]["overlay"]
             if self.sc.route_all:
@@ -1023,10 +1027,13 @@ class Run:
             sections = self._edge_sections(sname, site, e)
             cli = cli_options(sections, dotted=True) \
                 if self.sc.community_cli else []
+            wrap = list(self.st.wrap)
+            if self.sc.route_all == "switch" and sname != self.sc.gateway:
+                wrap = self._fake_resolvectl() + wrap
             d = (N2nEdge if is_n2n(site.version) else Edge)(
                 self.lab, "edge-" + sname, e["ns"], self._session(sname),
                 self.st.binary("edge", site.version), sections,
-                wrap=self.st.wrap, overlay_ip=e["overlay"], mac=e["mac"],
+                wrap=wrap, overlay_ip=e["overlay"], mac=e["mac"],
                 cli=cli)
             d.start()
             self._log_left_out("edge " + sname, d)
@@ -2285,6 +2292,142 @@ class Run:
                    "{} of 20 datagrams to {} through {}".format(
                        got, GATEWAY_TARGET, gw))
 
+    def _fake_resolvectl(self):
+        """A resolvectl first in the edge's PATH, which writes down what it
+        is asked, and whether it has CAP_NET_ADMIN (bit 12 of CapEff): what
+        systemd-resolved asks of who sets a link's DNS server"""
+        bindir = os.path.join(self.workdir, "fakebin")
+        os.makedirs(bindir, exist_ok=True)
+        self.resolvectl_log = os.path.join(self.workdir, "resolvectl.log")
+        script = os.path.join(bindir, "resolvectl")
+        with open(script, "w") as f:
+            f.write("#!/bin/sh\n"
+                    "eff=$(sed -n 's/^CapEff:[[:space:]]*//p' "
+                    "/proc/$$/status)\n"
+                    "echo \"$* cap=$(( (0x$eff >> 12) & 1 ))\" >> {}\n"
+                    .format(self.resolvectl_log))
+        os.chmod(script, 0o755)
+        # for the edge, which has dropped its privileges by then
+        open(self.resolvectl_log, "w").close()
+        os.chmod(self.resolvectl_log, 0o666)
+        path = os.environ.get("PATH", "")
+        return ["env", "PATH={}:{}".format(bindir, path)]
+
+    def _resolvectl_calls(self):
+        try:
+            with open(self.resolvectl_log) as f:
+                return [line.strip() for line in f]
+        except OSError:
+            return []
+
+    def _route_all_state(self, ns, sn_ip):
+        """Whether the edge's rules are there, and where the host's
+        traffic to a supernode goes"""
+        rules = run(["ip", "-4", "rule"], ns=ns)
+        host = run(["ip", "route", "get", sn_ip], ns=ns)
+        return "0x6e33" in rules, "dev n3n0" in host
+
+    def check_route_all_switch(self):
+        """tuntap.route_all without tuntap.gateway at the start: through the
+        exit peer once set_gateway names it, directly again with "", the
+        same by a reload of the configuration file, and through it from the
+        page's button; an edge that did not start with tuntap.route_all
+        refuses it (Linux, no mark on its sockets)"""
+        gw = self.sc.gateway
+        src = [s for s in self.edges if s != gw][0]
+        ns = self.edges[src]["ns"]
+        mgmt = self.edges[src]["daemon"].mgmt
+        exit_ip = self.edges[gw]["overlay"]
+        sn_ip = self.supernodes[sorted(self.supernodes)[0]]["ip"]
+
+        info = mgmt.call("get_info")
+        state = self._route_all_state(ns, sn_ip)
+        self.check("switch:waiting",
+                   info.get("route_all") == 0 and state == (False, False),
+                   "get_info route_all {}, gateway {!r}; rules {}, host "
+                   "into n3n0 {}".format(info.get("route_all"),
+                                         info.get("gateway"), *state))
+
+        on = mgmt.call("set_gateway", [exit_ip], password="n3n")
+        state = self._route_all_state(ns, sn_ip)
+        self.check("switch:on", on.get("route_all") == 1
+                   and on.get("gateway") == exit_ip and state == (True, True),
+                   "set_gateway {}: {}; rules {}, host into n3n0 {}".format(
+                       exit_ip, on, *state))
+
+        # with a DNS server: by resolvectl, which needs CAP_NET_ADMIN, that
+        # the edge, its privileges dropped, hands on as an ambient one
+        dns = mgmt.call("set_gateway", [exit_ip, "192.0.2.53"],
+                        password="n3n")
+        calls = self._resolvectl_calls()
+        self.check("switch:dns", dns.get("dns") == "192.0.2.53"
+                   and "dns n3n0 192.0.2.53 cap=1" in calls
+                   and "domain n3n0 ~. cap=1" in calls,
+                   "set_gateway with a DNS server: {}; resolvectl: {}".format(
+                       dns, calls))
+
+        off = mgmt.call("set_gateway", [""], password="n3n")
+        calls = self._resolvectl_calls()
+        self.check("switch:dns back", calls[-1:] == ["revert n3n0 cap=1"],
+                   "off, resolvectl: {}".format(calls[-1:]))
+        state = self._route_all_state(ns, sn_ip)
+        self.check("switch:off", off.get("route_all") == 0
+                   and state == (False, False),
+                   "set_gateway \"\": {}; rules {}, host into n3n0 {}".format(
+                       off, *state))
+
+        try:
+            mgmt.call("set_gateway", ["10.98.0.1"], password="n3n")
+            refused = "taken"
+        except MgmtError as e:
+            refused = str(e)
+        self.check("switch:outside", "subnet" in refused,
+                   "an exit peer outside the subnet: {}".format(refused))
+
+        # the configuration file names the exit peer, a reload applies it;
+        # then without it again
+        d = self.edges[src]["daemon"]
+        for with_it in (True, False):
+            d.sections["tuntap"] = [(o, v) for o, v in d.sections["tuntap"]
+                                    if o != "gateway"]
+            if with_it:
+                d.sections["tuntap"].append(("gateway", exit_ip))
+            write_conf(d.conf, d.sections)
+            res = mgmt.call("reload", password="n3n")
+            state = self._route_all_state(ns, sn_ip)
+            self.check("switch:reload " + ("on" if with_it else "off"),
+                       "tuntap.gateway" in res.get("applied", [])
+                       and state == (with_it, with_it),
+                       "reload: {}; rules {}, host into n3n0 {}".format(
+                           res, *state))
+
+        # the page's button at the peer, as it is on the page
+        _, page = mgmt.http("GET", "/")
+        button = re.search(rb"name=exit value=([0-9.]+)", page)
+        value = button.group(1).decode() if button else ""
+        status, _ = mgmt.http("POST", "/page", "exit=" + value,
+                              password="n3n")
+        _, page = mgmt.http("GET", "/")
+        state = self._route_all_state(ns, sn_ip)
+        self.check("switch:page", value == exit_ip and status == 303
+                   and state == (True, True)
+                   and b"the exit peer <span class=mono>" +
+                   exit_ip.encode() in page
+                   and b'<span class="b info">exit</span>' in page,
+                   "the button for {!r}: HTTP {}; rules {}, host into n3n0 "
+                   "{}".format(value, status, *state))
+
+        other = self.edges[gw]["daemon"].mgmt
+        try:
+            other.call("set_gateway", [self.edges[src]["overlay"]],
+                       password="n3n")
+            refused = "taken"
+        except MgmtError as e:
+            refused = str(e)
+        self.check("switch:not armed", "started with" in refused,
+                   "on {}, started without tuntap.route_all: {}".format(
+                       gw, refused))
+
     def check_route_all(self):
         """tuntap.route_all: the host's traffic into the tunnel, the edge's
         own (with its firewall mark) outside, and all of it taken back
@@ -2504,6 +2647,9 @@ class Run:
                     self.check_span(received, "roam", self.sc.roam_max_gap)
                 if self.check_alive("measurement"):
                     self.check_descriptions("description after")
+            if self.sc.route_all == "switch" and \
+                    self.check_alive("measurement"):
+                self.check_route_all_switch()
             if self.sc.gateway and self.check_alive("measurement"):
                 self.check_gateway()
             if self.sc.route_all and self.check_alive("gateway"):

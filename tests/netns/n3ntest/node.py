@@ -4,6 +4,7 @@
 #
 """n3n edges and supernodes in a lab, and their management interface"""
 
+import base64
 import http.client
 import json
 import os
@@ -56,11 +57,12 @@ class Mgmt:
     def available(self):
         return os.path.exists(self.path)
 
-    def call(self, method, params=None, timeout=3.0):
+    def call(self, method, params=None, timeout=3.0, password=None):
         """The result of a method; a list too long for one reply (error
         507, overflow, with the number of rows that fit) fetched page by
-        page, as n3n-be-ctl does"""
-        reply = self._call(method, params, timeout)
+        page, as n3n-be-ctl does.  With password, for the methods that
+        change something."""
+        reply = self._call(method, params, timeout, password)
         error = reply.get("error")
         if not error or error.get("code") != 507 or params is not None:
             return self._result(method, reply)
@@ -86,7 +88,7 @@ class Mgmt:
             raise MgmtError("{}: {}".format(method, reply["error"]))
         return reply["result"]
 
-    def _call(self, method, params, timeout):
+    def _call(self, method, params, timeout, password=None):
         """One request, its reply as it is"""
         self.id += 1
         body = json.dumps({
@@ -95,16 +97,11 @@ class Mgmt:
             "method": method,
             "params": params,
         })
-        conn = _UnixHTTPConnection(self.path, timeout)
         try:
-            conn.request("POST", "/v1", body,
-                         {"Content-Type": "application/json"})
-            r = conn.getresponse()
-            data = r.read()
+            _, data = self.http("POST", "/v1", body, password, timeout,
+                                "application/json")
         except OSError as e:
             raise MgmtError("{}: {}".format(method, e))
-        finally:
-            conn.close()
         try:
             return json.loads(data.decode("utf8", errors="replace"))
         except ValueError:
@@ -115,6 +112,21 @@ class Mgmt:
             return self.call(method, params)
         except MgmtError:
             return None
+
+    def http(self, verb, path, body=None, password=None, timeout=3.0,
+             content_type="application/x-www-form-urlencoded"):
+        """Any request, e.g. a button of the page: its status and body"""
+        headers = {"Content-Type": content_type}
+        if password is not None:
+            token = base64.b64encode((":" + password).encode()).decode()
+            headers["Authorization"] = "Basic " + token
+        conn = _UnixHTTPConnection(self.path, timeout)
+        try:
+            conn.request(verb, path, body, headers)
+            r = conn.getresponse()
+            return r.status, r.read()
+        finally:
+            conn.close()
 
 
 def packetstats(mgmt):
