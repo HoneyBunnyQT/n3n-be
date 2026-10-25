@@ -37,6 +37,7 @@
 #include "peer_info.h"   // for peer_info
 #include "reload.h"      // for n3n_reload
 #include "role_client.h" // for p2p_max_loss
+#include "route_all.h"   // for route_all_set, route_all_exit
 #include "counter.h"     // for SHARED_LOAD
 #include "stats.h"       // for n3n_stats_sum
 #include "uthash.h"
@@ -535,6 +536,81 @@ static void jsonrpc_stop (char *id, struct n3n_runtime_data *eee, conn_t *conn, 
     jsonrpc_1uint(id, conn, *eee->keep_running);
 }
 
+// An edge of its own - not that of a supernode - which may route all of
+// its host's traffic through an exit peer, see route_all.h
+static bool may_route_all (const struct n3n_runtime_data *eee) {
+    return eee->conf.is_edge && !eee->conf.client.local_link;
+}
+
+// An IPv4 address, "" for none: false if it is neither
+static bool route_all_addr (const char *s, uint32_t *addr) {
+    *addr = 0;
+    return !*s || (inet_pton(AF_INET, s, addr) == 1);
+}
+
+// What routes all traffic, as get_info and set_gateway tell it
+static void route_all_json (strbuf_t **b, const struct n3n_runtime_data *eee) {
+    ipstr_t gw = "", dns = "";
+    uint32_t exit = route_all_exit();
+
+    if(eee->conf.tap.gateway.net_addr) {
+        inet_ntop(AF_INET, &eee->conf.tap.gateway.net_addr, gw, sizeof(gw));
+    }
+    if(eee->conf.tap.dns.net_addr) {
+        inet_ntop(AF_INET, &eee->conf.tap.dns.net_addr, dns, sizeof(dns));
+    }
+    sb_reprintf(b, "\"gateway\":\"%s\",\"route_all\":%i,\"dns\":\"%s\"",
+                gw, exit && (exit == eee->conf.tap.gateway.net_addr), dns);
+}
+
+// set_gateway ["10.99.0.2"]: all traffic through that exit peer,
+// [""] through none; a second value sets tuntap.dns ("" for none)
+static void jsonrpc_set_gateway (char *id, struct n3n_runtime_data *eee, conn_t *conn, const char *params_in) {
+    if(!auth_check(eee, conn)) {
+        auth_request(conn);
+        return;
+    }
+    if(!may_route_all(eee)) {
+        jsonrpc_error(id, conn, 400, "not an edge of its own", 0);
+        return;
+    }
+    if(!params_in || (*params_in != '[')) {
+        jsonrpc_error(id, conn, 400, "expecting array", 0);
+        return;
+    }
+
+    char *params = strdup(params_in + 1);
+    char *arg1 = params ? json_extract_val(params) : NULL;
+    char *arg2 = NULL;
+    uint32_t gateway, dns = 0;
+
+    if(arg1) {
+        // past the end of the first value, which json_extract_val() ended
+        char *rest = arg1 + strlen(arg1) + 1;
+        while((*rest == ' ') || (*rest == ',')) {
+            rest++;
+        }
+        if(*rest == '"') {
+            arg2 = json_extract_val(rest);
+        }
+    }
+    if(!arg1 || !route_all_addr(arg1, &gateway) || (arg2 && !route_all_addr(arg2, &dns))) {
+        jsonrpc_error(id, conn, 400, "expecting an IPv4 address or \"\"", 0);
+        free(params);
+        return;
+    }
+    free(params);
+    if(route_all_set(eee, gateway, arg2 != NULL, dns) != 0) {
+        jsonrpc_error(id, conn, 409, (char *)route_all_problem(), 0);
+        return;
+    }
+    jsonrpc_result_head(id, conn);
+    sb_reprintf(&conn->request, "{");
+    route_all_json(&conn->request, eee);
+    sb_reprintf(&conn->request, "}");
+    jsonrpc_result_tail(conn, 200);
+}
+
 static bool jsonrpc_error_overflow (char *id, conn_t *conn, int count) {
     if(!sb_overflowed(conn->request)) {
         // Nothing to do
@@ -890,7 +966,7 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
                 "\"nat4\":\"%s\","
                 "\"nat6\":\"%s\","
                 "\"transport\":\"%s\","
-                "\"registered\":%i}",
+                "\"registered\":%i",
                 VERSION,
                 BUILDDATE,
                 eee->conf.is_edge,
@@ -905,6 +981,11 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
                 // does not count as gone
                 eee->conf.is_edge ? edge_is_registered(eee, time(NULL)) : 0
     );
+    if(may_route_all(eee)) {
+        sb_reprintf(&conn->request, ",");
+        route_all_json(&conn->request, eee);
+    }
+    sb_reprintf(&conn->request, "}");
 
     jsonrpc_result_tail(conn, 200);
 }
@@ -1187,6 +1268,7 @@ static const struct mgmt_jsonrpc_method jsonrpc_methods[] = {
     { "post.test", jsonrpc_post_test, "Send a test event" },
     { "reload", jsonrpc_reload, "Reads the configuration again, applies what can change while running" },
     { "reload_communities", jsonrpc_reload_communities, "Reloads communities and user's public keys" },
+    { "set_gateway", jsonrpc_set_gateway, "All traffic through an exit peer: its address, or \"\" for none" },
     { "set_verbose", jsonrpc_set_verbose, "Set logging verbosity" },
     { "stop", jsonrpc_stop, "Stop the daemon" },
     // get_last_event?
@@ -1465,7 +1547,18 @@ static void handle_page_action (struct n3n_runtime_data *eee, conn_t *conn) {
         generate_http_headers(conn, "text/html; charset=utf-8", 200);
         return;
     }
-    if(strstr(body, "do=less") && (level > 0)) {
+    // all traffic through an exit peer, or none; what failed the page shows
+    char *exit = strstr(body, "exit=");
+    uint32_t gateway;
+    if(exit && may_route_all(eee)) {
+        char addr[INET_ADDRSTRLEN] = "";
+        sscanf(exit + 5, "%15[0-9.]", addr);
+        if(addr[0] && route_all_addr(addr, &gateway)) {
+            route_all_set(eee, gateway, false, 0);
+        }
+    } else if(strstr(body, "do=noexit") && may_route_all(eee)) {
+        route_all_set(eee, 0, false, 0);
+    } else if(strstr(body, "do=less") && (level > 0)) {
         setTraceLevel(level - 1);
     } else if(strstr(body, "do=more") && (level < 4)) {
         setTraceLevel(level + 1);

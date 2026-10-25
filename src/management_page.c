@@ -30,6 +30,7 @@
 #include "natclass.h"           // for nat_view_str, nat_hint_str
 #include "peer_info.h"
 #include "role_client.h"        // for p2p_max_loss
+#include "route_all.h"          // for route_all_exit, route_all_switchable
 #include "sn_selection.h"         // for SN_SELECTION_STRATEGY_RTT
 #include "stats.h"              // for n3n_stats_sum
 #include "uthash.h"
@@ -78,7 +79,7 @@ static const char page_style[] =
     "border:1px solid currentColor}"
     ".ok{color:var(--ok)}.warn{color:var(--warn)}.info{color:var(--info)}"
     ".bad{color:var(--bad)}.dim{color:var(--dim)}"
-    "form{display:flex;gap:.4rem;flex-wrap:wrap;margin:0}"
+    "form{display:flex;gap:.4rem;flex-wrap:wrap;margin:0}form.in{display:inline-flex;margin-left:.4rem}"
     "button{font:inherit;padding:.25rem .7rem;border-radius:.4rem;cursor:pointer;"
     "border:1px solid var(--line);background:var(--card);color:var(--fg)}"
     "button.bad{border-color:var(--bad)}"
@@ -207,7 +208,7 @@ static void community_name (strbuf_t **b, const char *name, uint8_t header_encry
 // A peer of the edge, or an edge registered at the supernode
 static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mode, const char *mode_class,
                       const char *cells, const struct sn_community *community, bool unlocked,
-                      struct nat_peer *nat_peers, time_t now) {
+                      struct nat_peer *nat_peers, const char *tail, time_t now) {
 
     macstr_t mac_buf;
     n3n_sock_str_t sockbuf;
@@ -236,7 +237,70 @@ static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     }
     sb_reprintf(b, "<td class=w>");
     html_text(b, peer->dev_desc, N2N_DESC_SIZE);
-    sb_reprintf(b, "</td><td><span class=t>%s</span></td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
+    sb_reprintf(b, "</td><td><span class=t>%s</span></td>%s</tr>\n", ago(when, sizeof(when), now, peer->last_seen),
+                tail ? tail : "");
+}
+
+
+// The last cell of an edge's peer, where the edge may route all traffic
+// through an exit peer (tuntap.route_all): the one it goes through, or a
+// button to choose this one
+static const char *exit_cell (char *buf, size_t size, const struct peer_info *peer, uint32_t exit) {
+
+    char ip[INET_ADDRSTRLEN];
+    // the peer's address is kept in host order, the exit peer's in
+    // network order
+    uint32_t addr = htonl(peer->dev_addr.net_addr);
+
+    if(!addr) {
+        return "<td></td>";
+    }
+    if(addr == exit) {
+        return "<td><span class=\"b info\">exit</span></td>";
+    }
+    inet_ntop(AF_INET, &addr, ip, sizeof(ip));
+    snprintf(buf, size, "<td><form method=post action=\"/page\"><button name=exit value=%s "
+             "title=\"all traffic through this peer\">route all</button></form></td>", ip);
+    return buf;
+}
+
+
+// What the edge routes through an exit peer: all traffic through the one
+// it goes through, why not through the one asked for, or none
+static void route_all_line (strbuf_t **b, struct n3n_runtime_data *eee) {
+
+    char ip[INET_ADDRSTRLEN];
+    uint32_t exit = route_all_exit();
+    uint32_t asked = eee->conf.tap.route_all ? eee->conf.tap.gateway.net_addr : 0;
+
+    sb_reprintf(b, "<dt>All traffic</dt><dd>");
+    if(exit) {
+        inet_ntop(AF_INET, &exit, ip, sizeof(ip));
+        sb_reprintf(b, "<span class=\"b ok\">through</span> the exit peer <span class=mono>%s</span>"
+                    "<form class=in method=post action=\"/page\"><button name=do value=noexit>"
+                    "stop</button></form>", ip);
+    } else if(asked) {
+        inet_ntop(AF_INET, &asked, ip, sizeof(ip));
+        sb_reprintf(b, "<span class=\"b warn\">not yet</span> through the exit peer <span class=mono>%s</span>: ",
+                    ip);
+        html_text(b, route_all_problem(), 200);
+        sb_reprintf(b, "<form class=in method=post action=\"/page\"><button name=do value=noexit>"
+                    "stop</button></form>");
+    } else {
+        sb_reprintf(b, "directly, through no exit peer");
+        if(route_all_switchable()) {
+            sb_reprintf(b, " <span class=dim>(\"route all\" at a peer sends it through that one)</span>");
+        } else {
+            sb_reprintf(b, " <span class=dim>(to choose one here: Linux with tuntap.route_all = true at "
+                        "the start, or 64-bit Windows)</span>");
+        }
+        if(route_all_problem()[0]) {
+            sb_reprintf(b, "<br><span class=warn>");
+            html_text(b, route_all_problem(), 200);
+            sb_reprintf(b, "</span>");
+        }
+    }
+    sb_reprintf(b, "</dd>\n");
 }
 
 
@@ -352,16 +416,21 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
                     (eee->conf.client.sn_selection_strategy == SN_SELECTION_STRATEGY_RTT) ? "shortest round trip" :
                     (eee->conf.client.sn_selection_strategy == SN_SELECTION_STRATEGY_MAC) ? "lowest MAC address" :
                     "lowest load");
+        route_all_line(b, eee);
     }
     sb_reprintf(b, "</dl>\n");
 
-    // with FEC, a column of its own: whether it repairs, see peer_cells()
+    // with FEC, a column of its own: whether it repairs, see peer_cells();
+    // where the edge may route all traffic through a peer, one for that
     bool fec = eee->conf.community.fec;
-    int cols = fec ? 9 : 8;
+    bool exits = !own_of_supernode && route_all_switchable();
+    uint32_t exit = route_all_exit();
+    char tail[256];
+    int cols = (fec ? 9 : 8) + exits;
     sb_reprintf(b, "<h3>Peers</h3><div class=scroll><table>"
                 "<tr><th>path</th><th class=num>lost</th>%s<th>address</th><th>MAC</th><th>socket</th>"
-                "<th>NAT</th><th>description</th><th>last seen</th></tr>\n",
-                fec ? "<th>FEC</th>" : "");
+                "<th>NAT</th><th>description</th><th>last seen</th>%s</tr>\n",
+                fec ? "<th>FEC</th>" : "", exits ? "<th>exit peer</th>" : "");
     rows = 0;
     HASH_ITER(hh, eee->client.known_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
@@ -370,13 +439,15 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
             char cells[256];
             bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
             peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
-                     peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers, now);
+                     peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers,
+                     exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
             peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
-                     NULL, false, eee->client.nat_peers, now);
+                     NULL, false, eee->client.nat_peers, exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL,
+                     now);
         }
     }
     row_more(b, cols, rows - PAGE_ROWS_MAX);
@@ -482,7 +553,7 @@ static void section_supernode (strbuf_t **b, struct n3n_runtime_data *sss, bool 
             if(rows++ < PAGE_ROWS_MAX) {
                 // its own edge is at 127.0.0.1:0, see local_link.h
                 peer_row(b, peer, peer->sock.port ? "here" : "own", peer->sock.port ? "b info" : "b ok",
-                         NULL, comm, unlocked, NULL, now);
+                         NULL, comm, unlocked, NULL, NULL, now);
             }
         }
     }

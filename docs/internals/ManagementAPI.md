@@ -40,7 +40,11 @@ curl --unix-socket /run/n3n-be/edge/mgmt http://x/help
 `curl --unix-socket /run/n3n-be/edge/mgmt http://x/`, is one page for whatever
 runs in the process: a section "Edge" and a section "Supernode", each where
 it runs, and on top what belongs to the whole process - the log level, with
-buttons for more and less, and a button to stop n3n.
+buttons for more and less, and a button to stop n3n.  Where the edge can
+route all traffic through an exit peer, its section says through which
+one ("All traffic"), with a button to stop that, and its peers each have a
+button "route all", as the Android app's "Route all traffic through a
+peer"; see [Routing](../advanced/Routing.md#switching-while-it-runs).
 
 - The daemon builds the page completely, so it reads in a text browser as
   well (`lynx http://localhost:5644/`), and with `curl`.  A small stylesheet
@@ -145,7 +149,7 @@ Those marked with a key need the password (see Authentication below):
 |--------|------|-----------|------|
 | `help` | yes | yes | the methods, each with a short description |
 | `help.events` | yes | yes | the event topics, see Events Stream |
-| `get_info` | yes | yes | version, build date, `is_edge`/`is_supernode`, the edge's MAC and address, how its NAT maps it (`nat4`, `nat6`: `unknown`, `easy (port kept)`, `easy (port changed)`, `hard (ports 40100-40180)`, `several addresses`), `transport`, how it reaches its supernode now (`udp` or `tcp`, see `connection.tcp_fallback`; empty on a supernode), and `registered` (1 while the edge counts as registered at its supernode, also while a periodic re-registration is on its way; 0 on a supernode) |
+| `get_info` | yes | yes | version, build date, `is_edge`/`is_supernode`, the edge's MAC and address, how its NAT maps it (`nat4`, `nat6`: `unknown`, `easy (port kept)`, `easy (port changed)`, `hard (ports 40100-40180)`, `several addresses`), `transport`, how it reaches its supernode now (`udp` or `tcp`, see `connection.tcp_fallback`; empty on a supernode), and `registered` (1 while the edge counts as registered at its supernode, also while a periodic re-registration is on its way; 0 on a supernode); on an edge also `gateway` (the exit peer, `tuntap.gateway`, `""` for none), `route_all` (1 while all traffic goes through it) and `dns` (`tuntap.dns`) |
 | `get_edges` | yes | yes | the edge: its peers; the supernode: the edges registered at it, with community, address, MAC, `mode` (`p2p`, `pSp` or `sn`), `nat`, `sockaddr`, `other_sockaddr` (the supernode: an edge's address of the other family, where it registered one too, see Federation.md), `loss` (the edge: what its probes lose on the direct path, in percent), `last_seen`; and on the edge, for a peer the forward error correction knows, `fec`: `loss`, `burst` and `residual`, what the peer tells of the way to it (percent, mean burst in PACKETs, per mille that stayed lost; -1 and 0 for not known), `margin` and `scale` (what the edge makes of that: the loss times `margin` for the repairs, and of them `scale`, less than 1 while it backs off), `k` and `m` of its last group, and `rx_loss`, `rx_burst`, `rx_residual` of the way from the peer (see [FEC](../advanced/FEC.md)) |
 | `get_supernodes` | yes | yes | the edge: its supernodes, `current` the one it is registered at, `selection` the criterion, `transports` (`udp`, `tcp` or `udp tcp`) and `tcp_sockaddr`, where it is reached over TCP, `load` (what it reported) and `rtt_us` (the round trip of its last answer to a PING, in microseconds, 0 for none yet), whatever `connection.supernode_selection` uses; the supernode: the other supernodes of the federation |
 | `get_communities` | yes | yes | the edge: its community; the supernode: its communities with their address range of the auto ip service, the federation shown as `-/-` |
@@ -154,6 +158,7 @@ Those marked with a key need the password (see Authentication below):
 | `get_mac` | yes | | the MAC addresses the edge has seen behind its peers (with routing and bridging) |
 | `get_verbose` | yes | yes | the log level |
 | `set_verbose` (key) | yes | yes | set the log level: `n3n-be-ctl -k n3n set_verbose 3` |
+| `set_gateway` (key) | yes | | all traffic through an exit peer while the edge runs: `n3n-be-ctl -k n3n set_gateway 10.99.0.2`, `""` for none; a second value sets the DNS server (`""` for none).  The answer is that of `get_info` for it: `{"gateway": "10.99.0.2", "route_all": 1, "dns": ""}`; an error 409 says why not.  On 64-bit Windows always; on Linux in an edge started with `tuntap.route_all = true`, see [Routing](../advanced/Routing.md#switching-while-it-runs) |
 | `reload` (key) | yes | yes | read the configuration again and apply what can change while running: `{"loaded": true, "applied": [...], "restart": [...]}`, the options changed and those waiting for a restart, see [Configuration Files](../configure/ConfigurationFiles.md#reloading) |
 | `reload_communities` (key) | | yes | read the community file again, see [Communities](../configure/Communities.md) |
 | `stop` (key) | yes | yes | stop the daemon |
