@@ -11,4 +11,11 @@
 int n3n_edge_main (int argc, char *argv[]);
 int n3n_supernode_main (int argc, char *argv[]);
 
+// Stops what n3n_edge_main() runs, from any thread
+void n3n_edge_main_stop (void);
+
+// "service install|uninstall|run [sessionname]": the edge as a Windows
+// service, see n3n-service.c
+int n3n_service_main (int argc, char *argv[]);
+
 #endif

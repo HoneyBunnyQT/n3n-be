@@ -49,7 +49,7 @@ $(APPS) $(EXAMPLES): ../src/libn3n.a
 
 example_edge_embed_tun: LDLIBS+=-lpthread
 
-n3n-be: n3n-be.c n3n-edge.c $(ROLES)
+n3n-be: n3n-be.c n3n-edge.c n3n-service.c $(ROLES)
 
 $(LINKS): n3n-be
 	@echo "  LN      $@"

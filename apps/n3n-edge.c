@@ -481,6 +481,12 @@ static void cmd_start (int argc, char **argv, void *conf) {
     return;
 }
 
+// n3n_edge_main() hands "service ..." on before it gets here, see
+// n3n-service.c; this is for the help
+static void cmd_service (int argc, char **argv, void *conf) {
+    return;
+}
+
 static struct n3n_subcmd_def cmd_debug_config[] = {
     {
         .name = "addr",
@@ -650,6 +656,12 @@ static struct n3n_subcmd_def cmd_top[] = {
         .name = "help",
         .type = n3n_subcmd_type_nest,
         .nest = cmd_help,
+    },
+    {
+        .name = "service",
+        .help = "install|uninstall [sessionname] - (Windows) the session as a service",
+        .type = n3n_subcmd_type_fn,
+        .fn = &cmd_service,
     },
     {
         .name = "start",
@@ -943,13 +955,24 @@ static void hup_handler (int sig) {
 
 #ifdef _WIN32
 extern int windows_stop_fd;
+#endif
 
+// Stops the edge, from any thread: Ctrl-C in its console, or the service
+// manager, see n3n-service.c
+void n3n_edge_main_stop (void) {
+
+    // Tell the mainloop to exit next time it wakes
+    keep_on_running = false;
+#ifdef _WIN32
+    // see ConsoleCtrlHandler()
+    closesocket(windows_stop_fd);
+#endif
+}
+
+#ifdef _WIN32
 // Note well, this gets called from a brand new thread, thus is completely
 // different to how signals work in POSIX
 static BOOL WINAPI ConsoleCtrlHandler (DWORD sig) {
-    // Tell the mainloop to exit next time it wakes
-    keep_on_running = false;
-
     traceEvent(TRACE_INFO, "starting stopping");
     // The windows environment claims to support signals, but they dont
     // interrupt a running select() statement.  Also, this console handler
@@ -963,7 +986,7 @@ static BOOL WINAPI ConsoleCtrlHandler (DWORD sig) {
     // mainloop to notice that we are no longer wanting to run.
     //
     // something something, darkside
-    closesocket(windows_stop_fd);
+    n3n_edge_main_stop();
 
     switch(sig) {
         case CTRL_CLOSE_EVENT:
@@ -994,6 +1017,11 @@ int n3n_edge_main (int argc, char* argv[]) {
 #ifdef HAVE_LIBCAP
     cap_t caps;
 #endif
+
+    // the edge as a Windows service, see n3n-service.c
+    if((argc > 1) && !strcmp(argv[1], "service")) {
+        return n3n_service_main(argc - 1, argv + 1);
+    }
 
 #ifdef __MUSL__
     struct sigaction sa;
