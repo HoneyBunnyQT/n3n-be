@@ -21,6 +21,11 @@
 # One binary for all the roles, see n3n-be.c
 APPS+=n3n-be
 
+# on Windows, the edge in the notification area too, see n3n-be-tray.c
+ifneq (,$(findstring mingw,$(CONFIG_HOST_OS)))
+APPS+=n3n-be-tray
+endif
+
 # and its names for each role: links to it, copies where there are no links
 LINKS+=n3n-be-edge
 ifneq ($(CONFIG_RELAY),no)
@@ -51,6 +56,15 @@ example_edge_embed_tun: LDLIBS+=-lpthread
 
 n3n-be: n3n-be.c n3n-edge.c n3n-service.c $(ROLES)
 
+# a program of the desktop, without a console; asInvoker, see its manifest
+n3n-be-tray: n3n-be-tray.c n3n-be-tray_rc.o
+n3n-be-tray: LDFLAGS+=-mwindows
+n3n-be-tray: LDLIBS+=-lshell32 -lcomdlg32 -lgdi32 -luser32 -ladvapi32
+
+n3n-be-tray_rc.o: n3n-be-tray.rc n3n-be-tray.manifest
+	@echo "  WINDRES $@"
+	@$(WINDRES) $< -O coff -o $@
+
 $(LINKS): n3n-be
 	@echo "  LN      $@"
 ifeq ($(EXE),)
@@ -63,6 +77,9 @@ endif
 install: $(addsuffix $(EXE),$(APPS))
 	$(INSTALL) -d $(CONFIG_SBINDIR)
 	$(INSTALL_PROG) n3n-be$(EXE) $(CONFIG_SBINDIR)/
+ifneq (,$(findstring n3n-be-tray,$(APPS)))
+	$(INSTALL_PROG) n3n-be-tray$(EXE) $(CONFIG_SBINDIR)/
+endif
 ifeq ($(EXE),)
 	for l in $(LINKS); do ln -sf n3n-be $(CONFIG_SBINDIR)/$$l; done
 else
@@ -71,7 +88,7 @@ endif
 
 %: %.c
 	@echo "  CC      $@"
-	@$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(filter %.c %.a,$^) $(LDLIBS) -o $@
+	@$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $(filter %.c %.o %.a,$^) $(LDLIBS) -o $@
 
 # See comments in the topdir Makefile about how to generate coverage data.
 # gcc names the coverage data of a binary built in one step <binary>-<source>
@@ -79,4 +96,4 @@ gcov:
 	gcov n3n-be-n3n-be n3n-be-n3n-edge $(ROLES:%.c=n3n-be-%)
 
 clean:
-	rm -f $(APPS) $(LINKS) $(EXAMPLES)
+	rm -f $(APPS) $(LINKS) $(EXAMPLES) n3n-be-tray_rc.o

@@ -5,6 +5,8 @@ n3n-be-edge
 n3n-be-supernode
 n3n-be-edge.exe
 n3n-be-supernode.exe
+n3n-be-tray
+n3n-be-tray.exe
 
 # Examples
 example_edge_embed_quick_edge_init

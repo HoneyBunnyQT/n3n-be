@@ -18,6 +18,7 @@ export LDLIBS_EXTRA
 export LDLIBS_LOCAL
 export LDLIBS_QR
 export MKDIR
+export WINDRES
 
 
 VERSION:=$(shell scripts/version.sh)

@@ -263,7 +263,9 @@ jobs:
         run: |
           name="n3n-be-$TAG-windows-x86_64"
           mkdir -p "$name" dist
-          cp install/usr/local/sbin/n3n-be.exe install/usr/local/bin/n3n-be-ctl \
+          cp install/usr/local/sbin/n3n-be.exe \
+            install/usr/local/sbin/n3n-be-tray.exe \
+            install/usr/local/bin/n3n-be-ctl \
             docs/edge.conf.sample docs/supernode.conf.sample "$name/"
           # n3n-be.exe only, no copies n3n-be-edge.exe and
           # n3n-be-supernode.exe: "n3n-be.exe edge" and "n3n-be.exe
@@ -284,14 +286,17 @@ jobs:
             exit 1
           fi
           cp "$notice" "$name/LICENSES/winpthreads.txt"
-          # the DLLs it needs: Windows' own only, or the zip is not enough
-          objdump -p "$name/n3n-be.exe" | grep "DLL Name"
-          if objdump -p "$name/n3n-be.exe" | grep "DLL Name" |
-              grep -iv -e kernel32 -e msvcrt -e ws2_32 -e iphlpapi \
-                -e netapi32 -e advapi32 -e user32 -e api-ms-win; then
-            echo "::error::n3n-be.exe needs a DLL that is not in the zip"
-            exit 1
-          fi
+          # the DLLs they need: Windows' own only, or the zip is not enough
+          for exe in n3n-be.exe n3n-be-tray.exe; do
+            objdump -p "$name/$exe" | grep "DLL Name"
+            if objdump -p "$name/$exe" | grep "DLL Name" |
+                grep -iv -e kernel32 -e msvcrt -e ws2_32 -e iphlpapi \
+                  -e netapi32 -e advapi32 -e user32 -e shell32 -e gdi32 \
+                  -e comdlg32 -e api-ms-win; then
+              echo "::error::$exe needs a DLL that is not in the zip"
+              exit 1
+            fi
+          done
           7z a -tzip "dist/$name.zip" "$name"
           7z l "dist/$name.zip"
 
