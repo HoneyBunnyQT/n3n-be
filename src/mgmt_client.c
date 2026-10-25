@@ -9,7 +9,7 @@
 #include "win32/defs.h"         // for winsock2.h, ws2tcpip.h
 #else
 #include <arpa/inet.h>          // for htons, htonl
-#include <netinet/in.h>         // for sockaddr_in, INADDR_LOOPBACK
+#include <netinet/in.h>         // for sockaddr_in6, in6addr_loopback, INADDR_LOOPBACK
 #include <sys/socket.h>         // for socket, connect, send, recv
 #include <sys/time.h>           // for timeval
 #include <unistd.h>             // for close
@@ -450,36 +450,59 @@ static bool method_ok (const char *m) {
 }
 
 
+// A connection to the management port of this host: at ::1, where the
+// daemon listens if the host has IPv6 (slots_create_listen_tcp()), else at
+// 127.0.0.1; -1 if neither answers
+static int connect_local (int port) {
+
+    struct sockaddr_in6 sa6;
+    struct sockaddr_in sa4;
+
+    memset(&sa6, 0, sizeof(sa6));
+    sa6.sin6_family = AF_INET6;
+    sa6.sin6_port = htons(port);
+    sa6.sin6_addr = in6addr_loopback;
+    memset(&sa4, 0, sizeof(sa4));
+    sa4.sin_family = AF_INET;
+    sa4.sin_port = htons(port);
+    sa4.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+
+    for(int i = 0; i < 2; i++) {
+        struct sockaddr *sa = i ? (struct sockaddr *)&sa4 : (struct sockaddr *)&sa6;
+        int len = i ? sizeof(sa4) : sizeof(sa6);
+        int fd = socket(sa->sa_family, SOCK_STREAM, 0);
+
+        if(fd < 0) {
+            continue;
+        }
+        // this host: an answer is there at once, or not at all
+#ifdef _WIN32
+        DWORD ms = 3000;
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&ms, sizeof(ms));
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&ms, sizeof(ms));
+#else
+        struct timeval tv = { 3, 0 };
+        setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+        setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
+#endif
+        if(connect(fd, sa, len) == 0) {
+            return fd;
+        }
+        closesocket(fd);
+    }
+    return -1;
+}
+
+
 // The answer to a request, to free, or NULL with err; *status its HTTP status
 static char *exchange (int port, const char *request, size_t len, char *err, size_t errsize, int *status) {
 
-    struct sockaddr_in sa;
     size_t got = 0, room = 4096;
     char *answer;
-    int fd;
+    int fd = connect_local(port);
 
-    memset(&sa, 0, sizeof(sa));
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons(port);
-    sa.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd < 0) {
-        snprintf(err, errsize, "no socket");
-        return NULL;
-    }
-    // this host: an answer is there at once, or not at all
-#ifdef _WIN32
-    DWORD ms = 3000;
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (const char *)&ms, sizeof(ms));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, (const char *)&ms, sizeof(ms));
-#else
-    struct timeval tv = { 3, 0 };
-    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
-    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv));
-#endif
-    if(connect(fd, (struct sockaddr *)&sa, sizeof(sa)) != 0) {
         snprintf(err, errsize, "the management port %d does not answer", port);
-        closesocket(fd);
         return NULL;
     }
     for(size_t sent = 0; sent < len;) {

@@ -36,7 +36,7 @@ const char *mc_json_str (const struct mc_json *v);
 // A number, or dflt if v is none (a string of digits counts too)
 double mc_json_num (const struct mc_json *v, double dflt);
 
-// Calls method on the management port of this host (127.0.0.1), with
+// Calls method on the management port of this host (::1, else 127.0.0.1), with
 // params as a JSON text (an array, or NULL for none) and the management
 // password (NULL for none, as reading methods need none).  The result, to
 // free, or NULL with err saying why - the error of the answer, 401 for a
