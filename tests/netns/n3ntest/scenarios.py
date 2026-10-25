@@ -681,6 +681,20 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", gateway="b", tags=["quick"]),
     Scenario(
+        "route-all",
+        "a TAP edge with tuntap.route_all through the other one: its host's "
+        "traffic through the tunnel, the edge's own outside, both edges "
+        "direct as without",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", gateway="b", route_all=True, tags=["quick"]),
+    Scenario(
+        "route-all-tun",
+        "tuntap.route_all with a TUN edge, relayed: the same",
+        Site(["hard-range"], conf={"tuntap": {"type": "tun"}}),
+        Site(["hard-range"]),
+        "relayed", gateway="b", route_all=True),
+    Scenario(
         "tun-tun",
         "two edges with TUN devices, relayed: each finds the other's MAC "
         "from what it announces",

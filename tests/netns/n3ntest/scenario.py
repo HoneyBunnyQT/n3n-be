@@ -190,6 +190,7 @@ class Scenario:
                  sn_conf=None, auth=None, community_conf=False,
                  community_cli=False,
                  unblock_udp=False, sn_tcp_port=None, gateway=None,
+                 route_all=False,
                  ipv6=False, max_moves=None, delay6=None, sn_block6=False,
                  roam=None, roam_max_gap=None, roam_direct=True,
                  size=None, outage=False, outage_then=None,
@@ -256,6 +257,10 @@ class Scenario:
         # The site whose edge is the other one's tuntap.gateway: it holds
         # GATEWAY_TARGET, outside the community, which the other pings
         self.gateway = gateway
+        # The other edge routes all of its host's traffic through the
+        # gateway's (tuntap.route_all): its own traffic is to stay outside,
+        # the rest to go through the tunnel, see check_route_all()
+        self.route_all = route_all
         # The "internet", the supernodes and the edges on it without NAT
         # have IPv6 next to IPv4 (dual stack)
         self.ipv6 = ipv6
@@ -982,6 +987,8 @@ class Run:
             conf.setdefault("filter", {})["allow_routing"] = True
         elif self.sc.gateway:
             conf["tuntap"]["gateway"] = self.edges[self.sc.gateway]["overlay"]
+            if self.sc.route_all:
+                conf["tuntap"]["route_all"] = True
         community = "community"
         if self.sc.community_conf:
             # the edge's only community, from a named section
@@ -2253,7 +2260,10 @@ class Run:
         run(["ip", "-n", gw_ns, "link", "set", "lo", "up"])
         run(["ip", "-n", gw_ns, "addr", "add", GATEWAY_TARGET + "/32",
              "dev", "lo"])
-        run(["ip", "-n", src_ns, "route", "add", GATEWAY_NET, "dev", "n3n0"])
+        if not self.sc.route_all:
+            # with tuntap.route_all, the edge's routes take it there
+            run(["ip", "-n", src_ns, "route", "add", GATEWAY_NET,
+                 "dev", "n3n0"])
         recv = self.lab.spawn(
             "recv-gateway", gw_ns,
             [sys.executable, TRAFFIC_PY, "recv", "--bind",
@@ -2274,6 +2284,37 @@ class Run:
         self.check("gateway", got >= 15,
                    "{} of 20 datagrams to {} through {}".format(
                        got, GATEWAY_TARGET, gw))
+
+    def check_route_all(self):
+        """tuntap.route_all: the host's traffic into the tunnel, the edge's
+        own (with its firewall mark) outside, and all of it taken back
+        when the edge stops"""
+        src = [s for s in self.edges if s != self.sc.gateway][0]
+        ns = self.edges[src]["ns"]
+        sn_ip = self.supernodes[sorted(self.supernodes)[0]]["ip"]
+        rules = run(["ip", "-4", "rule"], ns=ns)
+        want = ("not from all fwmark 0x6e33 lookup 28211",
+                "from all lookup main suppress_prefixlength 0")
+        self.check("route-all:rules", all(w in rules for w in want),
+                   " / ".join(line.strip() for line in rules.splitlines()
+                              if "0x6e33" in line or "suppress" in line))
+        host = run(["ip", "route", "get", sn_ip], ns=ns)
+        own = run(["ip", "route", "get", sn_ip, "mark", "0x6e33"], ns=ns)
+        self.check("route-all:host", "dev n3n0" in host,
+                   "to {}: {}".format(sn_ip, host.strip()))
+        self.check("route-all:edge", "dev n3n0" not in own,
+                   "to {} with the mark: {}".format(sn_ip, own.strip()))
+        self.killed.add("edge-" + src)
+        code = self.edges[src]["daemon"].proc.stop()
+        left = run(["ip", "-4", "rule"], ns=ns) + \
+            run(["ip", "-6", "rule"], ns=ns, check=False)
+        self.check("route-all:taken back",
+                   code in (0, -15) and "0x6e33" not in left
+                   and "suppress" not in left,
+                   "on SIGTERM: {}, rules left: {}".format(
+                       describe_exit(code),
+                       [line.strip() for line in left.splitlines()
+                        if "0x6e33" in line or "suppress" in line]))
 
     def _address6(self, sname):
         """An edge's IPv6 address, as its log says it"""
@@ -2465,6 +2506,8 @@ class Run:
                     self.check_descriptions("description after")
             if self.sc.gateway and self.check_alive("measurement"):
                 self.check_gateway()
+            if self.sc.route_all and self.check_alive("gateway"):
+                self.check_route_all()
             if self.sc.inner6 and self.check_alive("measurement"):
                 self.check_inner6()
             if self.sc.multicast and self.check_alive("measurement"):

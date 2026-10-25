@@ -33,12 +33,14 @@ kernel() {
     [ -f "$src/Makefile" ] || { echo "not a kernel source tree: $src" >&2; exit 1; }
     cd "$src"
     make -s ARCH=um defconfig
-    # what the harness uses: namespaces, veth, a bridge, TUN/TAP, nftables
-    # NAT with conntrack, IPv6, netem; hostfs for the root file system
+    # what the harness uses: namespaces, veth, a bridge, TUN/TAP, policy
+    # routing (tuntap.route_all), nftables NAT with conntrack, IPv6, netem;
+    # hostfs for the root file system
     ./scripts/config \
         -e HOSTFS -e IPV6 -e NET_NS -e NAMESPACES -e UTS_NS -e IPC_NS -e PID_NS \
         -e VETH -e BRIDGE -e TUN -e UNIX -e PACKET -e IP_MULTICAST \
-        -e IP_ADVANCED_ROUTER -e NETFILTER -e NETFILTER_ADVANCED \
+        -e IP_ADVANCED_ROUTER -e IP_MULTIPLE_TABLES -e IPV6_MULTIPLE_TABLES \
+        -e NETFILTER -e NETFILTER_ADVANCED \
         -e NF_CONNTRACK -e NF_NAT -e NF_TABLES -e NF_TABLES_INET \
         -e NF_TABLES_IPV4 -e NF_TABLES_IPV6 -e NFT_NAT -e NFT_MASQ -e NFT_CT \
         -e NFT_LIMIT -e NFT_NUMGEN -e NFT_HASH -e NFT_REDIR -e NFT_REJECT \
