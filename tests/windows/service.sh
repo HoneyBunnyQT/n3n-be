@@ -1,0 +1,114 @@
+#!/bin/bash
+#
+# Copyright (C) Honey Bunny QT
+# SPDX-License-Identifier: AGPL-3.0-only
+#
+# The edge as a Windows service (apps/n3n-service.c), on a Windows runner,
+# as an administrator, in Git Bash: installed from the user's configuration,
+# which it copies to %ProgramData%\n3n-be (readable by SYSTEM and the
+# administrators only); starting - with a supernode nobody answers, it stays
+# START_PENDING, its checkpoint going up -; stopped, which ends it with exit
+# code 0 and does not start it again; uninstalled.  No TAP adapter needed.
+#
+#   tests/windows/service.sh [path to n3n-be.exe]
+
+set -u
+
+EXE=${1:-apps/n3n-be.exe}
+SESSION=svctest
+NAME="n3n-be-edge@$SESSION"
+PROFILE=$(cygpath -u "$USERPROFILE")
+MACHINE=$(cygpath -u "${PROGRAMDATA:-C:\\ProgramData}")/n3n-be
+failed=0
+
+check() {
+    # check NAME OK DETAIL
+    if [ "$2" = 0 ]; then
+        echo "ok   $1: $3"
+    else
+        echo "FAIL $1: $3"
+        failed=1
+    fi
+}
+
+field() {
+    # the value of a field of "sc query": its word (STATE) or number
+    sc.exe query "$NAME" 2>/dev/null | tr -d '\r' |
+        sed -n "s/^ *$1 *: *\\([0-9a-fx]*\\) *\\([A-Z_]*\\).*/\\1 \\2/p"
+}
+
+state() {
+    field STATE | cut -d' ' -f2
+}
+
+checkpoint() {
+    printf '%d' "$(field CHECKPOINT | cut -d' ' -f1)"
+}
+
+wait_state() {
+    # wait_state STATE SECONDS
+    for _ in $(seq "$2"); do
+        [ "$(state)" = "$1" ] && return 0
+        sleep 1
+    done
+    return 1
+}
+
+# left over from a run before
+"$EXE" edge service uninstall "$SESSION" >/dev/null 2>&1
+rm -f "$MACHINE/$SESSION.conf" "$MACHINE/$SESSION.log" "$MACHINE/$SESSION.log.old"
+
+mkdir -p "$PROFILE/n3n-be"
+cat >"$PROFILE/n3n-be/$SESSION.conf" <<EOF
+[community]
+name = svctest
+key = svctest-secret
+supernode = 127.0.0.1:7655
+[tuntap]
+address_mode = auto
+[management]
+port = 5651
+EOF
+
+out=$("$EXE" edge service install "$SESSION" 2>&1)
+echo "$out"
+echo "$out" | grep -q "copied" && [ -f "$MACHINE/$SESSION.conf" ]
+check "install: copied" $? "the user's configuration in $MACHINE"
+echo "$out" | grep -q "^started"
+check "install: started" $? "$(echo "$out" | tail -1)"
+
+acl=$(icacls "$(cygpath -w "$MACHINE")" 2>&1 | tr -d '\r')
+! echo "$acl" | grep -qi "users"
+check "install: only SYSTEM and administrators" $? "$(echo "$acl" | head -3 | tr '\n' ' ')"
+
+sleep 3
+first=$(checkpoint)
+st=$(state)
+sleep 4
+second=$(checkpoint)
+[ "$st" = START_PENDING ] && [ "$second" -gt "$first" ]
+check "starting" $? "state $st, checkpoint $first then $second (no supernode answers)"
+
+grep -q "starting n3n-be edge" "$MACHINE/$SESSION.log" 2>/dev/null
+check "log" $? "$MACHINE/$SESSION.log"
+
+sc.exe stop "$NAME" >/dev/null
+wait_state STOPPED 20
+check "stop" $? "state $(state)"
+code=$(field WIN32_EXIT_CODE | cut -d' ' -f1)
+[ "$code" = 0 ]
+check "stop: exit code" $? "WIN32_EXIT_CODE $code"
+sleep 8
+[ "$(state)" = STOPPED ]
+check "stop: stays stopped" $? "state $(state) 8s later, not started again"
+
+"$EXE" edge service uninstall "$SESSION"
+! sc.exe query "$NAME" >/dev/null 2>&1
+check "uninstall" $? "the service is gone"
+
+if [ "$failed" != 0 ]; then
+    echo "--- $MACHINE/$SESSION.log"
+    cat "$MACHINE/$SESSION.log" 2>/dev/null
+fi
+rm -f "$PROFILE/n3n-be/$SESSION.conf"
+exit "$failed"

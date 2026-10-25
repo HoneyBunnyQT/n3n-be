@@ -240,6 +240,11 @@ jobs:
         run: make test.builtin test.units
         shell: bash
 
+      # the runner's user is an administrator
+      - name: The edge as a Windows service
+        run: tests/windows/service.sh apps/n3n-be.exe
+        shell: bash
+
       - if: ${{ failure() }}
         name: Move test outputs to an arch specific location
         shell: bash
