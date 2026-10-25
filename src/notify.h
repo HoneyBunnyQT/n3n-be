@@ -23,4 +23,8 @@ void n3n_notify_tick (struct n3n_runtime_data *rt);
 // On the way out: STOPPING=1, and a status that is not the last peer count
 void n3n_notify_stopping (void);
 
+// Not on Linux, where systemd is told: who is told the same messages
+// instead - the Windows service; NULL for nobody
+void n3n_notify_hook (void (*fn)(const char *msg));
+
 #endif

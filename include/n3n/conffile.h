@@ -110,6 +110,9 @@ int n3n_config_load_file (void *, char *);
 // a configuration in the INI format, as a string
 int n3n_config_load_text (void *conf, const char *text);
 void n3n_config_set_rundir (const char *dir);
+// Where the configuration files are looked for instead (Windows: the
+// service's %ProgramData%\n3n-be in place of %USERPROFILE%\n3n-be)
+void n3n_config_set_confdir (const char *dir);
 
 enum n3n_subcmd_type {
     n3n_subcmd_type_nest = 1,

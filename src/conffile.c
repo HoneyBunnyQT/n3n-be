@@ -1279,6 +1279,16 @@ int n3n_config_load_env (void *conf) {
  * an actual session name (basically, the basename with no extension is used)
  *
  */
+// Where the configuration files are, if not in the usual places, see
+// n3n_config_set_confdir()
+static char *confdir;
+
+void n3n_config_set_confdir (const char *dir) {
+
+    free(confdir);
+    confdir = dir ? strdup(dir) : NULL;
+}
+
 static char *find_config (char *name) {
     if(!name) {
         return NULL;
@@ -1318,7 +1328,9 @@ static char *find_config (char *name) {
     profiledir[0] = 0;
 
     char *userprofile = getenv("USERPROFILE");
-    if(userprofile) {
+    if(confdir) {
+        snprintf(profiledir, sizeof(profiledir), "%s", confdir);
+    } else if(userprofile) {
         snprintf(profiledir, sizeof(profiledir), "%s/n3n-be", userprofile);
     }
 #endif
@@ -1326,7 +1338,7 @@ static char *find_config (char *name) {
     // TODO: Are there other places that should be searched?
     char *searchpath[] = {
 #ifndef _WIN32
-        "/etc/n3n-be",
+        confdir ? confdir : "/etc/n3n-be",
 #endif
 #ifdef _WIN32
         profiledir,
@@ -1895,11 +1907,14 @@ int n3n_config_setup_sessiondir (n2n_edge_conf_t *conf) {
         // TODO: surely, there is a better location?
         userprofile = getenv("TEMP");
     }
-    if(!userprofile) {
+    if(rundir) {
+        // the service's, see n3n_config_set_rundir()
+        snprintf(basedir, sizeof(basedir), "%s", rundir);
+    } else if(userprofile) {
+        snprintf(basedir, sizeof(basedir), "%s/n3n-be", userprofile);
+    } else {
         return -1;
     }
-
-    snprintf(basedir, sizeof(basedir), "%s/n3n-be", userprofile);
 #endif
 
     if(mkdir_p(basedir, 0755, conf->userid, conf->groupid) == -1) {

@@ -6,7 +6,8 @@
  * protocol, which is a datagram of "KEY=value" lines to the Unix socket
  * named in $NOTIFY_SOCKET.  Nothing here needs systemd, or links against it:
  * without that variable - no systemd, a unit with Type=simple, any other
- * init system, a shell - every function here does nothing.
+ * init system, a shell - every function here does nothing.  On the other
+ * systems, the messages go to a hook instead: on Windows, the service.
  */
 
 #include <stdbool.h>
@@ -186,16 +187,35 @@ void n3n_notify_stopping (void) {
 
 #else
 
+// Elsewhere, the same messages to a hook: on Windows, the service, which
+// tells the service manager (apps/n3n-service.c)
+static void (*hook)(const char *msg);
+
+void n3n_notify_hook (void (*fn)(const char *msg)) {
+
+    hook = fn;
+}
+
 void n3n_notify (const char *msg) {
+
+    if(hook) {
+        hook(msg);
+    }
 }
 
 void n3n_notify_ready (struct n3n_runtime_data *rt) {
+
+    n3n_notify("READY=1");
 }
 
 void n3n_notify_tick (struct n3n_runtime_data *rt) {
+
+    n3n_notify("WATCHDOG=1");
 }
 
 void n3n_notify_stopping (void) {
+
+    n3n_notify("STOPPING=1");
 }
 
 #endif
