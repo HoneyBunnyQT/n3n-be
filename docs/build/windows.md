@@ -64,6 +64,38 @@ supported options.  On Windows the management interface listens on a TCP
 port (`management.port`), as there are no Unix domain sockets, and a
 supernode cannot be an edge too (`supernode.tap`) yet.
 
+### As a service
+
+The edge can run as a Windows service, which starts it at boot, without
+a console window and without anyone logged in.  In a command prompt run as
+administrator, once:
+
+```
+n3n-be.exe edge service install          # the session edge: edge.conf
+n3n-be.exe edge service install home     # the session home: home.conf
+```
+
+The service reads its configuration from `%ProgramData%\n3n-be`, which
+only SYSTEM and the administrators can read, as the configuration holds the
+community's key; `service install` copies the one from
+`%USERPROFILE%\n3n-be` there if there is none yet, installs the service -
+`n3n-be-edge`, or `n3n-be-edge@home` for another session, as the systemd
+units are named - and starts it.  It runs as LocalSystem, with its session
+directory and its log (`edge.log`, the one of the run before as
+`edge.log.old`) in the same directory, and the service manager starts it
+again 5 seconds after it fails.
+
+- `sc stop n3n-be-edge`, `sc start n3n-be-edge`, or the Services app: a
+  stop takes back what the edge set up (the routes of `tuntap.route_all`),
+  as Ctrl-C does.
+- `sc query n3n-be-edge` says `RUNNING` once the edge has its TAP adapter
+  up, as systemd's `Type=notify` does on Linux; `START_PENDING` while it
+  still waits for a supernode.
+- `sc control n3n-be-edge paramchange` reloads the configuration, as
+  SIGHUP does on Linux (and `n3n-be-ctl reload`).
+- `n3n-be.exe edge service uninstall [session]` stops and removes it; the
+  configuration and the log stay.
+
 To send all of the computer's traffic through another edge, as the
 Android app's "Route all traffic through a peer" does, three lines in the
 `[tuntap]` section of `edge.conf` - the other edge's address in the

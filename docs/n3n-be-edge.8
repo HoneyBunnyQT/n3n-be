@@ -108,7 +108,8 @@ When running the \fBstart\fR command, the edge will use the given sessionname
 .RS
 /etc/n3n-be/\fB<sessionname>\fR.conf
 
-\fI%USERPROFILE%\fR\\n3n\\\fB<sessionname>\fR.conf (On Windows)
+\fI%USERPROFILE%\fR\\n3n-be\\\fB<sessionname>\fR.conf (On Windows; the service:
+\fI%ProgramData%\fR\\n3n-be\\\fB<sessionname>\fR.conf)
 .RE
 
 This file is an INI style file and a full description of the options is
@@ -355,6 +356,15 @@ its main loop still runs (\fBWatchdogSec\fR of 30 seconds or more).
 Without \fBNOTIFY_SOCKET\fR in its environment it does none of this, so it
 runs the same under any other service manager.  See
 docs/configure/Systemd.md.
+
+On Windows, \fBn3n-be-edge service install\fR [\fIsessionname\fR] installs and
+starts the edge as a service (\fBn3n-be-edge\fR, or
+\fBn3n-be-edge@\fR\fIsessionname\fR), which reads its configuration from
+%ProgramData%\en3n-be and logs there; it is RUNNING for the service manager
+once the edge is up, a stop takes back what it set up, and
+\fBsc control\fR ... \fBparamchange\fR reloads it.
+\fBn3n-be-edge service uninstall\fR [\fIsessionname\fR] removes it.  See
+docs/build/windows.md.
 
 .SH RELOAD
 \fBn3n-be-ctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs

@@ -33,6 +33,24 @@ Running an edge
 2. In a command prompt run as administrator (the edge sets the address of
    the TAP adapter): n3n-be.exe edge
 
+As a service
+------------
+
+So that the edge starts at boot, without a console window and without
+anyone logged in, in a command prompt run as administrator, once:
+
+    n3n-be.exe edge service install
+
+It copies %USERPROFILE%\n3n-be\edge.conf to %ProgramData%\n3n-be, where
+the service reads it (that directory is for SYSTEM and the administrators
+only: the configuration holds the community's key), and starts the
+service n3n-be-edge; its log is %ProgramData%\n3n-be\edge.log.  With a
+session name, "service install home" takes home.conf, and the service is
+n3n-be-edge@home.  "sc stop n3n-be-edge" and "sc start n3n-be-edge" (or
+the Services app) stop and start it - a stop takes back what the edge
+set up, as Ctrl-C does -, "sc control n3n-be-edge paramchange" reloads
+its configuration, and "n3n-be.exe edge service uninstall" removes it.
+
 A supernode takes %USERPROFILE%\n3n-be\supernode.conf, started with
 "n3n-be.exe supernode".  The management interface listens on a TCP port
 (management.port), as Windows has no Unix sockets.  "n3n-be.exe edge -h"

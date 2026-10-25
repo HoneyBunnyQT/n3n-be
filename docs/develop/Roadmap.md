@@ -542,8 +542,8 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       off, by reload, the page's own button, refused outside the subnet
       and by an edge started without it.  Found on the way: Windows left
       its IPv4 routes behind (deleted with next hop 0).  Open:
-      try it on Windows (CI only builds it there); a tray app as a client
-      of the management API; macOS (`IP_BOUND_IF`, utun); the Android app taking
+      try it on Windows (CI only builds it there); the tray app (below);
+      macOS (`IP_BOUND_IF`, utun); the Android app taking
       `tuntap.route_all` and `tuntap.dns` from a configuration it imports
       (it ignores them now); IPv6 through an exit peer; blocking what
       goes around the tunnel (a kill switch, WFP on Windows); in v4 an
@@ -582,6 +582,30 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       configuration it opens (postponed, 2026-10-11, see Decisions); maybe a
       navigation bar instead of the four keys, should the app get more
       screens (several networks, peers)
+- [~] Windows as comfortable as the Android app (asked 2026-10-25): one
+      GUI instead of command prompts and console windows - a tray app,
+      a client of the management API as the app is of the core.  Step 1,
+      done: the edge as a Windows service (`apps/n3n-service.c`),
+      `n3n-be edge service install|uninstall [session]`: `n3n-be-edge` or
+      `n3n-be-edge@session` as the systemd units, LocalSystem, at boot,
+      started again 5s after a failure; its configuration (copied from
+      `%USERPROFILE%\n3n-be` at the install), session directory and log
+      in `%ProgramData%\n3n-be`, for SYSTEM and the administrators only;
+      RUNNING once the edge is up, through a hook in `notify.c` that
+      takes systemd's messages on the other systems; a stop as Ctrl-C
+      (`n3n_edge_main_stop()`), exit code 0 also while it still starts,
+      `sc control ... paramchange` a reload.  Tested on CI's Windows
+      runners (`tests/windows/service.sh`: installed, starting with its
+      checkpoint going up, stopped and not started again, uninstalled -
+      no TAP adapter there, so not RUNNING) and under Wine (install,
+      start, log, the restart after a failure; Wine's sockets fail the
+      edge itself).  Open: step 2, the tray app in plain Win32 C - the
+      state in its icon, connect and disconnect, "route all traffic
+      through" a peer (`set_gateway`), the page, the log, importing a
+      configuration, start with Windows - as the logged-in user, with a
+      management password the service writes at its install for the
+      user who installed it to read; step 3, maybe an installer that
+      brings the TAP driver along (its licence first), or Wintun
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`
@@ -884,7 +908,8 @@ release has it - as FEC was; there is no branch for it (see Decisions
 - [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
       "Next", 2026-10-18)
 - [ ] Windows on par with Linux.  Done: all traffic through an exit
-      peer (`tuntap.route_all`, 2026-10-25, see Next).  One step: TUN on Wintun (the signed
+      peer (`tuntap.route_all`, 2026-10-25, see Next); the edge as a
+      service (2026-10-25, see Next).  One step: TUN on Wintun (the signed
       driver of WireGuard, a DLL that installs it on the fly), with
       `tun.c` as on Android and macOS, instead of OpenVPN's TAP driver;
       its licence for shipping the DLL with a GPL-3.0 program to check
@@ -1036,6 +1061,13 @@ release has it - as FEC was; there is no branch for it (see Decisions
   peer learned or moved would send into the tunnel until its route is
   there.  The names: `tuntap.route_all`, `tuntap.dns`, with the
   existing `tuntap.gateway` for the exit peer, TAP and TUN alike.
+- 2026-10-25: The GUI for Windows is two parts: the edge as a service,
+  which has the rights for the TAP adapter, the routes and DNS and keeps
+  running without anyone logged in, and a tray app as the logged-in user,
+  a client of the management API - as WireGuard and OpenVPN do it, and as
+  the Android app is a client of the core; no UAC prompt at each login.
+  The tray app in plain Win32 C: the same MinGW toolchain and CI, one
+  small .exe without runtime or DLLs, no licence questions.
 
 ## Scratchpad
 
