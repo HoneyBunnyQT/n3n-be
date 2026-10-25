@@ -498,8 +498,18 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       edge on utun, so the tarball of the macOS programs that
       `release.yml` makes for tags after 3.4.8, and FEC, whose wire format
       the first release with it fixes.  Open: the channels (apt
-      repository, AUR, COPR, Obtainium / IzzyOnDroid), OpenWrt
-      (`slow_openwrt.yml` is stale, see Scratchpad)
+      repository, AUR, COPR, Obtainium / IzzyOnDroid), an OpenWrt feed
+      (`slow_openwrt.yml` is stale, see Scratchpad).  OpenWrt packages
+      (asked 2026-10-25, after n42n/n3n#80, armv7 for an IPQ40xx router):
+      `.github/workflows/openwrt.yml`, called by tests.yml and
+      release.yml - `.apk` for 25.12 for nine package architectures
+      (x86_64, armsr's two, Filogic, MT7621, ath79, IPQ40xx, Marvell,
+      Northstar), `.ipk` for 24.10 for the three most common routers; the
+      SDK found by the target's `sha256sums`, which checks it.  Before:
+      the 22.03 SDK for five architectures of which only arm_cortex-a15
+      was ARMv7, and no router took it, in CI only, and the SDK fetched
+      anew each run (`outputs-cache-hit`, fixed, also on `fixes`).  The
+      version for apk: `3.4.8.137~50f0f88` for `3.4.8-137-g50f0f88`
 - [x] TUN mode (layer 3 device): `tuntap.type = tun`, `src/tun.c`, netns
       scenarios `tun-tap` and `tun-tun`; IPv6 (neighbour discovery); macOS
       on its own `utun` device (2026-10-17, `tests/macos/utun.py` in CI).
@@ -1085,6 +1095,11 @@ release has it - as FEC was; there is no branch for it (see Decisions
   the Android app is a client of the core; no UAC prompt at each login.
   The tray app in plain Win32 C: the same MinGW toolchain and CI, one
   small .exe without runtime or DLLs, no licence questions.
+- 2026-10-25: OpenWrt packages for the current series (25.12, apk) and,
+  for a while, the one before it (24.10, opkg) on the most common
+  routers - one build per package architecture, not per target or point
+  release, as the programs are linked statically; the architecture is
+  what apk and opkg check.  In the releases, not yet in a feed of ours.
 
 ## Scratchpad
 

@@ -22,6 +22,8 @@ From the tag, the workflow `Release` builds:
 | `n3n-be-android-3.4.8.apk` | Android 7.0 and newer | signed with the release key, see below |
 | `n3n-be-3.4.9-macos-universal.tar.gz` | macOS 11 and newer, Apple Silicon and Intel | on `macos-latest`, one binary for both, signed ad hoc; with the README of `packages/macos/`.  Only for tags with the edge on utun (after 3.4.8): before, the edge needed a kernel extension, and the job leaves the tarball out |
 | `n3n-be-3.4.8-windows-x86_64.zip` | Windows 10 and newer, 64 bit | on `windows-latest` as tests.yml builds and tests it, but linked statically (no `libwinpthread-1.dll` of the toolchain to bring along); `n3n-be.exe` alone, without the copies `n3n-be-edge.exe` and `n3n-be-supernode.exe` (`n3n-be.exe edge`, `n3n-be.exe supernode`), the sample configurations, `n3n-be-ctl`, the licences and a README (`packages/windows/README.txt`, from the workflow's commit); for tags with the names of n3n-be's own, after 3.4.8 |
+| `n3n-be-edge-3.4.9-r1_mipsel_24kc.apk`, `n3n-be-supernode-...`, for nine package architectures | OpenWrt 25.12 | with the 25.12 SDK of a target of each architecture (`.github/workflows/openwrt.yml`, also in tests.yml); the architecture added to apk's file name, which has none, as all are side by side.  See [OpenWrt](../build/openwrt.md) |
+| `n3n-be-edge_3.4.9-r1_mipsel_24kc.ipk`, ..., for three | OpenWrt 24.10 | the same, with the 24.10 SDK, for the most common routers |
 | `SHA256SUMS` | checking the downloads | |
 
 With "draft" ticked, it then makes a draft GitHub Release of the tag with
@@ -131,5 +133,6 @@ none is set up yet:
 - **Android**: Obtainium follows the GitHub Releases as they are; the
   IzzyOnDroid repository takes the APKs from them for the F-Droid app;
   F-Droid itself builds from the source, a merge request to fdroiddata.
-- Not built yet: the OpenWrt packages, and aarch64 for the .rpm and the
-  Arch package.
+- **OpenWrt**: the packages are in the release; a feed of its own (a
+  signed package index a router could add) is not there yet.
+- Not built yet: aarch64 for the .rpm and the Arch package.

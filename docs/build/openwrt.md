@@ -5,67 +5,81 @@ SPDX-FileCopyrightText: Copyright Hamish Coleman
 SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
-# Build for OpenWrt
+# OpenWrt
 
-## Prerequisites
+## Prebuilt packages
 
-This instructions explain how to build an OpenWRT .ipk package for n3n.
+The releases have `n3n-be-edge` and `n3n-be-supernode` for OpenWrt 25.12
+(`.apk`, as 25.12 has apk instead of opkg) and, for the most common
+routers, 24.10 (`.ipk`).  The programs in them are linked statically, so
+any point release of the series takes them; what has to fit exactly is
+the package architecture of the router:
 
-You will either need to build a full OpenWRT buildchain (See the github
-action for building openwrt.yml for some example steps) or have a working
-cross-compiling build environment for the OpenWRT version installed into
-your device.
+```
+. /etc/openwrt_release; echo $DISTRIB_ARCH
+```
 
-### Downloading a cross-compiling build environment
+| architecture | for |
+|--------------|-----|
+| `aarch64_cortex-a53` | MediaTek Filogic (most Wi-Fi 6 and 7 routers: GL.iNet, Xiaomi, Cudy...) |
+| `mipsel_24kc` | MediaTek MT7621 (many Wi-Fi 5 and 6 routers) |
+| `mips_24kc` | Qualcomm Atheros (ath79) |
+| `arm_cortex-a7_neon-vfpv4` | Qualcomm IPQ40xx (FRITZ!Box 4040, GL.iNet, many mesh units) |
+| `arm_cortex-a9_vfpv3-d16` | Marvell (Linksys WRT series, Turris Omnia) |
+| `arm_cortex-a9` | Broadcom Northstar (bcm53xx) |
+| `x86_64` | PCs and virtual machines |
+| `aarch64_generic`, `arm_cortex-a15_neon-vfpv4` | ARM virtual machines (armsr) |
 
-This usually comes down to the following steps:
+24.10 (out of support since September 2026) has the first three of the
+routers only.  On the router, with the file copied there (`scp -O`):
 
-1. Download and extract the SDK toolchain for your device. The toolchain
-   must match the *exact* OpenWRT version installed in your device. Toolchain
-   for official OpenWRT images can be downloaded from https://downloads.openwrt.org
+```
+apk update && apk add --allow-untrusted ./n3n-be-edge-*.apk     # 25.12
+opkg update && opkg install ./n3n-be-edge_*.ipk                  # 24.10
+```
 
-2. Build the toolchain: run `make menuconfig`, save the configuration, then
-   run `make` to build the cross compiling tools
+The update fetches the package lists, for `kmod-tun`, which the edge
+needs.  The packages are not signed with a key of the router's, hence
+`--allow-untrusted`; the release's `SHA256SUMS` and attestations say
+where they come from (see [Releasing](../develop/Releasing.md)).
 
-3. Download the feeds with `./scripts/feeds update -a`
+Another architecture: build it, as below; `.github/workflows/openwrt.yml`
+has a target for each one above.
 
-## Compilation
+## Building
 
-These instructions are for building the current checked out version of the
-n3n source  (The generally used OpenWRT alternative is to download a tar.gz
-file of a specific n3n version, but that is not as suitable for development
-or local builds)
-
-You need both the openwrt repository and the n3n repository checked out
-for this.  In these instructions, we assume that `openwrt` is the directory
-where your openwrt checkout is located and `n3n-be` is the directory for
-the n3n-be repository.
+You need the SDK of the OpenWrt release and target of your device,
+from `https://downloads.openwrt.org/releases/<release>/targets/<target>/`
+(`openwrt-sdk-*`; the target is `DISTRIB_TARGET` in
+`/etc/openwrt_release`), or a full OpenWrt build tree, and the n3n-be
+repository next to it.  In these instructions `openwrt` is the SDK and
+`n3n-be` the repository:
 
 ```
 git clone https://github.com/HoneyBunnyQT/n3n-be n3n-be
-N2N_PKG_VERSION=$(n3n-be/scripts/version.sh)
-export N2N_PKG_VERSION
-echo $N2N_PKG_VERSION
+BUILD_VERSION=$(n3n-be/scripts/version.sh)
+export BUILD_VERSION
 
 cp -r n3n-be/packages/openwrt openwrt/package/n3n-be
 
 cd openwrt
-make oldconfig
-# In the VPN section, select "m" for n3n-be-edge and n3n-be-supernode
+make defconfig
 
 make package/n3n-be/clean V=s
 make package/n3n-be/prepare USE_SOURCE_DIR=$(realpath ../n3n-be) V=s
-make package/n3n-be/compile V=s
+make package/n3n-be/compile USE_SOURCE_DIR=$(realpath ../n3n-be) V=s
 ```
 
-If everything went fine, two ipk will be generated, one for the n3n-be-edge
-and the other for n3n-be-supernode. They can be found with `find . -name "n3n-be*.ipk"`,
-copied to the target device, and installed with `opkg install`.  Each holds
-the whole `n3n-be` program, under the name of its daemon; the configuration
-is in `/etc/n3n-be`.
+`USE_SOURCE_DIR` builds the checked out tree, for compile too, as it
+would want to download the source otherwise.  The package turns the
+version into one apk takes (`3.4.8-137-g50f0f88` is `3.4.8.137~50f0f88`);
+a tree with changes not committed (`-dirty`) is no such version.
 
-The github action described in `.github/workflows/openwrt.yml` implements
-an automated version of the above steps.
+The two packages, one for each daemon, are then in `bin/packages/<the
+architecture>/base/` (`find bin -name "n3n-be*"`).  Each holds the whole
+`n3n-be` program, under the name of its daemon; the configuration is in
+`/etc/n3n-be`.  `.github/workflows/openwrt.yml` does the same in CI, for
+the architectures above.
 
 ## Configuration
 
