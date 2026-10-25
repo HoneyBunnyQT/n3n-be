@@ -825,7 +825,11 @@ static struct n3n_conf_option section_tuntap[] = {
                 "that it does not go around the exit peer; it gets through "
                 "only with tuntap.type = tun and tuntap.address6, to an "
                 "exit peer that routes IPv6.  Needs tuntap.address_mode "
-                "static or auto, see docs/advanced/Routing.md.",
+                "static or auto.  Without tuntap.gateway, the edge waits for "
+                "an exit peer: chosen while it runs on its management page "
+                "or with set_gateway, which on Windows any edge takes, on "
+                "Linux only one started with tuntap.route_all = true.  See "
+                "docs/advanced/Routing.md.",
     },
     {
         .name = "dns",

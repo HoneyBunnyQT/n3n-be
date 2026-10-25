@@ -18,7 +18,8 @@
 #include <config.h>             // for HAVE_LIBCAP
 #include <errno.h>              // for errno
 #include <n3n/logging.h>        // for traceEvent
-#include <stdio.h>              // for snprintf
+#include <stdarg.h>             // for va_list
+#include <stdio.h>              // for snprintf, vsnprintf
 #include <stdlib.h>             // for realloc, system
 #include <string.h>             // for memset, strerror
 #include "n2n.h"                // for bitlen2mask
@@ -50,17 +51,38 @@ extern char **environ;
 #endif
 
 
-// whether the edge routes all traffic, from route_all_init() on
-static bool active;
+// whether the edge keeps its sockets out of the routes, see
+// route_all_socket(): from route_all_init() with tuntap.route_all on, on
+// Windows also from the first time it is switched on while running
+static bool armed;
+// whether route_all_init() was called: by the edge program only
+static bool inited;
+// what kept the last attempt from routing all traffic, "" if nothing
+static char problem[200];
 
 #if defined(ROUTE_ALL_LINUX) || defined(_WIN64)
 
-// whether the routes are there now
+// between route_all_up() and route_all_down()
+static bool device_open;
+// whether the routes are there now, and those of IPv6
 static bool up;
-// and those of IPv6
 static bool up6;
-// whether tuntap.dns is set on the device
-static bool dns_set;
+// the exit peer they go through, and the DNS server set (0: none)
+static uint32_t up_gateway;
+static uint32_t up_dns;
+
+
+// Something that keeps the edge from routing all traffic: in the log, and
+// for the management interface
+static void fail (const char *fmt, ...) {
+
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(problem, sizeof(problem), fmt, ap);
+    va_end(ap);
+    traceEvent(TRACE_ERROR, "tuntap.route_all: %s", problem);
+}
 
 
 // The exit peer is reached on the device: it has to be in its subnet
@@ -75,8 +97,8 @@ static bool gateway_ok (const struct n3n_conf_tap *tap) {
     }
     inet_ntop(AF_INET, &tap->gateway.net_addr, gw, sizeof(gw));
     inet_ntop(AF_INET, &tap->tuntap_v4.net_addr, addr, sizeof(addr));
-    traceEvent(TRACE_ERROR, "tuntap.route_all: the exit peer %s (tuntap.gateway) is to be another peer "
-               "in the device's subnet, %s/%u", gw, addr, tap->tuntap_v4.net_bitlen);
+    fail("the exit peer %s (tuntap.gateway) is to be another peer in the device's subnet, %s/%u",
+         gw, addr, tap->tuntap_v4.net_bitlen);
     return false;
 }
 
@@ -84,24 +106,34 @@ static bool gateway_ok (const struct n3n_conf_tap *tap) {
 // What every system needs of the configuration, or -1
 static int conf_ok (const n2n_edge_conf_t *conf) {
 
-    if(!conf->tap.gateway.net_addr) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all needs tuntap.gateway, the exit peer's address in the community");
-        return -1;
-    }
     if(conf->tap.tuntap_ip_mode == TUNTAP_IP_MODE_DHCP) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all needs tuntap.address_mode static or auto: "
-                   "the exit peer is reached in the device's subnet");
+        fail("needs tuntap.address_mode static or auto: the exit peer is reached in the device's subnet");
         return -1;
     }
     if(conf->tap.fd) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all: with tuntap.fd, the routes are up to who opened the device");
+        fail("with tuntap.fd, the routes are up to who opened the device");
         return -1;
     }
-    if((conf->tap.tuntap_ip_mode != TUNTAP_IP_MODE_SN_ASSIGN) && !gateway_ok(&conf->tap)) {
+    if(conf->tap.gateway.net_addr && (conf->tap.tuntap_ip_mode != TUNTAP_IP_MODE_SN_ASSIGN)
+       && !gateway_ok(&conf->tap)) {
         return -1;
     }
     return 0;
 }
+
+
+// What each system does, below: keep the edge's sockets out of the routes
+// from now on (-1 if it cannot); the routes through tuntap.gateway (-1 if
+// they failed, 1 if they are to come later); the IPv4 routes through
+// another exit peer; the routes away; a DNS server, or the one there was
+// before (0)
+static void sys_open (struct n3n_runtime_data *eee);
+static int sys_arm (void);
+static int sys_up (struct n3n_runtime_data *eee);
+static int sys_move (uint32_t gateway);
+static void sys_down (void);
+static void sys_dns (uint32_t dns);
+static int reconcile (struct n3n_runtime_data *eee);
 
 #endif
 
@@ -255,6 +287,38 @@ static int family_up (int family, uint32_t gateway) {
 }
 
 
+// CAP_NET_ADMIN for the programs the edge runs from now on, until taken
+// back (false): systemd-resolved asks it of who sets a link's DNS server,
+// and a program run after the privileges were dropped would have none -
+// unless it is an ambient capability, which needs it inheritable too.
+// Whether it is.
+static bool ambient (bool on) {
+
+#ifdef PR_CAP_AMBIENT
+    struct __user_cap_header_struct hdr = {
+        .version = _LINUX_CAPABILITY_VERSION_3,
+        .pid = 0,
+    };
+    struct __user_cap_data_struct data[2];
+    uint32_t bit = 1u << CAP_NET_ADMIN;
+
+    if(!on) {
+        prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_LOWER, CAP_NET_ADMIN, 0, 0);
+    }
+    if((geteuid() == 0) || (syscall(SYS_capget, &hdr, data) != 0) || !(data[0].permitted & bit)) {
+        return false;
+    }
+    data[0].inheritable = on ? (data[0].inheritable | bit) : (data[0].inheritable & ~bit);
+    if(syscall(SYS_capset, &hdr, data) != 0) {
+        return false;
+    }
+    return on && (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_RAISE, CAP_NET_ADMIN, 0, 0) == 0);
+#else
+    return false;
+#endif
+}
+
+
 // Runs a program, looked for in PATH, with its arguments, without a shell:
 // 0 if it exited with 0, else -1 - after a line in the log, unless quiet
 static int run (const char *const argv[], bool quiet) {
@@ -263,6 +327,7 @@ static int run (const char *const argv[], bool quiet) {
     pid_t pid;
     int status = -1;
     int err;
+    bool amb = ambient(true);
 
     // the edge ignores SIGCHLD, which would take the exit status away
     memset(&dfl, 0, sizeof(dfl));
@@ -276,6 +341,9 @@ static int run (const char *const argv[], bool quiet) {
         }
     }
     sigaction(SIGCHLD, &old, NULL);
+    if(amb) {
+        ambient(false);
+    }
 
     if(err || !WIFEXITED(status) || WEXITSTATUS(status)) {
         if(!quiet) {
@@ -288,23 +356,34 @@ static int run (const char *const argv[], bool quiet) {
 }
 
 
-// tuntap.dns, by systemd-resolved, for all names (the routing domain ~.)
-static void dns_up (const struct n3n_conf_tap *tap) {
+// tuntap.dns by systemd-resolved, for all names (the routing domain ~.);
+// 0 for the servers there were before
+static void sys_dns (uint32_t dns) {
 
     char ip[INET_ADDRSTRLEN];
-    const char *const dns[] = {"resolvectl", "dns", dev, ip, NULL};
+    const char *const revert[] = {"resolvectl", "revert", dev, NULL};
+    const char *const set[] = {"resolvectl", "dns", dev, ip, NULL};
     const char *const domain[] = {"resolvectl", "domain", dev, "~.", NULL};
     const char *const route[] = {"resolvectl", "default-route", dev, "true", NULL};
 
-    inet_ntop(AF_INET, &tap->dns.net_addr, ip, sizeof(ip));
-    if(run(dns, false) != 0) {
+    if(up_dns) {
+        // the device going takes it away as well, the more so as the edge
+        // may not be allowed to by now
+        run(revert, true);
+        up_dns = 0;
+    }
+    if(!dns) {
+        return;
+    }
+    inet_ntop(AF_INET, &dns, ip, sizeof(ip));
+    if(run(set, false) != 0) {
         traceEvent(TRACE_WARNING, "tuntap.dns: resolvectl (systemd-resolved) did not take %s, the DNS servers "
                    "stay as they are", ip);
         return;
     }
     run(domain, false);
     run(route, true);
-    dns_set = true;
+    up_dns = dns;
     traceEvent(TRACE_NORMAL, "DNS server for all names: %s", ip);
 }
 
@@ -376,75 +455,43 @@ static bool net_admin (void) {
 }
 
 
-int route_all_init (const n2n_edge_conf_t *conf) {
+static void sys_open (struct n3n_runtime_data *eee) {
 
-    active = false;
-    if(!conf->tap.route_all) {
-        return 0;
-    }
-    if(conf_ok(conf) < 0) {
-        return -1;
-    }
-    // before the first thread: they all keep CAP_NET_ADMIN across the
-    // setuid() of the privileges dropped, see net_admin()
-    if(prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
-        traceEvent(TRACE_WARNING, "tuntap.route_all: cannot keep CAP_NET_ADMIN [%s]", strerror(errno));
-    }
-    active = true;
-    return 0;
-}
-
-
-bool route_all_socket (SOCKET fd, int family) {
-
-    uint32_t mark = ROUTE_ALL_MARK;
-
-    if(!active) {
-        return true;
-    }
-    if(setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0) {
-        return true;
-    }
-    // a thread that has not taken up CAP_NET_ADMIN since the privileges
-    // were dropped
-    if((errno == EPERM) && net_admin() && (setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0)) {
-        return true;
-    }
-    traceEvent(TRACE_ERROR, "tuntap.route_all: cannot keep a socket of the edge out of the tunnel, "
-               "the firewall mark needs CAP_NET_ADMIN [%s]", strerror(errno));
-    return false;
-}
-
-
-int route_all_up (struct n3n_runtime_data *eee) {
-
-    const struct n3n_conf_tap *tap = &eee->conf.tap;
-    char gw[INET_ADDRSTRLEN];
-    int err;
-
-    if(!active) {
-        return 0;
-    }
-    if(!gateway_ok(tap)) {
-        return -1;
-    }
     strncpy(dev, eee->tap.device.dev_name, sizeof(dev) - 1);
     dev[sizeof(dev) - 1] = '\0';
     dev_index = if_nametoindex(dev);
+}
+
+
+// The sockets carry the mark from their start, or not at all: the edge
+// that was not started with tuntap.route_all has neither marked them nor
+// kept CAP_NET_ADMIN to do so
+static int sys_arm (void) {
+
+    fail("on Linux, an edge routes all traffic while it runs only if started with tuntap.route_all = true "
+         "(without tuntap.gateway, it waits for one): only then are its sockets kept out of the tunnel");
+    return -1;
+}
+
+
+static int sys_up (struct n3n_runtime_data *eee) {
+
+    int err;
+
     if(!dev_index) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all: no device %s", dev);
+        fail("no device %s", dev);
         return -1;
     }
-
     rules_del();
-    err = family_up(AF_INET, tap->gateway.net_addr);
+    err = family_up(AF_INET, eee->conf.tap.gateway.net_addr);
     if(err) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all: the routes into %s failed [%s]", dev, strerror(err));
+        fail("the routes into %s failed [%s]", dev, strerror(err));
         rules_del();
         route(RTM_DELROUTE, AF_INET, 0);
         return -1;
     }
     up = true;
+    up_gateway = eee->conf.tap.gateway.net_addr;
 
     // IPv6 too, if the host has it
     err = family_up(AF_INET6, 0);
@@ -461,44 +508,84 @@ int route_all_up (struct n3n_runtime_data *eee) {
         rule(RTM_DELRULE, AF_INET6, false);
         route(RTM_DELROUTE, AF_INET6, 0);
     }
-
-    inet_ntop(AF_INET, &tap->gateway.net_addr, gw, sizeof(gw));
-    traceEvent(TRACE_NORMAL, "all traffic through the exit peer %s, the edge's own outside of it "
-               "(firewall mark 0x%x, table 0x%x)", gw, ROUTE_ALL_MARK, ROUTE_ALL_MARK);
+    traceEvent(TRACE_INFO, "the edge's own traffic outside: firewall mark 0x%x, table 0x%x",
+               ROUTE_ALL_MARK, ROUTE_ALL_MARK);
     rp_filter_check();
-    if(tap->dns.net_addr) {
-        dns_up(tap);
-    }
     return 0;
 }
 
 
-void route_all_down (struct n3n_runtime_data *eee) {
+// The default route of the table replaced: the rules stay, and with them
+// all traffic in the tunnel meanwhile
+static int sys_move (uint32_t gateway) {
 
-    if(!up) {
-        return;
-    }
-    if(dns_set) {
-        // the device going takes it away as well, the more so as the edge
-        // may not be allowed to by now
-        const char *const revert[] = {"resolvectl", "revert", dev, NULL};
+    int err = route(RTM_NEWROUTE, AF_INET, gateway);
 
-        run(revert, true);
-        dns_set = false;
+    if(err) {
+        fail("the route into %s failed [%s]", dev, strerror(err));
+        return -1;
     }
+    up_gateway = gateway;
+    return 0;
+}
+
+
+static void sys_down (void) {
+
     rules_del();
     route(RTM_DELROUTE, AF_INET, 0);
     if(up6) {
         route(RTM_DELROUTE, AF_INET6, 0);
     }
     up = up6 = false;
-    traceEvent(TRACE_NORMAL, "all traffic through the exit peer: the routes taken back");
+    up_gateway = 0;
+}
+
+
+int route_all_init (const n2n_edge_conf_t *conf) {
+
+    inited = true;
+    armed = false;
+    if(!conf->tap.route_all) {
+        return 0;
+    }
+    if(conf_ok(conf) < 0) {
+        return -1;
+    }
+    // before the first thread: they all keep CAP_NET_ADMIN across the
+    // setuid() of the privileges dropped, see net_admin()
+    if(prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
+        traceEvent(TRACE_WARNING, "tuntap.route_all: cannot keep CAP_NET_ADMIN [%s]", strerror(errno));
+    }
+    armed = true;
+    return 0;
+}
+
+
+bool route_all_socket (SOCKET fd, int family) {
+
+    uint32_t mark = ROUTE_ALL_MARK;
+
+    if(!armed) {
+        return true;
+    }
+    if(setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0) {
+        return true;
+    }
+    // a thread that has not taken up CAP_NET_ADMIN since the privileges
+    // were dropped
+    if((errno == EPERM) && net_admin() && (setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0)) {
+        return true;
+    }
+    traceEvent(TRACE_ERROR, "tuntap.route_all: cannot keep a socket of the edge out of the tunnel, "
+               "the firewall mark needs CAP_NET_ADMIN [%s]", strerror(errno));
+    return false;
 }
 
 
 void route_all_after_setuid (void) {
 
-    if(active && !net_admin()) {
+    if(armed && !net_admin()) {
         traceEvent(TRACE_WARNING, "tuntap.route_all: no CAP_NET_ADMIN after dropping the privileges: sockets "
                    "opened from now on cannot be kept out of the tunnel, and the rules stay at the end");
     }
@@ -506,7 +593,8 @@ void route_all_after_setuid (void) {
 
 #elif defined(_WIN64)
 
-// the edge's sockets, bound to the interface of the default route
+// the edge's sockets: bound to the interface of the default route once
+// armed, before that only known
 struct pinned {
     SOCKET fd;
     int family;
@@ -516,16 +604,15 @@ static struct pinned *pinned;
 static int pinned_count, pinned_size;
 // the interfaces of the default routes, 0 for none
 static NET_IFINDEX uplink4, uplink6;
-// the TAP adapter, whose routes are not the way out, while it is open
+// the TAP adapter, whose routes are not the way out
 static NET_IFINDEX tap_index;
-static bool tap_open;
 static char *tap_name;
 // the adapter's metric, as it was
 static bool metric_set;
 static ULONG metric_original;
 static BOOLEAN metric_automatic;
-// the exit peer the routes go through
-static uint32_t up_gateway;
+// the routes wait for a default route, see sys_up()
+static bool waiting;
 
 
 // The interface of the best default route of a family, other than the TAP
@@ -606,11 +693,12 @@ static bool still_ours (const struct pinned *p) {
 }
 
 
-// All of the edge's sockets anew, to the interfaces of now; with the lock
+// All of the edge's sockets anew, to the interfaces of now - or, before it
+// is armed, only those that are gone off the list; with the lock
 static void repin (void) {
 
     for(int i = 0; i < pinned_count;) {
-        if(!still_ours(&pinned[i]) || pin(pinned[i].fd, pinned[i].family)) {
+        if(!still_ours(&pinned[i]) || (armed && pin(pinned[i].fd, pinned[i].family))) {
             pinned[i] = pinned[--pinned_count];
             continue;
         }
@@ -706,60 +794,44 @@ static void metric_back (void) {
 }
 
 
-// The routes, the metric and tuntap.dns: once there is a default route for
-// the edge's own packets, which would else go into the tunnel
-static int all_up (const struct n3n_conf_tap *tap) {
+// tuntap.dns on the adapter, by netsh; 0 for none of its own again
+static void sys_dns (uint32_t dns) {
 
-    char gw[INET_ADDRSTRLEN];
     char cmd[256];
-    DWORD err;
+    char ip[INET_ADDRSTRLEN];
 
-    inet_ntop(AF_INET, &tap->gateway.net_addr, gw, sizeof(gw));
-    err = routes_add(AF_INET, tap->gateway.net_addr);
-    if(err) {
-        traceEvent(TRACE_ERROR, "tuntap.route_all: the routes through %s failed [%lu]", gw, err);
-        routes_del(AF_INET, tap->gateway.net_addr);
-        return -1;
+    if(up_dns && !dns) {
+        _snprintf(cmd, sizeof(cmd), "netsh interface ipv4 set dnsservers name=\"%s\" source=dhcp > nul", tap_name);
+        system(cmd);
     }
-    up = true;
-    up_gateway = tap->gateway.net_addr;
-    err = routes_add(AF_INET6, 0);
-    if(!err) {
-        up6 = true;
-    } else {
-        traceEvent(TRACE_WARNING, "tuntap.route_all: IPv6 is not routed into the adapter [%lu], it goes around "
-                   "the exit peer", err);
-        routes_del(AF_INET6, 0);
+    up_dns = 0;
+    if(!dns) {
+        return;
     }
-    if(!tap->metric) {
-        metric_low();
+    inet_ntop(AF_INET, &dns, ip, sizeof(ip));
+    _snprintf(cmd, sizeof(cmd), "netsh interface ipv4 set dnsservers name=\"%s\" source=static "
+              "address=%s register=none validate=no > nul", tap_name, ip);
+    if(system(cmd) != 0) {
+        traceEvent(TRACE_WARNING, "tuntap.dns: failed: %s", cmd);
+        return;
     }
-    if(tap->dns.net_addr) {
-        char ip[INET_ADDRSTRLEN];
+    up_dns = dns;
+    traceEvent(TRACE_NORMAL, "DNS server of the adapter: %s", ip);
+}
 
-        inet_ntop(AF_INET, &tap->dns.net_addr, ip, sizeof(ip));
-        _snprintf(cmd, sizeof(cmd), "netsh interface ipv4 set dnsservers name=\"%s\" source=static "
-                  "address=%s register=none validate=no > nul", tap_name, ip);
-        if(system(cmd) == 0) {
-            dns_set = true;
-            traceEvent(TRACE_NORMAL, "DNS server of the adapter: %s", ip);
-        } else {
-            traceEvent(TRACE_WARNING, "tuntap.dns: failed: %s", cmd);
-        }
-    }
-    traceEvent(TRACE_NORMAL, "all traffic through the exit peer %s, the edge's own outside of it "
-               "(by interface %lu)", gw, (unsigned long)uplink4);
-    return 0;
+
+static void sys_open (struct n3n_runtime_data *eee) {
+
+    tap_index = eee->tap.device.if_idx;
+    tap_name = eee->tap.device.ifName;
 }
 
 
 // The default routes, about every two seconds: where they go now, the
-// edge's sockets go too, and it registers again
+// edge's sockets go too, and it registers again; the routes come once
+// there is one
 static void route_all_tick (struct n3n_runtime_data *eee, time_t now) {
 
-    if(!tap_open) {
-        return;
-    }
     NET_IFINDEX u4 = uplink(AF_INET);
     NET_IFINDEX u6 = uplink(AF_INET6);
 
@@ -783,47 +855,136 @@ static void route_all_tick (struct n3n_runtime_data *eee, time_t now) {
             edge_network_change(NETWATCH_ROUTE);
         }
     }
-    if(!up && uplink4) {
-        all_up(&eee->conf.tap);
+    if(waiting && uplink4 && device_open && !up) {
+        reconcile(eee);
     }
+}
+
+
+// From now on, the edge's sockets go by the interfaces of the default
+// routes, those it has opened so far too
+static int sys_arm (void) {
+
+    EnterCriticalSection(&lock);
+    uplink4 = uplink(AF_INET);
+    uplink6 = uplink(AF_INET6);
+    armed = true;
+    repin();
+    LeaveCriticalSection(&lock);
+    mainloop_register_tick(route_all_tick, 2);
+    return 0;
+}
+
+
+static int sys_up (struct n3n_runtime_data *eee) {
+
+    uint32_t gateway = eee->conf.tap.gateway.net_addr;
+    DWORD err;
+
+    waiting = !uplink4;
+    if(waiting) {
+        // not an error: route_all_tick() brings them
+        snprintf(problem, sizeof(problem), "waiting for a default route: the edge's own traffic would go "
+                 "into the tunnel without one");
+        traceEvent(TRACE_WARNING, "tuntap.route_all: %s", problem);
+        return 1;
+    }
+    err = routes_add(AF_INET, gateway);
+    if(err) {
+        fail("the routes through the exit peer failed [%lu]", err);
+        routes_del(AF_INET, gateway);
+        return -1;
+    }
+    up = true;
+    up_gateway = gateway;
+    err = routes_add(AF_INET6, 0);
+    if(!err) {
+        up6 = true;
+    } else {
+        traceEvent(TRACE_WARNING, "tuntap.route_all: IPv6 is not routed into the adapter [%lu], it goes around "
+                   "the exit peer", err);
+        routes_del(AF_INET6, 0);
+    }
+    if(!eee->conf.tap.metric) {
+        metric_low();
+    }
+    traceEvent(TRACE_INFO, "the edge's own traffic outside: by interface %lu", (unsigned long)uplink4);
+    return 0;
+}
+
+
+// The routes through the new exit peer first, then those through the old
+// one away: all traffic stays in the tunnel meanwhile
+static int sys_move (uint32_t gateway) {
+
+    DWORD err = routes_add(AF_INET, gateway);
+
+    if(err) {
+        fail("the routes through the exit peer failed [%lu]", err);
+        routes_del(AF_INET, gateway);
+        return -1;
+    }
+    routes_del(AF_INET, up_gateway);
+    up_gateway = gateway;
+    return 0;
+}
+
+
+static void sys_down (void) {
+
+    if(metric_set) {
+        metric_back();
+    }
+    routes_del(AF_INET, up_gateway);
+    if(up6) {
+        routes_del(AF_INET6, 0);
+    }
+    up = up6 = false;
+    up_gateway = 0;
 }
 
 
 int route_all_init (const n2n_edge_conf_t *conf) {
 
-    active = false;
+    // the edge's sockets are known from the start: routing all traffic
+    // can be switched on while it runs
+    InitializeCriticalSection(&lock);
+    inited = true;
+    armed = false;
     if(!conf->tap.route_all) {
         return 0;
     }
     if(conf_ok(conf) < 0) {
         return -1;
     }
-    InitializeCriticalSection(&lock);
-    uplink4 = uplink(AF_INET);
-    uplink6 = uplink(AF_INET6);
-    active = true;
-    return 0;
+    return sys_arm();
 }
 
 
 bool route_all_socket (SOCKET fd, int family) {
 
     bool ok = true;
-    int err;
+    int err = 0;
+    int i;
 
-    if(!active) {
+    if(!inited) {
         return true;
     }
     EnterCriticalSection(&lock);
-    err = pin(fd, family);
+    if(armed) {
+        err = pin(fd, family);
+    }
     if(err) {
         traceEvent(TRACE_ERROR, "tuntap.route_all: cannot keep a socket of the edge out of the tunnel [%d]", err);
         ok = false;
     } else {
-        int i;
-
         // a number a socket of the list had before
         for(i = 0; (i < pinned_count) && (pinned[i].fd != fd); i++) {
+        }
+        if((i == pinned_count) && (pinned_count == pinned_size)) {
+            // those gone first
+            repin();
+            i = pinned_count;
         }
         if((i == pinned_count) && (pinned_count == pinned_size)) {
             struct pinned *more = realloc(pinned, (pinned_size + 16) * sizeof(*pinned));
@@ -846,60 +1007,121 @@ bool route_all_socket (SOCKET fd, int family) {
 }
 
 
-int route_all_up (struct n3n_runtime_data *eee) {
+void route_all_after_setuid (void) {
+}
 
-    if(!active) {
+#endif
+
+
+#if defined(ROUTE_ALL_LINUX) || defined(_WIN64)
+
+// Brings the routes in line with tuntap.route_all, tuntap.gateway and
+// tuntap.dns as they are now: when the device opens, and when they change
+// while the edge runs.  -1 if they cannot be so, the reason in problem.
+static int reconcile (struct n3n_runtime_data *eee) {
+
+    const struct n3n_conf_tap *tap = &eee->conf.tap;
+    char gw[INET_ADDRSTRLEN];
+    int ret;
+
+    problem[0] = '\0';
+    if(!device_open) {
         return 0;
     }
-    if(!gateway_ok(&eee->conf.tap)) {
+    if(!tap->route_all || !tap->gateway.net_addr) {
+        if(up) {
+            sys_dns(0);
+            sys_down();
+            traceEvent(TRACE_NORMAL, "all traffic through an exit peer: the routes taken back");
+        }
+        return 0;
+    }
+    if(conf_ok(&eee->conf) < 0) {
         return -1;
     }
-    tap_index = eee->tap.device.if_idx;
-    tap_name = eee->tap.device.ifName;
-    tap_open = true;
-    mainloop_register_tick(route_all_tick, 2);
-    if(!uplink4) {
-        traceEvent(TRACE_WARNING, "tuntap.route_all: no default route yet, the routes come once there is one");
+    if(!armed && (sys_arm() < 0)) {
+        return -1;
+    }
+    if(!gateway_ok(tap)) {
+        return -1;
+    }
+    inet_ntop(AF_INET, &tap->gateway.net_addr, gw, sizeof(gw));
+    if(!up) {
+        ret = sys_up(eee);
+        if(ret) {
+            return (ret < 0) ? -1 : 0;
+        }
+        traceEvent(TRACE_NORMAL, "all traffic through the exit peer %s, the edge's own outside of it", gw);
+    } else if(up_gateway != tap->gateway.net_addr) {
+        if(sys_move(tap->gateway.net_addr) < 0) {
+            return -1;
+        }
+        traceEvent(TRACE_NORMAL, "all traffic through the exit peer %s now", gw);
+    }
+    if(up_dns != tap->dns.net_addr) {
+        sys_dns(tap->dns.net_addr);
+    }
+    return 0;
+}
+
+
+int route_all_up (struct n3n_runtime_data *eee) {
+
+    if(!inited) {
         return 0;
     }
-    return all_up(&eee->conf.tap);
+    sys_open(eee);
+    device_open = true;
+    return reconcile(eee);
 }
 
 
 void route_all_down (struct n3n_runtime_data *eee) {
 
-    char cmd[256];
-
-    tap_open = false;
-    if(!up) {
+    if(!device_open) {
         return;
     }
-    if(dns_set) {
-        _snprintf(cmd, sizeof(cmd), "netsh interface ipv4 set dnsservers name=\"%s\" source=dhcp > nul", tap_name);
-        system(cmd);
-        dns_set = false;
+    if(up) {
+        sys_dns(0);
+        sys_down();
+        traceEvent(TRACE_NORMAL, "all traffic through an exit peer: the routes taken back");
     }
-    if(metric_set) {
-        metric_back();
-    }
-    routes_del(AF_INET, up_gateway);
-    if(up6) {
-        routes_del(AF_INET6, 0);
-    }
-    up = up6 = false;
-    traceEvent(TRACE_NORMAL, "all traffic through the exit peer: the routes taken back");
+    device_open = false;
 }
 
 
-void route_all_after_setuid (void) {
+int route_all_apply (struct n3n_runtime_data *eee) {
+
+    if(!inited) {
+        snprintf(problem, sizeof(problem), "only the edge program routes all traffic");
+        return -1;
+    }
+    return reconcile(eee);
+}
+
+
+bool route_all_switchable (void) {
+
+#ifdef _WIN64
+    return inited;
+#else
+    return armed;
+#endif
+}
+
+
+uint32_t route_all_exit (void) {
+
+    return up ? up_gateway : 0;
 }
 
 #else
 
 int route_all_init (const n2n_edge_conf_t *conf) {
 
-    active = false;
+    armed = false;
     if(!conf->tap.route_all) {
+        inited = true;
         return 0;
     }
     traceEvent(TRACE_ERROR, "tuntap.route_all: on Linux and 64-bit Windows only, so far");
@@ -923,7 +1145,64 @@ void route_all_down (struct n3n_runtime_data *eee) {
 }
 
 
+int route_all_apply (struct n3n_runtime_data *eee) {
+
+    if(!eee->conf.tap.route_all) {
+        return 0;
+    }
+    snprintf(problem, sizeof(problem), "on Linux and 64-bit Windows only, so far");
+    return -1;
+}
+
+
+bool route_all_switchable (void) {
+
+    return false;
+}
+
+
+uint32_t route_all_exit (void) {
+
+    return 0;
+}
+
+
 void route_all_after_setuid (void) {
 }
 
 #endif
+
+
+int route_all_set (struct n3n_runtime_data *eee, uint32_t gateway, bool set_dns, uint32_t dns) {
+
+    struct n3n_conf_tap *tap = &eee->conf.tap;
+    struct n3n_conf_tap old = *tap;
+
+    // off: no exit peer, tuntap.route_all stays as it is, which then
+    // waits for one - as an edge started without tuntap.gateway does
+    if(gateway) {
+        tap->route_all = true;
+    }
+    tap->gateway.net_addr = gateway;
+    if(set_dns) {
+        tap->dns.net_addr = dns;
+    }
+    if(route_all_apply(eee) == 0) {
+        return 0;
+    }
+    // as it was, and the routes with it
+    tap->route_all = old.route_all;
+    tap->gateway = old.gateway;
+    tap->dns = old.dns;
+    char why[sizeof(problem)];
+    snprintf(why, sizeof(why), "%s", problem);
+    route_all_apply(eee);
+    snprintf(problem, sizeof(problem), "%s", why);
+    return -1;
+}
+
+
+const char *route_all_problem (void) {
+
+    return problem;
+}

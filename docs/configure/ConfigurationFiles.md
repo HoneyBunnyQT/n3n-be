@@ -119,6 +119,10 @@ What differs and can change while running is applied at once:
   threads (`daemon.threads`), which use the filter while it changes; there
   they wait for a restart
 - `logging.verbose`, `management.password`
+- `tuntap.gateway`, `tuntap.route_all`, `tuntap.dns` (an edge): all traffic
+  through another exit peer, through one, or through none, as
+  `set_gateway` does it (see [Routing](../advanced/Routing.md#switching-while-it-runs));
+  on Linux only in an edge started with `tuntap.route_all = true`
 - a supernode's communities: `[community NAME]` sections,
   `supernode.community_file` and `supernode.community_regex`; the
   community file is read again in any case, as `reload_communities` does

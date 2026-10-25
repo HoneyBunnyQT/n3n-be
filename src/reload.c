@@ -34,6 +34,7 @@
 #include "reload.h"
 #include "resolve.h"            // for resolve_cancel_thread, resolve_hostname_str_to_peer_info
 #include "role_client.h"        // for edge_supernodes_changed
+#include "route_all.h"          // for route_all_apply
 #include "uthash.h"
 
 
@@ -64,6 +65,9 @@ static const char *const live_options[] = {
     "filter.rule",
     "logging.verbose",
     "management.password",
+    "tuntap.dns",
+    "tuntap.gateway",
+    "tuntap.route_all",
     NULL
 };
 
@@ -420,7 +424,21 @@ static bool apply (struct n3n_runtime_data *rt, const char *key, const struct se
         return false;
     }
     *option++ = 0;
+    // all traffic through an exit peer: an edge's own, see route_all.h
+    bool route = !strcmp(section, "tuntap");
+    struct n3n_conf_tap tap = rt->conf.tap;
+    if(route && !edge) {
+        return false;
+    }
     if(n3n_config_set_option(&rt->conf, section, option, (char *)value) != 0) {
+        return false;
+    }
+    if(route && (route_all_apply(rt) != 0)) {
+        // as it was until a restart, and the routes with it
+        rt->conf.tap.route_all = tap.route_all;
+        rt->conf.tap.gateway = tap.gateway;
+        rt->conf.tap.dns = tap.dns;
+        route_all_apply(rt);
         return false;
     }
     // and on the supernode's own edge, see local_edge_options

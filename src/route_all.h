@@ -51,6 +51,29 @@ int route_all_up (struct n3n_runtime_data *eee);
 // Before the device closes: takes it all back
 void route_all_down (struct n3n_runtime_data *eee);
 
+// While the edge runs: the routes as tuntap.route_all, tuntap.gateway and
+// tuntap.dns are now (a reload changed them).  -1 if that failed, see
+// route_all_problem().
+int route_all_apply (struct n3n_runtime_data *eee);
+
+// While the edge runs, for the management interface: all traffic through
+// the exit peer gateway (tuntap.gateway, tuntap.route_all on), or through
+// none (0: tuntap.gateway unset, tuntap.route_all as it was, waiting for
+// one); and, if set_dns, dns as tuntap.dns (0: none).  -1 if that failed,
+// everything then as it was, see route_all_problem().  Until a restart, or
+// a reload that changes them in the configuration.
+int route_all_set (struct n3n_runtime_data *eee, uint32_t gateway, bool set_dns, uint32_t dns);
+
+// Whether route_all_set() may switch it on: always on Windows, on Linux
+// in an edge started with tuntap.route_all, whose sockets carry the mark
+bool route_all_switchable (void);
+
+// The exit peer all traffic goes through now, 0 for none
+uint32_t route_all_exit (void);
+
+// What kept the last attempt from routing all traffic, "" for nothing
+const char *route_all_problem (void);
+
 // Linux, for the edge that drops its privileges, after setuid():
 // CAP_NET_ADMIN once more - for the marks of the sockets opened from then
 // on, and for taking the rules back.  route_all_init() has the capabilities
