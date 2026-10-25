@@ -96,6 +96,12 @@ phone's real network, so the supernodes - those of the configuration as
 well as those it learns - and the peers it reaches directly need no routes
 of their own.
 
+On Linux and Windows the edge program does the same by itself, with
+`tuntap.route_all` and `tuntap.dns` (see
+[Routing](../docs/advanced/Routing.md)).  In a configuration the app
+imports, those two are not taken, for now: the switch on the main
+screen decides.
+
 The exit peer, e.g. a Linux box, needs `filter.allow_routing = true` in its
 n3n configuration, IP forwarding (`sysctl net.ipv4.ip_forward=1`) and NAT
 towards its uplink, for example:

@@ -6,12 +6,14 @@ SPDX-FileCopyrightText: Copyright Hamish Coleman
 SPDX-FileCopyrightText: Copyright Honey Bunny QT
 -->
 
-# Routing (Linux)
+# Routing
 
 An edge can be a router: for the network behind it, so that the other
 edges reach that network, or for all the traffic of another edge, as an
 exit to the internet.  This page goes through the common setups with one
-example: a home and an office.
+example: a home and an office.  The commands are those of Linux; all
+traffic through an exit peer (`tuntap.route_all`) works the same on
+Windows.
 
 ![Hickory at home and oscar in the office route for their networks over the community](../images/routing.svg)
 
@@ -92,9 +94,79 @@ Hickory's traffic to the internet can leave through the office, as with
 a VPN service - for a laptop on the road, say.  All its traffic then
 appears to come from the office.
 
-1. Oscar needs NAT (the `iptables` lines above): the office router
-   forwards only what comes from its own network.  Oscar also needs its
-   route back to hickory.
+Oscar needs NAT (the `iptables` lines above): the office router
+forwards only what comes from its own network.  Oscar also needs its
+route back to hickory.
+
+On hickory, the edge does the rest with `tuntap.route_all`, as the
+Android app does with its "Route all traffic through a peer" - on Linux
+and on 64-bit Windows alike:
+
+```ini
+[tuntap]
+gateway = 10.99.99.60
+route_all = true
+dns = 1.1.1.1
+```
+
+or `-O tuntap.gateway=10.99.99.60 -O tuntap.route_all=true -O
+tuntap.dns=1.1.1.1` on the command line.  While the edge runs, all of
+hickory's traffic goes to oscar, IPv6 included (see below), and DNS to
+`tuntap.dns` through the tunnel; the edge's own traffic - to the
+supernodes, and to the peers it reaches directly, wherever they are -
+stays outside; its local networks stay as they were.  When the edge
+stops, it takes it all back.  `tuntap.address_mode` has to be `static`
+or `auto`, as the edge reaches oscar in the device's subnet.
+
+How the edge's own traffic stays outside, without a route for each
+supernode and peer:
+
+- **Linux**, as wg-quick does it: the edge's sockets carry the firewall
+  mark 0x6e33, and two policy rules send everything else to a routing
+  table of its own, 0x6e33 (28211), whose default route goes through
+  oscar:
+
+    ```
+    $ ip rule
+    32764:  from all lookup main suppress_prefixlength 0 proto 110
+    32765:  not from all fwmark 0x6e33 lookup 28211 proto 110
+    $ ip route show table 28211
+    default via 10.99.99.60 dev n3n0 proto 110
+    ```
+
+    The first rule keeps the main table's routes but its default ones -
+    the local networks, the community's subnet.  The edge keeps
+    CAP_NET_ADMIN after dropping its privileges, for the sockets it
+    opens later and for taking the rules back.  Strict reverse path
+    filtering (`net.ipv4.conf.all.rp_filter = 1`, the default of some
+    distributions) drops what the supernodes and peers send then, as the
+    way back to them looks as if it went into the tunnel; the edge warns
+    of it, and `2` (loose) lets it in.  `tuntap.dns` goes to
+    systemd-resolved (`resolvectl`), for all names; without it, the DNS
+    servers stay as they are.
+- **Windows**, as WireGuard for Windows does it: the edge's sockets are
+  bound to the interface of the best default route (`IP_UNICAST_IF`),
+  and `0.0.0.0/1` and `128.0.0.0/1` go through oscar on the TAP adapter -
+  more specific than the default route, which stays for the edge.  When
+  the default route moves to another interface (WiFi to Ethernet, say),
+  the edge binds its sockets anew and registers again.  The adapter gets
+  `tuntap.dns` and the metric 1 (unless `tuntap.metric` gives one), so
+  that Windows asks its DNS server first; Windows may still send queries
+  to the other interfaces' servers too, which a rule of its Name
+  Resolution Policy Table stops, in PowerShell as administrator:
+  `Add-DnsClientNrptRule -Namespace "." -NameServers "1.1.1.1"`.
+
+IPv6 goes into the device too, so that it does not go around oscar.  It
+gets through only with a TUN device and `tuntap.address6`, to an exit
+peer that routes IPv6; otherwise it goes nowhere, and programs fall
+back to IPv4.
+
+### By hand
+
+Without `tuntap.route_all` - on other systems, say - the routes are set
+by hand, here on Linux:
+
+1. Oscar as above.
 2. On hickory, the default route goes through oscar:
 
     ```sh
@@ -117,7 +189,7 @@ appears to come from the office.
 `n3n-gateway.sh` next to this page does steps 2 and 3 for the supernode,
 and sets a DNS server.  (`tools/n3n-route`, which also added the routes
 to the peers, still speaks the old management protocol and does not work
-with the current daemons.)
+with the current daemons; `tuntap.route_all` does its work.)
 
 With a TUN device (`tuntap.type = tun`), `tuntap.gateway` names the peer
 that takes the packets for other networks, see
@@ -139,3 +211,8 @@ everything else, a DNS server that it reaches through the tunnel: the
 office's, or another public one than the one used for the supernode.  A
 change of the supernode's address then goes unnoticed until the script
 runs again.  <https://www.dnsleaktest.com/> shows whether queries leak.
+
+With `tuntap.route_all` and `tuntap.dns`, the supernodes' names are
+looked up once outside the tunnel, when the edge starts and before its
+routes are there; the lookups the edge does later go through the
+tunnel, to `tuntap.dns`, as all others do.

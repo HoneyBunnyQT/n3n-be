@@ -504,6 +504,37 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       scenarios `tun-tap` and `tun-tun`; IPv6 (neighbour discovery); macOS
       on its own `utun` device (2026-10-17, `tests/macos/utun.py` in CI).
       Open: Windows (Wintun), the BSDs; see [Mobile and TUN](MobileAndTun.md)
+- [~] All traffic through an exit peer, on Windows as simply as in the
+      Android app (asked 2026-10-25).  Step 1, done: the edge does what
+      the app does - `tuntap.route_all = true` with `tuntap.gateway` the
+      exit peer and `tuntap.dns`: the routes into the device, the DNS
+      server, and the edge's own sockets kept out of the routes through
+      the hook in `n3n_socket()` that `protect()` uses on Android
+      (`src/route_all.c`).  Linux as wg-quick: the sockets' firewall mark
+      0x6e33, the rules "main without default routes" and "not fwmark ->
+      table 0x6e33", the edge keeping CAP_NET_ADMIN after it drops its
+      privileges (without libcap too), DNS by `resolvectl`, a warning
+      under strict `rp_filter`.  64-bit Windows as WireGuard for Windows:
+      `IP_UNICAST_IF` to the interface of the best default route, followed
+      every 2s (sockets bound anew, registered again - a first network
+      change watch on Windows), 0.0.0.0/1 and 128.0.0.0/1 through the exit
+      peer on the TAP adapter, IPv6 into it too, its metric 1 and its DNS
+      server by netsh.  netns scenarios `route-all` (quick) and
+      `route-all-tun`, which fail without the mark (the edge no longer
+      registers); `uml.sh` builds its kernel with policy routing (not tried:
+      UML 6.8 does not boot on a host with AMX, whose XSAVE area is larger
+      than it hands to ptrace - "ptrace set fp regs failed, errno = 14";
+      CI's runners have IPv6 without it).  Open:
+      try it on Windows (CI only builds it there); step 2, switching at
+      run time - a method of the management API (`set_gateway`) and on
+      the page a "route all traffic through" choice of peer, which gives
+      Windows the app's switch in the browser, later a tray app as a
+      client of it; macOS (`IP_BOUND_IF`, utun); the Android app taking
+      `tuntap.route_all` and `tuntap.dns` from a configuration it imports
+      (it ignores them now); IPv6 through an exit peer; blocking what
+      goes around the tunnel (a kill switch, WFP on Windows); in v4 an
+      `exit` capability in the peer records, so that only peers that
+      offer it are offered
 - [ ] Android app (`VpnService`, configuration by QR code), see
       [Mobile and TUN](MobileAndTun.md).  Done: `android/` next to the
       core, built from `src/` by the NDK, CI artifact; import a file or a
@@ -838,7 +869,8 @@ release has it - as FEC was; there is no branch for it (see Decisions
 - [ ] Peer names in DNS (`laptop.mycommunity`), answered by the peer itself
 - [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
       "Next", 2026-10-18)
-- [ ] Windows on par with Linux.  One step: TUN on Wintun (the signed
+- [ ] Windows on par with Linux.  Done: all traffic through an exit
+      peer (`tuntap.route_all`, 2026-10-25, see Next).  One step: TUN on Wintun (the signed
       driver of WireGuard, a DLL that installs it on the fly), with
       `tun.c` as on Android and macOS, instead of OpenVPN's TAP driver;
       its licence for shipping the DLL with a GPL-3.0 program to check
@@ -982,6 +1014,14 @@ release has it - as FEC was; there is no branch for it (see Decisions
   installs next to n3n now, and stays compatible on the wire; an upgrade
   from an n3n-be of n3n's names carries its configuration and services
   over.
+- 2026-10-25: All traffic through an exit peer is the edge's own work
+  (`tuntap.route_all`), not a tool's beside it as `n3n-route` was: only
+  the edge knows every socket it opens.  Its traffic is kept out of the
+  tunnel per socket - a firewall mark on Linux, the interface on Windows,
+  `protect()` on Android - not by a route to each supernode and peer: a
+  peer learned or moved would send into the tunnel until its route is
+  there.  The names: `tuntap.route_all`, `tuntap.dns`, with the
+  existing `tuntap.gateway` for the exit peer, TAP and TUN alike.
 
 ## Scratchpad
 
@@ -1005,8 +1045,9 @@ answer until the federation could refuse it (user/password), the address
 the supernode gives an edge kept as the edge's, user/password entries
 that stay with their user, what a supernode forwards batched with GSO,
 the coverage report, the BSD job on every push, `src/benchmark/`
-written anew, and fixes found by new netns scenarios (`dual-stack`,
-`userpw-spoof`, `userpw-lockout`).  CI runs the tests, the netns
+written anew, fixes found by new netns scenarios (`dual-stack`,
+`userpw-spoof`, `userpw-lockout`), and all traffic through an exit peer
+on Linux and Windows (`tuntap.route_all`).  CI runs the tests, the netns
 scenarios, the sanitizers, fuzzing, interop and Windows on every push.
 
 Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
@@ -1024,6 +1065,8 @@ Open, in rough order:
   without `USE_SOURCE_DIR`.
 - IPv6 inside the tunnel: on a phone, then other systems; fewer
   privileges (Landlock, seccomp).
+- All traffic through an exit peer: tried on Windows, then switching at
+  run time from the management page (Next).
 - Releases: the channels - decisions to take.
 - To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
   on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`

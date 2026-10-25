@@ -64,6 +64,25 @@ supported options.  On Windows the management interface listens on a TCP
 port (`management.port`), as there are no Unix domain sockets, and a
 supernode cannot be an edge too (`supernode.tap`) yet.
 
+To send all of the computer's traffic through another edge, as the
+Android app's "Route all traffic through a peer" does, three lines in the
+`[tuntap]` section of `edge.conf` - the other edge's address in the
+community, and a DNS server reached through it:
+
+```ini
+[tuntap]
+gateway = 10.99.99.60
+route_all = true
+dns = 1.1.1.1
+```
+
+The edge sets the routes, the adapter's DNS server and metric while it
+runs, keeps its own traffic outside the tunnel, follows a default route
+that moves to another interface, and takes it all back at its end.  It
+has to run as administrator for that, as it has for the TAP adapter's
+address.  The other edge needs `filter.allow_routing = true`, IP
+forwarding and NAT; see [Routing](../advanced/Routing.md).
+
 ## Windows XP
 
 There is deliberate support for compiling the n3n project to work on Windows

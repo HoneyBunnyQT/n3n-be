@@ -60,8 +60,10 @@ well below the 2900 or so bytes a code can hold.
 ### `n3n-route`
 
 This tool still speaks the old management protocol and does not work
-with the current daemons, whose management interface is JSON-RPC; see
-[Routing](advanced/Routing.md) for setting the routes by hand.
+with the current daemons, whose management interface is JSON-RPC.  For
+all traffic through another edge, the edge's own `tuntap.route_all` does
+its work, on Linux and Windows; see [Routing](advanced/Routing.md), also
+for setting the routes by hand.
 
 This C tool sets new routes for all the traffic to be routed via a VPN gateway
 (another edge) and polls the management port of a local n3n edge for adding
