@@ -38,6 +38,7 @@ TESTS+=tests-tun
 TESTS+=tests-speck
 TESTS+=tests-tf
 TESTS+=tests-fec
+TESTS+=tests-mgmt-client
 
 .PHONY: all clean install
 all: $(TOOLS) $(TESTS)

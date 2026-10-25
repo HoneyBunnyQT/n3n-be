@@ -1,0 +1,19 @@
+get_info             {"program":"n3n-be","version":"3.4.8","registered":1,"ip4addr":"10.99.0.2","gateway":"10.99.0.1","route_all":1,"dns":""}
+get_edges            [{"mode":"p2p","ip4addr":"10.99.0.1/24","desc":"oscar"},{"mode":"pSp","ip4addr":"10.99.0.3/24","desc":"b\"\\c","fec":{"loss":12,"burst":1.5}}]
+an error             {"jsonrpc":"2.0","id":1,"error":{"code":409,"message":"no"}}
+escapes              "a\u0009b\u000aé€😀/"
+numbers              [0,-1,2.5,1000]
+true, false, null    [true,false,null]
+nested               {"nested":{"loss":"7"},"a":[],"b":{},"c":""}
+empty array          []
+get_info, read       registered 1, ip4addr 10.99.0.2, route_all 1, gateway none, 7 by default
+get_edges, read      2 rows, 10.99.0.1/24, fec loss 12, past the end none, no row's member none
+trailing text        no JSON
+open string          no JSON
+open object          no JSON
+control character    no JSON
+bad escape           no JSON
+no value             no JSON
+key no string        no JSON
+40 deep              no JSON
+15 deep              [[[[[[[[[[[[[[[]]]]]]]]]]]]]]]

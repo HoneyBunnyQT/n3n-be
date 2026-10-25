@@ -51,3 +51,4 @@ tests-tun.exe
 tests-speck.exe
 tests-tf.exe
 tests-fec
+tests-mgmt-client

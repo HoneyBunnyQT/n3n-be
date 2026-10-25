@@ -10,6 +10,7 @@ tests-elliptic
 tests-fec
 tests-pdu-in
 tests-ipv6
+tests-mgmt-client
 tests-tun
 tests-peers
 tests-regex

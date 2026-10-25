@@ -158,6 +158,7 @@ OBJS=\
 	src/management.o \
 	src/management_page.o \
 	src/metrics.o \
+	src/mgmt_client.o \
 	src/n2n.o \
 	src/n2n_port_mapping.o \
 	src/n2n_regex.o \
