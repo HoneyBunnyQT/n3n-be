@@ -45,6 +45,11 @@
 #define WM_NOTE         (WM_APP + 3)    // a message to show, lParam a wchar_t * to free
 
 #define POLL_MS         2000
+// the help: the docs as web pages, in the zip next to the programs (of this
+// version, release.yml), and online (the newest, pages.yml) - at the page
+// on Windows
+#define HELP_LOCAL      L"docs\\build\\windows.html"
+#define HELP_ONLINE     L"https://honeybunnyqt.github.io/n3n-be/build/windows.html"
 #define PEERS_MAX       24
 
 // the menu's commands
@@ -56,6 +61,8 @@ enum {
     CMD_LOG,
     CMD_INSTALL,
     CMD_WINTUN,
+    CMD_HELP_LOCAL,
+    CMD_HELP_ONLINE,
     CMD_AUTOSTART,
     CMD_QUIT,
     CMD_EXIT_PEER,              // and the peers after it
@@ -447,6 +454,33 @@ static void install (void) {
 }
 
 
+// The help of this version, next to the programs: false if it is not there
+// (a build of one's own)
+static bool help_local (wchar_t *path, size_t size) {
+
+    DWORD n = GetModuleFileNameW(NULL, path, size);
+    wchar_t *base;
+
+    if(!n || (n + wcslen(HELP_LOCAL) >= size)) {
+        return false;
+    }
+    base = wcsrchr(path, L'\\');
+    wcscpy(base ? base + 1 : path, HELP_LOCAL);
+    return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+
+static void open_help (bool local) {
+
+    wchar_t path[MAX_PATH];
+
+    if(local && !help_local(path, MAX_PATH)) {
+        return;
+    }
+    ShellExecuteW(NULL, L"open", local ? path : HELP_ONLINE, NULL, NULL, SW_SHOWNORMAL);
+}
+
+
 // wintun.dll next to n3n-be.exe: an edge without a TAP adapter takes a
 // Wintun adapter then
 static bool wintun_there (void) {
@@ -473,7 +507,8 @@ static DWORD WINAPI after_wintun (LPVOID arg) {
     WaitForSingleObject(process, INFINITE);
     CloseHandle(process);
     if(!wintun_there()) {
-        note(L"wintun.dll is not there: the console window said why");
+        note(L"wintun.dll is not there: the console window said why; Help, \"Wintun\", says how to get "
+             L"it by hand");
     } else if(service_state(&state) && (state == SERVICE_STOPPED)) {
         start_stop(true);
     }
@@ -737,11 +772,11 @@ static void show_note (const wchar_t *msg) {
 
 static void menu (int x, int y) {
 
-    HMENU m = CreatePopupMenu(), exits = CreatePopupMenu();
+    HMENU m = CreatePopupMenu(), exits = CreatePopupMenu(), help = CreatePopupMenu();
     // as it was when opened: the poller may change it meanwhile
     static struct snapshot copy;
     const struct snapshot *s = &copy;
-    wchar_t line[200];
+    wchar_t line[200], path[MAX_PATH];
     bool gateway_listed = false;
     UINT busy = acting ? MF_GRAYED : 0;
 
@@ -785,6 +820,10 @@ static void menu (int x, int y) {
         AppendMenuW(m, MF_STRING, CMD_WINTUN, L"Get Win&tun - no TAP driver needed...");
     }
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(help, MF_STRING | (help_local(path, MAX_PATH) ? 0 : MF_GRAYED), CMD_HELP_LOCAL,
+                L"Help for this &version (offline)");
+    AppendMenuW(help, MF_STRING, CMD_HELP_ONLINE, L"&Online help (newest)");
+    AppendMenuW(m, MF_POPUP, (UINT_PTR)help, L"&Help");
     AppendMenuW(m, MF_STRING | (autostart() ? MF_CHECKED : 0), CMD_AUTOSTART, L"&Start with Windows");
     AppendMenuW(m, MF_STRING, CMD_QUIT, L"&Quit");
 
@@ -824,6 +863,10 @@ static void menu (int x, int y) {
             break;
         case CMD_WINTUN:
             get_wintun();
+            break;
+        case CMD_HELP_LOCAL:
+        case CMD_HELP_ONLINE:
+            open_help(cmd == CMD_HELP_LOCAL);
             break;
         case CMD_AUTOSTART:
             toggle_autostart();
