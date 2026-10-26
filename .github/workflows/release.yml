@@ -3,8 +3,8 @@ name: Release
 
 # The packages of a release, built from its tag - .deb for four
 # architectures, .rpm, the Arch package, the signed Android app, a zip of
-# the Windows programs, a tarball of the macOS ones and the OpenWrt
-# packages (openwrt.yml) - and,
+# the Windows programs with the docs as their help, a tarball of the macOS
+# ones and the OpenWrt packages (openwrt.yml) - and,
 # if asked, a draft GitHub Release of the tag with them, their SHA256SUMS
 # and attestations of where they were built.  See
 # docs/develop/Releasing.md.
@@ -276,6 +276,11 @@ jobs:
           git show "$GITHUB_SHA:packages/windows/README.txt" \
             > "$name/README.txt"
           cp -r LICENSES "$name/"
+          # the docs as web pages, the help that the tray app opens
+          # (docs\build\windows.html); of the tag, as pages.yml has them
+          # online for main
+          python -m pip install mkdocs==1.6.1
+          python -m mkdocs build --strict --site-dir "$name/docs"
           # winpthreads (MIT), linked in, wants its notice along
           gcc_prefix=$(dirname "$(command -v gcc)")/..
           find "$gcc_prefix" -ipath '*winpthread*' -iname 'COPYING*' \
