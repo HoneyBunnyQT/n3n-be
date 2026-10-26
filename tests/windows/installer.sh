@@ -20,7 +20,9 @@ BIN=${1:-apps}
 SESSION=insttest
 NAME="n3n-be-edge@$SESSION"
 PROFILE=$(cygpath -u "$USERPROFILE")
-MACHINE=$(cygpath -u "${PROGRAMDATA:-C:\\ProgramData}")/n3n-be
+# %ProgramData%, as Git Bash spells it
+PROGRAMDATA=$(cygpath -u "${ProgramData:-C:\\ProgramData}")
+MACHINE=$PROGRAMDATA/n3n-be
 INSTDIR="/c/Program Files/n3n-be"
 RUN_KEY='HKCU\Software\Microsoft\Windows\CurrentVersion\Run'
 UNINST_KEY='HKLM\Software\Microsoft\Windows\CurrentVersion\Uninstall\n3n-be'
@@ -39,7 +41,7 @@ check() {
 
 image_path() {
     reg query "HKLM\\SYSTEM\\CurrentControlSet\\Services\\$NAME" //v ImagePath 2>/dev/null |
-        tr -d '\r' | sed -n 's/.*REG_SZ *//p'
+        tr -d '\r' | sed -n 's/.*REG_[A-Z_]*SZ *//p'
 }
 
 # makensis: NSIS's, or Chocolatey's
@@ -54,7 +56,7 @@ fi
 # mkdocs is there); the "zip" its programs run from
 ZIP="$WORK/zip"
 mkdir -p "$ZIP"
-cp "$BIN/n3n-be.exe" "$BIN/n3n-be-tray.exe" docs/edge.conf.sample scripts/n3n-be-ctl "$ZIP/"
+cp "$BIN/n3n-be.exe" "$BIN/n3n-be-tray.exe" docs/edge.conf.sample docs/supernode.conf.sample scripts/n3n-be-ctl "$ZIP/"
 cp packages/windows/README.txt "$ZIP/"
 cp -r LICENSES "$ZIP/"
 if python -m mkdocs --version >/dev/null 2>&1; then
@@ -96,7 +98,7 @@ check "install: start at login" $? "$run"
 version=$(reg query "$UNINST_KEY" //v DisplayVersion 2>/dev/null | tr -d '\r' | sed -n 's/.*REG_SZ *//p')
 [ "$version" = 9.9.9 ]
 check "install: Apps" $? "version $version"
-[ -f "$(cygpath -u "$PROGRAMDATA")/Microsoft/Windows/Start Menu/Programs/n3n-be/n3n-be.lnk" ]
+[ -f "$PROGRAMDATA/Microsoft/Windows/Start Menu/Programs/n3n-be/n3n-be.lnk" ]
 check "install: Start menu" $? "n3n-be.lnk"
 netsh advfirewall firewall show rule name="$NAME" verbose 2>&1 | grep -qi 'Program Files\\n3n-be\\n3n-be.exe'
 check "install: firewall rule" $? "for the installed program"
