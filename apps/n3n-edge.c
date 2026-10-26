@@ -482,8 +482,8 @@ static void cmd_start (int argc, char **argv, void *conf) {
     return;
 }
 
-// n3n_edge_main() hands "service ..." on before it gets here, see
-// n3n-service.c; this is for the help
+// n3n_edge_main() hands "service ..." and "wintun ..." on before they get
+// here, see n3n-service.c and n3n-wintun.c; these are for the help
 static void cmd_service (int argc, char **argv, void *conf) {
     return;
 }
@@ -680,6 +680,12 @@ static struct n3n_subcmd_def cmd_top[] = {
         .name = "test",
         .type = n3n_subcmd_type_nest,
         .nest = cmd_test,
+    },
+    {
+        .name = "wintun",
+        .help = "get - (64 bit Windows) wintun.dll next to the program, for an adapter of the edge's own",
+        .type = n3n_subcmd_type_fn,
+        .fn = &cmd_service,
     },
     { .name = NULL }
 };
@@ -1022,6 +1028,10 @@ int n3n_edge_main (int argc, char* argv[]) {
     // the edge as a Windows service, see n3n-service.c
     if((argc > 1) && !strcmp(argv[1], "service")) {
         return n3n_service_main(argc - 1, argv + 1);
+    }
+    // wintun.dll next to the program, see n3n-wintun.c
+    if((argc > 1) && !strcmp(argv[1], "wintun")) {
+        return n3n_wintun_main(argc - 1, argv + 1);
     }
 
 #ifdef __MUSL__

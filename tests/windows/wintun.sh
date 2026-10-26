@@ -5,9 +5,11 @@
 #
 # Edges on Wintun adapters (tuntap.type = tun, src/win32/wintun.c), end to
 # end, on a Windows runner, as an administrator, in Git Bash: wintun.dll
-# from wintun.net (its signature checked), a supernode and two edges of a
-# community on this host, each with an adapter of its own - address and
-# MTU as configured -, and a UDP broadcast from one edge's address that
+# from wintun.net by "n3n-be edge wintun get" (apps/n3n-wintun.c; its
+# signature checked here), a supernode and two edges of a community on
+# this host - one with tuntap.type = tun, one without, which takes Wintun
+# as there is no TAP adapter -, each with an adapter of its own - address
+# and MTU as configured -, and a UDP broadcast from one edge's address that
 # comes in through the other edge's adapter, both ways: so each edge takes
 # packets off its adapter and puts packets onto it.  Then the edges stop,
 # and their adapters go with them.  Two edges on one host cannot ping each
@@ -19,7 +21,6 @@ set -u
 
 EXE=${1:-apps/n3n-be.exe}
 CLIENT=${2:-tools/tests-mgmt-client.exe}
-WINTUN_URL=https://www.wintun.net/builds/wintun-0.14.1.zip
 PROFILE=$(cygpath -u "$USERPROFILE")
 WORK=$(mktemp -d)
 HERE=$(dirname "$0")
@@ -53,15 +54,20 @@ stop_all() {
     wait
 }
 
-# wintun.dll next to the program: the amd64 one, as signed by WireGuard
-curl -fsSL "$WINTUN_URL" -o "$WORK/wintun.zip"
-check "wintun.zip" $? "$WINTUN_URL, sha256 $(sha256sum "$WORK/wintun.zip" | cut -d' ' -f1)"
-psh "Expand-Archive -Force '$(cygpath -w "$WORK/wintun.zip")' '$(cygpath -w "$WORK")'" >/dev/null
-DLL="$WORK/wintun/bin/amd64/wintun.dll"
+# wintun.dll next to the program, as the tray gets it: the zip checked
+# against its SHA256, its amd64 DLL - which WireGuard signed - out of it
+DLL="$(dirname "$EXE")/wintun.dll"
+rm -f "$DLL"
+out=$("$EXE" edge wintun get 2>&1 | tr -d '\r')
+echo "$out"
+echo "$out" | grep -q "^checked: SHA256" && [ -f "$DLL" ]
+check "wintun get" $? "$(echo "$out" | tail -1)"
 sig=$(psh "\$s = Get-AuthenticodeSignature '$(cygpath -w "$DLL")'; \"\$(\$s.Status) \$(\$s.SignerCertificate.Subject)\"")
 echo "$sig" | grep -q '^Valid .*WireGuard LLC'
 check "wintun.dll signed" $? "$sig"
-cp "$DLL" "$(dirname "$EXE")/"
+out=$("$EXE" edge wintun get 2>&1 | tr -d '\r')
+echo "$out" | grep -q "there already"
+check "wintun get again" $? "$out"
 
 mkdir -p "$PROFILE/n3n-be"
 cat >"$PROFILE/n3n-be/wtsn.conf" <<EOF
@@ -70,15 +76,17 @@ bind = 7656
 [management]
 port = 5661
 EOF
-for e in a:1:5662 b:2:5663; do
-    IFS=: read -r name host mport <<<"$e"
+# a with tuntap.type = tun; b with tap, the default, which takes Wintun as
+# there is no TAP adapter on the runner
+for e in a:1:5662:tun b:2:5663:tap; do
+    IFS=: read -r name host mport type <<<"$e"
     cat >"$PROFILE/n3n-be/wt$name.conf" <<EOF
 [community]
 name = wintuntest
 key = wintuntest-secret
 supernode = 127.0.0.1:7656
 [tuntap]
-type = tun
+type = $type
 address = 10.99.7.$host/24
 address_mode = static
 [management]
@@ -104,6 +112,8 @@ for _ in $(seq 30); do
 done
 registered 5662 && registered 5663
 check "registered" $? "both edges, with the supernode on this host"
+grep -q "no TAP adapter, but wintun.dll" "$WORK/b.log"
+check "b with tuntap.type = tap" $? "$(grep -i "wintun adapter" "$WORK/b.log" | tail -1 | tr -d '\r')"
 
 for e in a:1 b:2; do
     IFS=: read -r name host <<<"$e"

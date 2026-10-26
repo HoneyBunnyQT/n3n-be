@@ -18,4 +18,8 @@ void n3n_edge_main_stop (void);
 // service, see n3n-service.c
 int n3n_service_main (int argc, char *argv[]);
 
+// "wintun get": wintun.dll next to the program (64 bit Windows), see
+// n3n-wintun.c
+int n3n_wintun_main (int argc, char *argv[]);
+
 #endif

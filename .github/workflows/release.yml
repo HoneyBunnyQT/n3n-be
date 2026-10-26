@@ -293,6 +293,7 @@ jobs:
             if objdump -p "$name/$exe" | grep "DLL Name" |
                 grep -iv -e kernel32 -e msvcrt -e ws2_32 -e iphlpapi \
                   -e netapi32 -e advapi32 -e user32 -e shell32 -e gdi32 \
+                  -e winhttp -e bcrypt \
                   -e comdlg32 -e api-ms-win; then
               echo "::error::$exe needs a DLL that is not in the zip"
               exit 1
