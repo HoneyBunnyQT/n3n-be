@@ -10,15 +10,19 @@
  * connects and disconnects (starts and stops the service), routes all
  * traffic through one of the peers or none, opens the web page and the
  * log, installs the service, gets Wintun - wintun.dll from wintun.net, for
- * an adapter without a TAP driver to install, see n3n-wintun.c - and starts
- * the tray with Windows.
+ * an adapter without a TAP driver to install, see n3n-wintun.c -, imports
+ * a configuration - from a file, or from a QR code that Windows' Camera
+ * app reads and copies (one sealed with a PIN too, see qr_seal.h) - or
+ * opens it in Notepad, and starts the tray with Windows.
  *
  * It runs as the user, not as an administrator: a client of the management
  * API (mgmt_client.h) on the edge's port, with the port and password that
  * "service install" leaves in %USERPROFILE%\n3n-be\SESSION.tray, and of the
  * service manager, where that install lets this user start and stop the
  * service (see n3n-service.c).  What needs an administrator - installing,
- * getting Wintun, the log - asks Windows to elevate.
+ * getting Wintun, the log, the configuration ("service import", "service
+ * edit") - asks Windows to elevate: the configuration holds the community's
+ * key, and who is no administrator can neither read it nor change it.
  */
 
 #ifndef _WIN32_WINNT
@@ -37,6 +41,7 @@
 #include <stdlib.h>             // for atoi, malloc, free
 #include <string.h>             // for strcmp, strchr
 #include <wchar.h>              // for swprintf
+#include <n3n/qr_seal.h>        // for qr_open, qr_looks_sealed
 #include "n2n_define.h"         // for N3N_MGMT_PASSWORD, N2N_EDGE_MGMT_PORT
 #include "../src/mgmt_client.h"
 
@@ -45,6 +50,8 @@
 #define WM_NOTE         (WM_APP + 3)    // a message to show, lParam a wchar_t * to free
 
 #define POLL_MS         2000
+#define QR_TIMER        1
+#define QR_WAIT_MS      (5 * 60 * 1000)         // for a QR code on the clipboard
 // the help: the docs as web pages, in the zip next to the programs (of this
 // version, release.yml), and online (the newest, pages.yml) - at the page
 // on Windows
@@ -61,6 +68,9 @@ enum {
     CMD_LOG,
     CMD_INSTALL,
     CMD_WINTUN,
+    CMD_IMPORT,
+    CMD_QR,
+    CMD_EDIT,
     CMD_HELP_LOCAL,
     CMD_HELP_ONLINE,
     CMD_AUTOSTART,
@@ -107,6 +117,7 @@ static struct snapshot now;     // under lock
 static struct snapshot shown;   // the window's own copy, for its menu
 static HANDLE wake;             // polls at once when set
 static volatile LONG acting;    // an action under way
+static bool qr_waiting;         // for a QR code's text on the clipboard
 
 
 // As n3n-service.c takes it: letters, digits, '.', '-' and '_'
@@ -344,8 +355,9 @@ static DWORD WINAPI set_gateway (LPVOID arg) {
 }
 
 
-// process: where its handle goes, NULL if not wanted
-static void run_elevated (const wchar_t *file, const wchar_t *params, HANDLE *process) {
+// process: where its handle goes, NULL if not wanted; show: SW_HIDE for
+// one whose console is not to be seen
+static void run_elevated (const wchar_t *file, const wchar_t *params, int show, HANDLE *process) {
 
     SHELLEXECUTEINFOW sei = { sizeof(sei) };
 
@@ -354,7 +366,7 @@ static void run_elevated (const wchar_t *file, const wchar_t *params, HANDLE *pr
     sei.lpVerb = L"runas";
     sei.lpFile = file;
     sei.lpParameters = params;
-    sei.nShow = SW_SHOWNORMAL;
+    sei.nShow = show;
     if(!ShellExecuteExW(&sei) && (GetLastError() != ERROR_CANCELLED)) {
         note(L"%ls could not be started [%lu]", file, GetLastError());
     }
@@ -387,7 +399,7 @@ static void start_stop (bool start) {
         wchar_t params[120];
 
         swprintf(params, 120, L"%ls %hs", start ? L"start" : L"stop", service_name);
-        run_elevated(L"sc.exe", params, NULL);
+        run_elevated(L"sc.exe", params, SW_SHOWNORMAL, NULL);
     } else if(err && (err != ERROR_SERVICE_ALREADY_RUNNING) && (err != ERROR_SERVICE_NOT_ACTIVE)) {
         note(L"the service could not be %ls [%lu]", start ? L"started" : L"stopped", err);
     }
@@ -410,47 +422,511 @@ static bool program (wchar_t *path, size_t size) {
 }
 
 
+// ---- the configuration: imported from a file or a QR code, and edited
+
+// Whether %ProgramData%\n3n-be\SESSION.conf is there: that directory is for
+// administrators only, but whether it is there shows
+static bool machine_conf (void) {
+
+    const wchar_t *pd = _wgetenv(L"ProgramData");
+    wchar_t path[MAX_PATH + 80];
+
+    swprintf(path, MAX_PATH + 80, L"%ls\\n3n-be\\%hs.conf", pd ? pd : L"C:\\ProgramData", session);
+    if(GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES) {
+        return true;
+    }
+    DWORD err = GetLastError();
+    return (err != ERROR_FILE_NOT_FOUND) && (err != ERROR_PATH_NOT_FOUND);
+}
+
+
+// An import under way: "service import" in a hidden console, its output
+// in out, for a box if the configuration is not taken
+struct import {
+    HANDLE process;
+    wchar_t file[MAX_PATH];
+    wchar_t out[MAX_PATH];      // "" with a console of its own
+    bool temporary;             // file is the tray's own (from a QR code)
+};
+
+
+// What a file says, as text for a box, to free
+static wchar_t *read_text (const wchar_t *path) {
+
+    FILE *f = _wfopen(path, L"rb");
+    char buf[4000];
+    size_t n = f ? fread(buf, 1, sizeof(buf) - 1, f) : 0;
+    wchar_t *out = calloc(n + 1, sizeof(wchar_t));
+
+    if(f) {
+        fclose(f);
+    }
+    buf[n] = '\0';
+    if(out && n) {
+        // as printf wrote it: in the code page of the arguments it was given
+        MultiByteToWideChar(CP_ACP, 0, buf, -1, out, n + 1);
+    }
+    return out;
+}
+
+
+// Once "service import" is done: a box if it was not taken; if it was, a
+// file of one's own - which holds the community's key - may go
+static DWORD WINAPI after_import (LPVOID arg) {
+
+    struct import *im = arg;
+    DWORD code = 1;
+    wchar_t msg[MAX_PATH + 300];
+
+    WaitForSingleObject(im->process, INFINITE);
+    GetExitCodeProcess(im->process, &code);
+    CloseHandle(im->process);
+    if(im->temporary) {
+        DeleteFileW(im->file);
+    }
+    if(im->out[0]) {
+        wchar_t *said = read_text(im->out);
+
+        DeleteFileW(im->out);
+        if(code) {
+            swprintf(msg, MAX_PATH + 300, L"The configuration is not taken.\n\n");
+            wchar_t *text = malloc((wcslen(msg) + (said ? wcslen(said) : 0) + 1) * sizeof(wchar_t));
+            if(text) {
+                wcscpy(text, msg);
+                wcscat(text, said ? said : L"");
+                MessageBoxW(NULL, text, L"n3n-be", MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+                free(text);
+            }
+        }
+        free(said);
+    } else if(!machine_conf()) {
+        // the console said why
+        code = 1;
+    }
+    if(!code) {
+        note(L"the configuration is taken: the edge starts anew with it, if it runs");
+        if(!im->temporary) {
+            swprintf(msg, MAX_PATH + 300, L"The configuration is taken.\n\n%ls holds the community's key, "
+                     L"for whoever can open it.  Delete it now?", im->file);
+            if(MessageBoxW(NULL, msg, L"n3n-be", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION | MB_SETFOREGROUND)
+               == IDYES) {
+                if(!DeleteFileW(im->file)) {
+                    note(L"%ls could not be deleted [%lu]", im->file, GetLastError());
+                }
+            }
+        }
+    }
+    free(im);
+    SetEvent(wake);
+    return 0;
+}
+
+
+// "n3n-be.exe edge service import FILE SESSION", elevated: hidden, its
+// output in %TEMP% for after_import(); or, to install the service after
+// it, in a console that stays until a key is pressed.  temporary: the
+// file goes afterwards.
+static void import (const wchar_t *file, bool temporary, bool then_install) {
+
+    wchar_t exe[MAX_PATH], tmp[MAX_PATH], cmd[4 * MAX_PATH + 200];
+    struct import *im = calloc(1, sizeof(*im));
+    HANDLE t;
+
+    if(!im) {
+        return;
+    }
+    if(!program(exe, MAX_PATH)) {
+        note(L"n3n-be.exe is not next to n3n-be-tray.exe");
+        free(im);
+        return;
+    }
+    swprintf(im->file, MAX_PATH, L"%ls", file);
+    im->temporary = temporary;
+    // cmd takes off the outer quotes
+    if(then_install) {
+        swprintf(cmd, 4 * MAX_PATH + 200, L"/c \"\"%ls\" edge service import \"%ls\" %hs && "
+                 L"\"%ls\" edge service install %hs & pause\"", exe, file, session, exe, session);
+    } else {
+        GetTempPathW(MAX_PATH - 40, tmp);
+        swprintf(im->out, MAX_PATH, L"%lsn3n-be-import-%lu.txt", tmp, (unsigned long)GetCurrentProcessId());
+        swprintf(cmd, 4 * MAX_PATH + 200, L"/c \"\"%ls\" edge service import \"%ls\" %hs > \"%ls\" 2>&1\"",
+                 exe, file, session, im->out);
+    }
+    run_elevated(L"cmd.exe", cmd, then_install ? SW_SHOWNORMAL : SW_HIDE, &im->process);
+    if(!im->process) {
+        // not allowed
+        if(temporary) {
+            DeleteFileW(file);
+        }
+        free(im);
+        return;
+    }
+    if((t = CreateThread(NULL, 0, after_import, im, 0, NULL))) {
+        CloseHandle(t);
+    } else {
+        CloseHandle(im->process);
+        free(im);
+    }
+}
+
+
+// A configuration file, chosen: false if none was
+static bool choose (wchar_t *file, const wchar_t *title) {
+
+    OPENFILENAMEW ofn = { sizeof(ofn) };
+
+    file[0] = L'\0';
+    ofn.hwndOwner = window;
+    ofn.lpstrFilter = L"Configurations (*.conf)\0*.conf\0All files\0*.*\0";
+    ofn.lpstrFile = file;
+    ofn.nMaxFile = MAX_PATH;
+    ofn.lpstrTitle = title;
+    ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
+    return GetOpenFileNameW(&ofn);
+}
+
+
+static void import_file (void) {
+
+    wchar_t file[MAX_PATH];
+
+    if(choose(file, L"Import a configuration")) {
+        import(file, false, false);
+    }
+}
+
+
 // "n3n-be.exe edge service install SESSION", elevated, in a console that
-// stays until a key is pressed - with a configuration chosen first if
-// there is none to copy
+// stays until a key is pressed - with a configuration imported first if
+// there is none: chosen, or the one in %USERPROFILE%\n3n-be that the
+// install copies itself
 static void install (void) {
 
-    wchar_t exe[MAX_PATH], conf[MAX_PATH + 80], machine[MAX_PATH + 80], cmd[2 * MAX_PATH + 200];
-    const wchar_t *profile = _wgetenv(L"USERPROFILE"), *pd = _wgetenv(L"ProgramData");
+    wchar_t exe[MAX_PATH], conf[MAX_PATH + 80], cmd[2 * MAX_PATH + 200], file[MAX_PATH];
+    const wchar_t *profile = _wgetenv(L"USERPROFILE");
 
     if(!program(exe, MAX_PATH)) {
         note(L"n3n-be.exe is not next to n3n-be-tray.exe");
         return;
     }
     swprintf(conf, MAX_PATH + 80, L"%ls\\n3n-be\\%hs.conf", profile ? profile : L".", session);
-    swprintf(machine, MAX_PATH + 80, L"%ls\\n3n-be\\%hs.conf", pd ? pd : L"C:\\ProgramData", session);
-    DWORD err = (GetFileAttributesW(machine) == INVALID_FILE_ATTRIBUTES) ? GetLastError() : 0;
-    // that one is for administrators only, but whether it is there shows
-    bool no_machine = (err == ERROR_FILE_NOT_FOUND) || (err == ERROR_PATH_NOT_FOUND);
-    if(no_machine && (GetFileAttributesW(conf) == INVALID_FILE_ATTRIBUTES)) {
-        wchar_t file[MAX_PATH] = L"", dir[MAX_PATH + 20];
-        OPENFILENAMEW ofn = { sizeof(ofn) };
-
-        ofn.hwndOwner = window;
-        ofn.lpstrFilter = L"Configurations (*.conf)\0*.conf\0All files\0*.*\0";
-        ofn.lpstrFile = file;
-        ofn.nMaxFile = MAX_PATH;
-        ofn.lpstrTitle = L"The configuration of the edge";
-        ofn.Flags = OFN_FILEMUSTEXIST | OFN_HIDEREADONLY;
-        if(!GetOpenFileNameW(&ofn)) {
-            return;
+    if(!machine_conf() && (GetFileAttributesW(conf) == INVALID_FILE_ATTRIBUTES)) {
+        if(choose(file, L"The configuration of the edge")) {
+            import(file, false, true);
         }
-        swprintf(dir, MAX_PATH + 20, L"%ls\\n3n-be", profile ? profile : L".");
-        CreateDirectoryW(dir, NULL);
-        if(!CopyFileW(file, conf, TRUE)) {
-            note(L"%ls could not be copied to %ls [%lu]", file, conf, GetLastError());
-            return;
-        }
+        return;
     }
     // cmd takes off the outer quotes
     swprintf(cmd, 2 * MAX_PATH + 200, L"/c \"\"%ls\" edge service install %hs & pause\"", exe, session);
-    run_elevated(L"cmd.exe", cmd, NULL);
+    run_elevated(L"cmd.exe", cmd, SW_SHOWNORMAL, NULL);
     SetEvent(wake);
+}
+
+
+// Once "service edit" is done: it asked and said all itself
+static DWORD WINAPI after_edit (LPVOID arg) {
+
+    HANDLE process = arg;
+    DWORD code = 1;
+
+    WaitForSingleObject(process, INFINITE);
+    GetExitCodeProcess(process, &code);
+    CloseHandle(process);
+    if(!code) {
+        note(L"the configuration is taken: the edge starts anew with it, if it runs");
+    }
+    SetEvent(wake);
+    return 0;
+}
+
+
+// "n3n-be.exe edge service edit SESSION", elevated: Notepad as an
+// administrator, and its own boxes
+static void edit (void) {
+
+    wchar_t exe[MAX_PATH], params[120];
+    HANDLE process = NULL, t;
+
+    if(!program(exe, MAX_PATH)) {
+        note(L"n3n-be.exe is not next to n3n-be-tray.exe");
+        return;
+    }
+    swprintf(params, 120, L"edge service edit %hs", session);
+    run_elevated(exe, params, SW_HIDE, &process);
+    if(process) {
+        if((t = CreateThread(NULL, 0, after_edit, process, 0, NULL))) {
+            CloseHandle(t);
+        } else {
+            CloseHandle(process);
+        }
+    }
+}
+
+
+// The PIN of a sealed code: a box of its own, made in memory
+
+#define PIN_EDIT 100
+
+static INT_PTR CALLBACK pin_proc (HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+
+    switch(msg) {
+        case WM_INITDIALOG:
+            SetWindowLongPtrW(d, DWLP_USER, lp);
+            SetForegroundWindow(d);
+            SetFocus(GetDlgItem(d, PIN_EDIT));
+            return FALSE;
+        case WM_COMMAND:
+            if(LOWORD(wp) == IDOK) {
+                GetDlgItemTextW(d, PIN_EDIT, (wchar_t *)GetWindowLongPtrW(d, DWLP_USER), 65);
+                EndDialog(d, IDOK);
+                return TRUE;
+            }
+            if(LOWORD(wp) == IDCANCEL) {
+                EndDialog(d, IDCANCEL);
+                return TRUE;
+            }
+            break;
+    }
+    return FALSE;
+}
+
+
+// One control of a template: at p, DWORD aligned; where the next goes
+static WORD *control (WORD *p, DWORD style, short x, short y, short cx, short cy, WORD id, WORD cls,
+                      const wchar_t *text) {
+
+    DLGITEMTEMPLATE *it;
+
+    p = (WORD *)(((ULONG_PTR)p + 3) & ~(ULONG_PTR)3);
+    it = (DLGITEMTEMPLATE *)p;
+    it->style = style | WS_CHILD | WS_VISIBLE;
+    it->dwExtendedStyle = 0;
+    it->x = x;
+    it->y = y;
+    it->cx = cx;
+    it->cy = cy;
+    it->id = id;
+    p = (WORD *)(it + 1);
+    *p++ = 0xFFFF;
+    *p++ = cls;
+    wcscpy((wchar_t *)p, text);
+    p += wcslen(text) + 1;
+    *p++ = 0;                   // no creation data
+    return p;
+}
+
+
+// The PIN asked for, into pin[65]; false if cancelled
+static bool ask_pin (const wchar_t *question, wchar_t *pin) {
+
+    static WORD buf[1024];
+    DLGTEMPLATE *t;
+    WORD *p;
+
+    memset(buf, 0, sizeof(buf));
+    t = (DLGTEMPLATE *)(((ULONG_PTR)buf + 3) & ~(ULONG_PTR)3);
+    t->style = DS_MODALFRAME | DS_CENTER | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    t->cdit = 4;
+    t->cx = 200;
+    t->cy = 76;
+    p = (WORD *)(t + 1);
+    *p++ = 0;                   // no menu
+    *p++ = 0;                   // the dialog class
+    wcscpy((wchar_t *)p, L"n3n-be: the PIN of the code");
+    p += wcslen((wchar_t *)p) + 1;
+    *p++ = 9;
+    wcscpy((wchar_t *)p, L"Segoe UI");
+    p += wcslen((wchar_t *)p) + 1;
+    p = control(p, SS_LEFT, 8, 8, 184, 24, 0xFFFF, 0x0082, question);
+    p = control(p, ES_PASSWORD | ES_AUTOHSCROLL | WS_BORDER | WS_TABSTOP, 8, 34, 184, 13, PIN_EDIT, 0x0081, L"");
+    p = control(p, BS_DEFPUSHBUTTON | WS_TABSTOP, 88, 56, 50, 14, IDOK, 0x0080, L"OK");
+    control(p, BS_PUSHBUTTON | WS_TABSTOP, 142, 56, 50, 14, IDCANCEL, 0x0080, L"Cancel");
+    pin[0] = L'\0';
+    return DialogBoxIndirectParamW(GetModuleHandleW(NULL), t, NULL, pin_proc, (LPARAM)pin) == IDOK;
+}
+
+
+// The community and supernode of a configuration's text, for a question
+static void summary (const char *text, wchar_t *out, size_t size) {
+
+    char name[100] = "", sn[200] = "", line[300];
+    bool in_community = false;
+
+    for(const char *at = text; at && *at;) {
+        const char *nl = strchr(at, '\n');
+        size_t len = nl ? (size_t)(nl - at) : strlen(at);
+        char *v, *k;
+
+        snprintf(line, sizeof(line), "%.*s", (int)((len < sizeof(line)) ? len : sizeof(line) - 1), at);
+        at = nl ? nl + 1 : NULL;
+        for(k = line; (*k == ' ') || (*k == '\t'); k++) {
+        }
+        line[strcspn(line, "\r")] = '\0';
+        if(*k == '[') {
+            in_community = !strncmp(k, "[community", 10);
+            continue;
+        }
+        if(!in_community || !(v = strchr(k, '='))) {
+            continue;
+        }
+        *v++ = '\0';
+        while((*v == ' ') || (*v == '\t')) {
+            v++;
+        }
+        k[strcspn(k, " \t")] = '\0';
+        if(!strcmp(k, "name") && !name[0]) {
+            snprintf(name, sizeof(name), "%s", v);
+        } else if(!strcmp(k, "supernode") && !sn[0]) {
+            snprintf(sn, sizeof(sn), "%s", v);
+        }
+    }
+    swprintf(out, size, L"A configuration of the community %hs, with the supernode %hs.",
+             name[0] ? name : "(none)", sn[0] ? sn : "(none)");
+}
+
+
+static void wipe (char *s) {
+
+    if(s) {
+        SecureZeroMemory(s, strlen(s));
+    }
+}
+
+
+// A QR code's text: a configuration, or one sealed with a PIN - imported,
+// after a look at it in Notepad if wanted
+static void from_code (char *text) {
+
+    wchar_t pin_w[65], about[400], question[700], tmp[MAX_PATH], file[MAX_PATH];
+    char pin[200], *opened = NULL;
+    const wchar_t *ask = L"The QR code is sealed with a PIN: the one it was made with.";
+    FILE *f;
+
+    while(qr_looks_sealed(text) && !opened) {
+        if(!ask_pin(ask, pin_w)) {
+            return;
+        }
+        WideCharToMultiByte(CP_UTF8, 0, pin_w, -1, pin, sizeof(pin), NULL, NULL);
+        SecureZeroMemory(pin_w, sizeof(pin_w));
+        if(qr_open(text, pin, &opened) != 0) {
+            opened = NULL;
+            ask = L"That PIN does not open it.  The PIN the code was made with:";
+        }
+        SecureZeroMemory(pin, sizeof(pin));
+    }
+    if(opened) {
+        text = opened;
+    }
+    if(!strstr(text, "[community")) {
+        MessageBoxW(window, L"The QR code holds no configuration of an edge.", L"n3n-be", MB_OK | MB_ICONWARNING);
+        wipe(opened);
+        free(opened);
+        return;
+    }
+    summary(text, about, 400);
+    swprintf(question, 700, L"%ls\n\nYes: import it as it is.\nNo: look at it in Notepad first, and change "
+             L"it there.", about);
+    int answer = MessageBoxW(window, question, L"n3n-be: a configuration from a QR code",
+                             MB_YESNOCANCEL | MB_ICONQUESTION | MB_SETFOREGROUND);
+    if(answer == IDCANCEL) {
+        wipe(opened);
+        free(opened);
+        return;
+    }
+    // in the user's own %TEMP%, until it is imported
+    GetTempPathW(MAX_PATH - 40, tmp);
+    swprintf(file, MAX_PATH, L"%lsn3n-be-%hs-qr.conf", tmp, session);
+    f = _wfopen(file, L"wb");
+    if(f) {
+        fputs(text, f);
+        fclose(f);
+    }
+    wipe(opened);
+    free(opened);
+    if(!f) {
+        note(L"%ls could not be written", file);
+        return;
+    }
+    if(answer == IDNO) {
+        ShellExecuteW(NULL, L"open", L"notepad.exe", file, NULL, SW_SHOWNORMAL);
+        if(MessageBoxW(window, L"Change it in Notepad, save it (Ctrl+S), then OK: it is imported.  Cancel: "
+                       L"it is not.", L"n3n-be", MB_OKCANCEL | MB_ICONINFORMATION | MB_SETFOREGROUND) != IDOK) {
+            DeleteFileW(file);
+            return;
+        }
+    }
+    import(file, true, false);
+}
+
+
+static void qr_stop (void) {
+
+    if(qr_waiting) {
+        RemoveClipboardFormatListener(window);
+        KillTimer(window, QR_TIMER);
+        qr_waiting = false;
+    }
+}
+
+
+// The clipboard's text, if it is a QR code's: a configuration, or one
+// sealed.  Then it is cleared - it holds the community's key.
+static void clipboard_changed (void) {
+
+    HANDLE h;
+    char *text = NULL;
+
+    if(!qr_waiting || !OpenClipboard(window)) {
+        return;
+    }
+    if((h = GetClipboardData(CF_UNICODETEXT))) {
+        const wchar_t *w = GlobalLock(h);
+        int n = w ? WideCharToMultiByte(CP_UTF8, 0, w, -1, NULL, 0, NULL, NULL) : 0;
+
+        if((n > 0) && (n < 65536) && (text = malloc(n))) {
+            WideCharToMultiByte(CP_UTF8, 0, w, -1, text, n, NULL, NULL);
+        }
+        if(w) {
+            GlobalUnlock(h);
+        }
+    }
+    if(text) {
+        char *end = text + strlen(text);
+
+        while((end > text) && strchr(" \t\r\n", end[-1])) {
+            *--end = '\0';
+        }
+    }
+    if(!text || (!strstr(text, "[community") && !qr_looks_sealed(text))) {
+        // something else copied meanwhile
+        CloseClipboard();
+        free(text);
+        return;
+    }
+    EmptyClipboard();
+    CloseClipboard();
+    qr_stop();
+    from_code(text);
+    wipe(text);
+    free(text);
+}
+
+
+// A QR code by the Camera app of Windows (10 and 11), which reads codes in
+// its barcode mode and copies their text when it is clicked: the tray
+// takes it from the clipboard - any other reader that copies it does too
+static void from_qr (void) {
+
+    if(!qr_waiting) {
+        qr_waiting = AddClipboardFormatListener(window);
+        SetTimer(window, QR_TIMER, QR_WAIT_MS, NULL);
+    }
+    if((INT_PTR)ShellExecuteW(NULL, L"open", L"microsoft.windows.camera:", NULL, NULL, SW_SHOWNORMAL) <= 32) {
+        note(L"No Camera app: a QR code's text copied by another reader works too, for 5 minutes");
+        return;
+    }
+    note(L"In the Camera app's barcode mode, hold the QR code up to the camera and click the text it shows: "
+         L"the tray takes it from there");
 }
 
 
@@ -531,7 +1007,7 @@ static void get_wintun (void) {
     }
     // cmd takes off the outer quotes
     swprintf(cmd, MAX_PATH + 100, L"/c \"\"%ls\" edge wintun get & pause\"", exe);
-    run_elevated(L"cmd.exe", cmd, &process);
+    run_elevated(L"cmd.exe", cmd, SW_SHOWNORMAL, &process);
     if(process) {
         if((t = CreateThread(NULL, 0, after_wintun, process, 0, NULL))) {
             CloseHandle(t);
@@ -548,7 +1024,7 @@ static void show_log (void) {
     wchar_t log[MAX_PATH + 80];
 
     swprintf(log, MAX_PATH + 80, L"\"%ls\\n3n-be\\%hs.log\"", pd ? pd : L"C:\\ProgramData", session);
-    run_elevated(L"notepad.exe", log, NULL);
+    run_elevated(L"notepad.exe", log, SW_SHOWNORMAL, NULL);
 }
 
 
@@ -772,7 +1248,7 @@ static void show_note (const wchar_t *msg) {
 
 static void menu (int x, int y) {
 
-    HMENU m = CreatePopupMenu(), exits = CreatePopupMenu(), help = CreatePopupMenu();
+    HMENU m = CreatePopupMenu(), exits = CreatePopupMenu(), help = CreatePopupMenu(), conf = CreatePopupMenu();
     // as it was when opened: the poller may change it meanwhile
     static struct snapshot copy;
     const struct snapshot *s = &copy;
@@ -816,6 +1292,10 @@ static void menu (int x, int y) {
     } else {
         AppendMenuW(m, MF_STRING, CMD_INSTALL, L"&Install the service...");
     }
+    AppendMenuW(conf, MF_STRING, CMD_IMPORT, L"Import a &file...");
+    AppendMenuW(conf, MF_STRING, CMD_QR, L"Import from a &QR code...");
+    AppendMenuW(conf, MF_STRING | (machine_conf() ? 0 : MF_GRAYED), CMD_EDIT, L"&Edit...");
+    AppendMenuW(m, MF_POPUP, (UINT_PTR)conf, L"C&onfiguration");
     if(!wintun_there()) {
         AppendMenuW(m, MF_STRING, CMD_WINTUN, L"Get Win&tun - no TAP driver needed...");
     }
@@ -864,6 +1344,15 @@ static void menu (int x, int y) {
         case CMD_WINTUN:
             get_wintun();
             break;
+        case CMD_IMPORT:
+            import_file();
+            break;
+        case CMD_QR:
+            from_qr();
+            break;
+        case CMD_EDIT:
+            edit();
+            break;
         case CMD_HELP_LOCAL:
         case CMD_HELP_ONLINE:
             open_help(cmd == CMD_HELP_LOCAL);
@@ -904,6 +1393,15 @@ static LRESULT CALLBACK proc (HWND w, UINT msg, WPARAM wp, LPARAM lp) {
         case WM_NOTE:
             show_note((const wchar_t *)lp);
             free((void *)lp);
+            return 0;
+        case WM_CLIPBOARDUPDATE:
+            clipboard_changed();
+            return 0;
+        case WM_TIMER:
+            if(wp == QR_TIMER) {
+                qr_stop();
+                note(L"No QR code came in 5 minutes: Configuration, \"Import from a QR code\" waits again");
+            }
             return 0;
         case WM_DESTROY:
             Shell_NotifyIconW(NIM_DELETE, &nid);

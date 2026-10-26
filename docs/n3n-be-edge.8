@@ -368,6 +368,12 @@ and stop the service, gives the configuration a management password of
 its own if it has only the default one, and writes the port and the
 password to %USERPROFILE%\en3n-be\e\fIsessionname\fR.tray.
 \fBn3n-be-edge service uninstall\fR [\fIsessionname\fR] removes it.
+\fBn3n-be-edge service import\fR \fIfile\fR [\fIsessionname\fR] takes
+\fIfile\fR as the service's configuration and \fBn3n-be-edge service edit\fR
+[\fIsessionname\fR] opens it in Notepad: either is taken only if the edge
+can start with it, without an option it does not know; the one before stays
+as \fIsessionname\fR.conf.old, and the service starts anew with it if it
+runs.  All of these as an administrator.
 \fBn3n-be-edge wintun get\fR (64 bit Windows) puts wintun.dll from
 wintun.net next to the program, checked against its SHA256: an edge
 without a TAP adapter, or with \fBtuntap.type\fR = tun, then makes a

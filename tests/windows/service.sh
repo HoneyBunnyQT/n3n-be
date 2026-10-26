@@ -12,7 +12,11 @@
 # For the tray app: a management password of the service's own, in the
 # user's SESSION.tray too, which the management port takes (through the
 # client of the tray, tools/tests-mgmt-client); this user may start and
-# stop the service.
+# stop the service.  "service import": a file with a typo is not taken, the
+# configuration stays; one without a password of its own is, with the
+# service's password kept, the one before as .conf.old, the tray file
+# following, and the service started anew with it.  ("service edit" asks
+# in boxes: not here.)
 #
 #   tests/windows/service.sh [path to n3n-be.exe [to tests-mgmt-client.exe]]
 
@@ -61,7 +65,7 @@ wait_state() {
 
 # left over from a run before
 "$EXE" edge service uninstall "$SESSION" >/dev/null 2>&1
-rm -f "$MACHINE/$SESSION.conf" "$MACHINE/$SESSION.log" "$MACHINE/$SESSION.log.old" \
+rm -f "$MACHINE/$SESSION.conf" "$MACHINE/$SESSION.conf.old" "$MACHINE/$SESSION.log" "$MACHINE/$SESSION.log.old" \
     "$PROFILE/n3n-be/$SESSION.tray"
 
 mkdir -p "$PROFILE/n3n-be"
@@ -131,6 +135,39 @@ out=$("$CLIENT" call 5651 "${password}x" set_verbose '[2]' 2>&1 | tr -d '\r')
 echo "$out" | grep -q "HTTP 401"
 check "management: another password" $? "set_verbose: $out"
 
+# a configuration imported: one with a typo, then one with another port
+WORK=$(mktemp -d)
+printf '[community]\nname = svctest\nkey = svctest-secret\nsupernode = 127.0.0.1:7655\n[tuntap]\nadress_mode = auto\n' \
+    >"$WORK/typo.conf"
+printf '[community]\nname = svctest\nkey = svctest-secret\nsupernode = 127.0.0.1:7655\n[management]\nport = 5652\n' \
+    >"$WORK/new.conf"
+before=$(md5sum <"$MACHINE/$SESSION.conf")
+out=$("$EXE" edge service import "$(cygpath -w "$WORK/typo.conf")" "$SESSION" 2>&1 | tr -d '\r')
+code=${PIPESTATUS[0]}
+echo "$out"
+[ "$code" = 4 ] && echo "$out" | grep -q "typo.conf:6" && [ "$(md5sum <"$MACHINE/$SESSION.conf")" = "$before" ]
+check "import: a typo" $? "exit code $code, the configuration stays"
+out=$("$EXE" edge service import "$(cygpath -w "$WORK/new.conf")" "$SESSION" 2>&1 | tr -d '\r')
+code=${PIPESTATUS[0]}
+echo "$out"
+[ "$code" = 0 ] && tr -d '\r' <"$MACHINE/$SESSION.conf" | grep -q "^port = 5652" && [ -f "$MACHINE/$SESSION.conf.old" ]
+check "import" $? "exit code $code, port 5652 in $MACHINE/$SESSION.conf, the one before as .conf.old"
+tr -d '\r' <"$MACHINE/$SESSION.conf" | grep -qx "password = $password"
+check "import: the service's password" $? "kept"
+port=$(tr -d '\r' <"$tray" 2>/dev/null | sed -n 's/^port = //p')
+[ "$port" = 5652 ] && tr -d '\r' <"$tray" | grep -qx "password = $password"
+check "import: tray file" $? "port $port, the same password"
+echo "$out" | grep -q "started anew"
+check "import: the service" $? "$(echo "$out" | tail -1), state $(state)"
+for _ in $(seq 10); do
+    out=$("$CLIENT" call 5652 "$password" set_verbose '[3]' 2>&1 | tr -d '\r')
+    [ "$out" = 3 ] && break
+    sleep 1
+done
+[ "$out" = 3 ]
+check "import: on the new port" $? "set_verbose: $out"
+rm -rf "$WORK"
+
 sc.exe stop "$NAME" >/dev/null
 wait_state STOPPED 20
 check "stop" $? "state $(state)"
@@ -153,5 +190,5 @@ if [ "$failed" != 0 ]; then
 fi
 [ ! -f "$tray" ]
 check "uninstall: the tray file" $? "$tray is gone"
-rm -f "$PROFILE/n3n-be/$SESSION.conf"
+rm -f "$PROFILE/n3n-be/$SESSION.conf" "$MACHINE/$SESSION.conf.old"
 exit "$failed"

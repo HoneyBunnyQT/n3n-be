@@ -19,6 +19,14 @@
  * service: that user may start and stop it, and finds the management port
  * and password in %USERPROFILE%\n3n-be\SESSION.tray - a random password of
  * the service's own if its configuration has none but the default one.
+ *
+ * "service import FILE [session]" and "service edit [session]" change the
+ * configuration, as an administrator: a file as it is (from the tray app's
+ * file dialog, or a QR code it read), and in Notepad - each loaded and
+ * checked as the edge would before it is taken, the one before kept as
+ * SESSION.conf.old, and the service started anew if it runs.  Who is no
+ * administrator can neither read the configuration, with the community's
+ * key, nor change it.
  */
 
 #include <stdbool.h>
@@ -31,14 +39,19 @@
 #include <winsock2.h>
 #include <windows.h>
 #include <aclapi.h>             // for SetNamedSecurityInfoA
+#include <fcntl.h>              // for _O_CREAT
+#include <io.h>                 // for _dup, _dup2
+#include <stdlib.h>             // for malloc, free
+#include <sys/stat.h>           // for _S_IWRITE
 #include <sddl.h>               // for ConvertStringSecurityDescriptorToSecurityDescriptorA
 #include <wincrypt.h>           // for CryptGenRandom
 #include <n3n/conffile.h>       // for n3n_config_set_confdir, n3n_config_set_rundir
-#include <n3n/edge.h>           // for edge_init_conf_defaults
+#include <n3n/edge.h>           // for edge_init_conf_defaults, edge_verify_conf
 #include <n3n/initfuncs.h>      // for n3n_initfuncs
 #include "n2n_define.h"         // for N3N_MGMT_PASSWORD
 #include "../src/notify.h"      // for n3n_notify_hook
 #include "../src/reload.h"      // for n3n_reload_request
+#include "../src/resolve.h"     // for resolve_hostnames_free
 
 // SYSTEM and the administrators, also for what is made in the directory
 #define MACHINE_DIR_SDDL "D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)"
@@ -127,6 +140,44 @@ static void fail (const char *what) {
 }
 
 
+// The internals the configuration needs, registered once only
+static void init_once (void) {
+
+    static bool done;
+
+    if(!done) {
+        n3n_initfuncs();
+        done = true;
+    }
+}
+
+
+// A random password of 24 letters and digits: false if Windows gives no
+// random numbers
+static bool random_password (char *password, size_t size) {
+
+    HCRYPTPROV prov;
+    unsigned char rnd[24];
+    static const char abc[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    BOOL r;
+
+    if((size <= sizeof(rnd))
+       || !CryptAcquireContextA(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
+        return false;
+    }
+    r = CryptGenRandom(prov, sizeof(rnd), rnd);
+    CryptReleaseContext(prov, 0);
+    if(!r) {
+        return false;
+    }
+    for(size_t i = 0; i < sizeof(rnd); i++) {
+        password[i] = abc[rnd[i] % (sizeof(abc) - 1)];
+    }
+    password[sizeof(rnd)] = '\0';
+    return true;
+}
+
+
 // The management port and password of the service, from its configuration
 // in dir; a random password of its own added to it if it has none but the
 // default one, which anyone on this computer knows.  false if the
@@ -135,14 +186,11 @@ static bool management (const char *dir, const char *conf_path, char *password, 
 
     n2n_edge_conf_t conf;
     char name[sizeof(session)];
-    HCRYPTPROV prov;
-    unsigned char rnd[24];
-    static const char abc[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     FILE *f;
     int r;
 
     memset(&conf, 0, sizeof(conf));
-    n3n_initfuncs();
+    init_once();
     // loading may change the name it is given
     snprintf(name, sizeof(name), "%s", session);
     edge_init_conf_defaults(&conf, name);
@@ -158,19 +206,9 @@ static bool management (const char *dir, const char *conf_path, char *password, 
         snprintf(password, size, "%s", conf.mgmt_password);
         return true;
     }
-    if((size <= sizeof(rnd))
-       || !CryptAcquireContextA(&prov, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT | CRYPT_SILENT)) {
+    if(!random_password(password, size)) {
         return false;
     }
-    r = CryptGenRandom(prov, sizeof(rnd), rnd);
-    CryptReleaseContext(prov, 0);
-    if(!r) {
-        return false;
-    }
-    for(size_t i = 0; i < sizeof(rnd); i++) {
-        password[i] = abc[rnd[i] % (sizeof(abc) - 1)];
-    }
-    password[sizeof(rnd)] = '\0';
     if(!(f = fopen(conf_path, "a"))) {
         return false;
     }
@@ -398,6 +436,385 @@ static int uninstall (void) {
 }
 
 
+// ---- changing the configuration: "service import" and "service edit"
+
+// A file's contents, NUL-terminated, to free; NULL if it cannot be read or
+// is larger than a configuration can be
+static char *slurp (const char *path, size_t *len) {
+
+    FILE *f = fopen(path, "rb");
+    char *buf = f ? malloc(65537) : NULL;
+    size_t n = 0;
+
+    if(buf) {
+        n = fread(buf, 1, 65537, f);
+        if(n > 65536) {
+            free(buf);
+            buf = NULL;
+        } else {
+            buf[n] = '\0';
+        }
+    }
+    if(f) {
+        fclose(f);
+    }
+    if(len) {
+        *len = n;
+    }
+    return buf;
+}
+
+
+// The text with each of what in it as by
+static void replace_all (char *text, size_t size, const char *what, const char *by) {
+
+    char *at = text, *hit;
+    size_t lw = strlen(what), lb = strlen(by);
+
+    while(lw && (hit = strstr(at, what))) {
+        size_t rest = strlen(hit + lw);
+
+        if((hit - text) + lb + rest + 1 > size) {
+            return;
+        }
+        memmove(hit + lb, hit + lw, rest + 1);
+        memcpy(hit, by, lb);
+        at = hit + lb;
+    }
+}
+
+
+// dir\name.conf loaded as the edge loads it, and checked as it checks it
+// before it starts - and an option it does not know, which the edge would
+// leave aside, is not taken either: a typo.  true, with its management
+// password (NULL, or the default one, if it has none of its own) and port;
+// false with the reason in why, what the loader says about it included,
+// the file called shown there
+static bool check_conf (const char *dir, const char *name, const char *shown, char *why, size_t size,
+                        char **password, int *port) {
+
+    static n2n_edge_conf_t conf;
+    char nm[sizeof(session) + 20], said[MAX_PATH + 80], staged[MAX_PATH + 80];
+    const char *reason = NULL;
+    int saved_out, saved_err, fd, r;
+
+    // what the loader prints goes into said, for the reason
+    snprintf(said, sizeof(said), "%s\\%s.why", dir, name);
+    fflush(stdout);
+    fflush(stderr);
+    saved_out = _dup(1);
+    saved_err = _dup(2);
+    fd = _open(said, _O_CREAT | _O_TRUNC | _O_WRONLY, _S_IREAD | _S_IWRITE);
+    if(fd >= 0) {
+        _dup2(fd, 1);
+        _dup2(fd, 2);
+        _close(fd);
+    }
+
+    memset(&conf, 0, sizeof(conf));
+    init_once();
+    // the supernodes of a configuration checked before
+    resolve_hostnames_free(RESOLVE_LIST_SUPERNODE);
+    resolve_hostnames_free(RESOLVE_LIST_PEER);
+    snprintf(nm, sizeof(nm), "%s", name);
+    edge_init_conf_defaults(&conf, nm);
+    n3n_config_set_confdir(dir);
+    r = n3n_config_load_file(&conf, nm);
+    n3n_config_set_confdir(NULL);
+    if(r != 0) {
+        reason = "it cannot be read as a configuration";
+    } else if(edge_conf_one_community(&conf) != 0) {
+        reason = "it has more than one community: an edge joins one";
+    } else {
+        edge_conf_prepare(&conf);
+        switch(edge_verify_conf(&conf)) {
+            case 0:
+                break;
+            case -1:
+                reason = "it has no community: [community] name";
+                break;
+            case -5:
+                reason = "it has no supernode: [community] supernode";
+                break;
+            case -4:
+                reason = "a key without a cipher, or a cipher without a key";
+                break;
+            case -3:
+                reason = "connection.register_interval is less than 1";
+                break;
+            default:
+                reason = "the edge would not start with it";
+                break;
+        }
+    }
+
+    fflush(stdout);
+    fflush(stderr);
+    if(saved_out >= 0) {
+        _dup2(saved_out, 1);
+        _close(saved_out);
+    }
+    if(saved_err >= 0) {
+        _dup2(saved_err, 2);
+        _close(saved_err);
+    }
+    char *text = slurp(said, NULL);
+    DeleteFileA(said);
+    if(!reason && text && strstr(text, "Error")) {
+        reason = "the edge does not know all of it";
+    }
+    if(reason) {
+        snprintf(why, size, "%s%s%s", reason, (text && *text) ? "\n\n" : "", text ? text : "");
+        // the loader names the file as it opened it
+        snprintf(staged, sizeof(staged), "%s/%s.conf", dir, name);
+        replace_all(why, size, staged, shown);
+    }
+    free(text);
+    *password = conf.mgmt_password;
+    *port = conf.mgmt_port;
+    return !reason;
+}
+
+
+// The management password of a configuration file of the service's, if it
+// has one of its own: "password" in [management], the last one
+static bool own_password (const char *path, char *out, size_t size) {
+
+    char *text = slurp(path, NULL), *line, *next;
+    bool in_mgmt = false, found = false;
+
+    for(line = text; line && *line; line = next) {
+        char *end, *eq, *v;
+
+        next = strchr(line, '\n');
+        if(next) {
+            *next++ = '\0';
+        }
+        while((*line == ' ') || (*line == '\t')) {
+            line++;
+        }
+        for(end = line + strlen(line); (end > line) && strchr(" \t\r", end[-1]); end--) {
+        }
+        *end = '\0';
+        if(*line == '[') {
+            in_mgmt = !strncmp(line, "[management]", 12);
+            continue;
+        }
+        eq = strchr(line, '=');
+        if(!in_mgmt || !eq || (*line == '#') || (*line == ';')) {
+            continue;
+        }
+        for(v = eq; (v > line) && ((v[-1] == ' ') || (v[-1] == '\t')); v--) {
+        }
+        if(((size_t)(v - line) != 8) || strncmp(line, "password", 8)) {
+            continue;
+        }
+        for(v = eq + 1; (*v == ' ') || (*v == '\t'); v++) {
+        }
+        if(*v && strcmp(v, N3N_MGMT_PASSWORD)) {
+            snprintf(out, size, "%s", v);
+            found = true;
+        }
+    }
+    free(text);
+    return found;
+}
+
+
+// The service started anew if it runs, so that it takes all of the new
+// configuration: what a reload takes is not all
+static void restart (void) {
+
+    SC_HANDLE scm = OpenSCManagerA(NULL, NULL, SC_MANAGER_CONNECT), svc = NULL;
+    SERVICE_STATUS st;
+
+    if(scm) {
+        svc = OpenServiceA(scm, service_name, SERVICE_STOP | SERVICE_START | SERVICE_QUERY_STATUS);
+    }
+    if(!svc) {
+        printf("no service %s yet: \"service install %s\" installs it with this configuration\n",
+               service_name, session);
+    } else if(QueryServiceStatus(svc, &st) && (st.dwCurrentState == SERVICE_STOPPED)) {
+        printf("%s is stopped: it takes the configuration when it starts\n", service_name);
+    } else {
+        if(ControlService(svc, SERVICE_CONTROL_STOP, &st)) {
+            for(int i = 0; (i < 60) && QueryServiceStatus(svc, &st) && (st.dwCurrentState != SERVICE_STOPPED); i++) {
+                Sleep(500);
+            }
+        }
+        if(StartServiceA(svc, 0, NULL)) {
+            printf("%s started anew with it\n", service_name);
+        } else {
+            fail("starting the service again");
+        }
+    }
+    if(svc) {
+        CloseServiceHandle(svc);
+    }
+    if(scm) {
+        CloseServiceHandle(scm);
+    }
+}
+
+
+// staged (dir\SESSION.import.conf, dir\SESSION.edit.conf), checked: the
+// session's configuration from now on, the one before as SESSION.conf.old.
+// Without a management password of its own, it keeps the one before - or
+// gets a random one -, so that the tray app still reaches the edge; the
+// tray file follows.  0, or 1.
+static int take (const char *dir, const char *staged, const char *password, int port) {
+
+    char conf[MAX_PATH + 80], old[MAX_PATH + 90], pw[260];
+    bool before;
+    FILE *f;
+
+    snprintf(conf, sizeof(conf), "%s\\%s.conf", dir, session);
+    snprintf(old, sizeof(old), "%s\\%s.conf.old", dir, session);
+    if(password && strcmp(password, N3N_MGMT_PASSWORD)) {
+        snprintf(pw, sizeof(pw), "%s", password);
+    } else {
+        bool kept = own_password(conf, pw, sizeof(pw));
+
+        if(!kept && !random_password(pw, sizeof(pw))) {
+            fail("a management password");
+            return 1;
+        }
+        if(!(f = fopen(staged, "a"))) {
+            fail("adding the management password");
+            return 1;
+        }
+        fprintf(f, "\n# %s, for the tray app (written by \"service import\" or \"edit\")\n"
+                "[management]\npassword = %s\n",
+                kept ? "the management password of the configuration before" : "a password of its own", pw);
+        fclose(f);
+    }
+    before = GetFileAttributesA(conf) != INVALID_FILE_ATTRIBUTES;
+    if(before && !MoveFileExA(conf, old, MOVEFILE_REPLACE_EXISTING)) {
+        fail("keeping the configuration before");
+        return 1;
+    }
+    if(!MoveFileExA(staged, conf, MOVEFILE_REPLACE_EXISTING)) {
+        fail("taking the configuration");
+        return 1;
+    }
+    printf("the configuration is %s now%s%s\n", conf, before ? ", the one before " : "", before ? old : "");
+    tray_file(port, pw);
+    restart();
+    return 0;
+}
+
+
+// "service import FILE": FILE as the session's configuration, if the edge
+// can start with it.  0 taken, 4 not taken (why in the output), 1 failed.
+static int import_conf (const char *file) {
+
+    char dir[MAX_PATH], staged[MAX_PATH + 80], name[sizeof(session) + 20], why[2048], *password;
+    char *text;
+    size_t len;
+    int port;
+    FILE *f;
+
+    if(!machine_dir(dir, sizeof(dir))) {
+        fail("the directory %ProgramData%\\n3n-be");
+        return 1;
+    }
+    if(!(text = slurp(file, &len))) {
+        printf("%s cannot be read, or is larger than 64 KB\n", file);
+        return 1;
+    }
+    snprintf(name, sizeof(name), "%s.import", session);
+    snprintf(staged, sizeof(staged), "%s\\%s.conf", dir, name);
+    f = fopen(staged, "wb");
+    if(!f || (fwrite(text, 1, len, f) != len)) {
+        fail("writing the configuration");
+        if(f) {
+            fclose(f);
+        }
+        free(text);
+        DeleteFileA(staged);
+        return 1;
+    }
+    fclose(f);
+    free(text);
+    if(!check_conf(dir, name, file, why, sizeof(why), &password, &port)) {
+        printf("%s is not taken: %s\n", file, why);
+        DeleteFileA(staged);
+        return 4;
+    }
+    return take(dir, staged, password, port);
+}
+
+
+// Whether two files hold the same
+static bool same (const char *a, const char *b) {
+
+    size_t la, lb;
+    char *ta = slurp(a, &la), *tb = slurp(b, &lb);
+    bool eq = ta && tb && (la == lb) && !memcmp(ta, tb, la);
+
+    free(ta);
+    free(tb);
+    return eq;
+}
+
+
+// "service edit": the session's configuration in Notepad - a copy of it,
+// taken once saved and confirmed, if the edge can start with it.  Notepad
+// runs as an administrator too, as this does.  Notepad of Windows 11 may
+// open it in a window of its own that is there already, and its process
+// ends at once: so it is not waited for, the box below is.  0 taken, 3
+// left as it was, 1 failed.
+static int edit_conf (void) {
+
+    char dir[MAX_PATH], conf[MAX_PATH + 80], staged[MAX_PATH + 80], name[sizeof(session) + 20];
+    char cmd[MAX_PATH + 120], why[2048], msg[2400], *password;
+    STARTUPINFOA si = { sizeof(si) };
+    PROCESS_INFORMATION pi;
+    UINT style = MB_SETFOREGROUND | MB_TOPMOST;
+    int port;
+
+    if(!machine_dir(dir, sizeof(dir))) {
+        fail("the directory %ProgramData%\\n3n-be");
+        return 1;
+    }
+    snprintf(conf, sizeof(conf), "%s\\%s.conf", dir, session);
+    snprintf(name, sizeof(name), "%s.edit", session);
+    snprintf(staged, sizeof(staged), "%s\\%s.conf", dir, name);
+    if(!CopyFileA(conf, staged, FALSE)) {
+        snprintf(msg, sizeof(msg), "There is no configuration %s yet: import one first.", conf);
+        MessageBoxA(NULL, msg, "n3n-be", style | MB_OK | MB_ICONEXCLAMATION);
+        return 1;
+    }
+    snprintf(cmd, sizeof(cmd), "notepad.exe \"%s\"", staged);
+    if(!CreateProcessA(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+        fail("starting Notepad");
+        DeleteFileA(staged);
+        return 1;
+    }
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    snprintf(msg, sizeof(msg), "The configuration of %s is open in Notepad.\n\n"
+             "Change it, save it (Ctrl+S), then OK: the edge takes it and starts anew.  "
+             "Cancel leaves it as it was.", service_name);
+    for(;;) {
+        if(MessageBoxA(NULL, msg, "n3n-be: the configuration", style | MB_OKCANCEL | MB_ICONINFORMATION) != IDOK) {
+            break;
+        }
+        if(same(conf, staged)) {
+            break;
+        }
+        if(check_conf(dir, name, conf, why, sizeof(why), &password, &port)) {
+            return take(dir, staged, password, port);
+        }
+        snprintf(msg, sizeof(msg), "This is not taken: %s\n\n"
+                 "Change it in Notepad, save it, then OK.  Cancel leaves it as it was.", why);
+    }
+    DeleteFileA(staged);
+    printf("the configuration stays as it was\n");
+    return 3;
+}
+
+
 // What the service manager is told: a state, and how long the next step
 // may take; the checkpoint goes up while it is pending
 static void report (DWORD state, DWORD wait_ms) {
@@ -531,8 +948,13 @@ static int run (void) {
 int n3n_service_main (int argc, char *argv[]) {
 
     const char *cmd = (argc > 1) ? argv[1] : "";
-    const char *s = (argc > 2) ? argv[2] : "edge";
+    // "import FILE [session]": the session after the file
+    int at = strcmp(cmd, "import") ? 2 : 3;
+    const char *s = (argc > at) ? argv[at] : "edge";
 
+    if(!strcmp(cmd, "import") && (argc < 3)) {
+        cmd = "";
+    }
     if(!session_ok(s)) {
         printf("a session name is letters, digits, '.', '-' and '_' here: %s\n", s);
         return 2;
@@ -549,13 +971,27 @@ int n3n_service_main (int argc, char *argv[]) {
     if(!strcmp(cmd, "run")) {
         return run();
     }
-    printf("usage: n3n-be-edge service install|uninstall [sessionname]\n"
+    if(!strcmp(cmd, "import")) {
+        return import_conf(argv[2]);
+    }
+    if(!strcmp(cmd, "edit")) {
+        return edit_conf();
+    }
+    printf("usage: n3n-be-edge service install|uninstall|edit [sessionname]\n"
+           "       n3n-be-edge service import FILE [sessionname]\n"
            "\n"
            "  install    the edge of the session (default: edge) as a service, which\n"
            "             starts at boot, with its configuration, session directory and\n"
            "             log in %%ProgramData%%\\n3n-be; the configuration is copied there\n"
            "             from %%USERPROFILE%%\\n3n-be if it is not there yet\n"
            "  uninstall  stops and removes it\n"
+           "  import     FILE as the session's configuration, if the edge can start with\n"
+           "             it; the one before stays as SESSION.conf.old, and the service\n"
+           "             starts anew if it runs\n"
+           "  edit       the configuration in Notepad, taken in the same way once saved\n"
+           "\n"
+           "All of them as an administrator: only administrators can read the\n"
+           "configuration, which holds the community's key.\n"
            "\n"
            "The service is n3n-be-edge, or n3n-be-edge@SESSION; \"sc stop\" and \"sc start\"\n"
            "stop and start it, \"sc control NAME paramchange\" reloads its configuration.\n");

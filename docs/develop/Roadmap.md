@@ -668,9 +668,22 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       router's DNS servers: Windows asks those of all interfaces at once.
       Now, with `tuntap.dns`, a rule of the NRPT for all names to it while
       all traffic goes through the exit peer (`src/route_all.c`; in
-      `tests/windows/wintun.sh`, with a DNS server of the test).  Open:
-      Wintun as the default where both are there, code signing
-      (SignPath?), editing the configuration from the tray
+      `tests/windows/wintun.sh`, with a DNS server of the test).  The
+      configuration changed (asked 2026-10-26: the one on the desktop was
+      edited, but the service reads its own copy): `service import FILE`
+      and `service edit` (Notepad), as administrator - who is none can
+      neither read the configuration, with the key, nor change it -, each
+      loaded and checked as the edge would, options it does not know
+      refused (a typo), the one before kept as `.conf.old`, the service's
+      management password kept, the service started anew; the tray's
+      Configuration menu runs them, and imports from a QR code too (the
+      `n3n-qr` codes, sealed ones with their PIN): Windows' Camera app
+      reads it and copies its text, the tray takes it from the clipboard;
+      the installer imports instead of copying to the profile, `/CONF=`
+      for a silent install.  `tests/windows/service.sh` and `installer.sh`;
+      the boxes of `edit` and the QR code by hand.  Open: Wintun as the
+      default where both are there, code signing (SignPath?), a dialog of
+      settings instead of Notepad
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`

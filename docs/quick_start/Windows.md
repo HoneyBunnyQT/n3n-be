@@ -22,9 +22,11 @@ and the same as a zip.  The installer:
 - starts the tray app when you log in, if you leave that ticked;
 - gets [Wintun](#wintun) - an adapter without a TAP driver to install -
   when no TAP adapter is installed;
-- installs the edge as a service, with your
-  `%USERPROFILE%\n3n-be\edge.conf`, or a configuration you choose on its
-  page (without one, the tray app's "Install the service..." asks later).
+- installs the edge as a service, with a configuration you choose on its
+  page - imported, see [Changing the configuration](#changing-the-configuration) -
+  or your `%USERPROFILE%\n3n-be\edge.conf` (without one, the tray app's
+  "Install the service..." asks later).  `setup.exe /S /CONF=FILE`
+  installs without asking, with that configuration.
 
 Over an earlier install it is an upgrade: it stops the services and closes
 the tray apps first, points services and "Start with Windows" that a zip
@@ -97,6 +99,34 @@ again 5 seconds after it fails.
   SIGHUP does on Linux (and `n3n-be-ctl reload`).
 - `n3n-be.exe edge service uninstall [session]` stops and removes it; the
   configuration and the log stay.
+
+### Changing the configuration
+
+The service reads `%ProgramData%\n3n-be\edge.conf` only - a file you
+change elsewhere, on the desktop say, is not seen.  Two commands change
+it, as administrator (the tray app's Configuration menu runs them, see
+below, and Windows asks):
+
+```
+n3n-be.exe edge service import FILE [session]    # FILE as the configuration
+n3n-be.exe edge service edit [session]           # it in Notepad
+```
+
+Either way the edge loads the new configuration as at its start and
+checks it before it is taken: one it would not start with - no community
+or supernode, say - is not, and neither is one with an option it does not
+know (`adress = ...`), which the edge would leave aside without a word;
+it says why, with the line.  Once taken, the one before stays as
+`edge.conf.old`, and the service starts anew with it if it runs - a
+reload does not take all of a configuration.  One without a management
+password of its own keeps the service's, so that the tray app still
+reaches it.  `edit` opens a copy in Notepad (as administrator) and takes
+it once you have saved it and said OK.
+
+Who is no administrator can neither read the configuration, with the
+community's key, nor change it: on a computer that several people use,
+only an administrator's password lets one change it.  An imported file
+stays where it was, with the key in it: the tray app offers to delete it.
 
 To send all of the computer's traffic through another edge, as the
 Android app's "Route all traffic through a peer" does, three lines in the
@@ -208,8 +238,12 @@ in, not as an administrator, as a client of the service's management port.
   the log is for administrators only), and "Start with Windows" (the
   tray, at login: `HKCU\...\Run`).
 - Without a service, "Install the service..." runs `service install` as
-  administrator (Windows asks), after asking for a configuration file if
-  there is none in `%USERPROFILE%\n3n-be` yet.
+  administrator (Windows asks), after importing a configuration file it
+  asks for if there is none yet.
+- Configuration: "Import a file..." imports one (`service import`), and
+  offers to delete the file then; "Edit..." opens it in Notepad (`service
+  edit`); "Import from a QR code..." takes one from a QR code, see below.
+  Each runs as administrator: Windows asks.
 - Without `wintun.dll` next to `n3n-be.exe`, "Get Wintun - no TAP driver
   needed..." runs `wintun get` as administrator, see "Wintun" above.
 - Help: "Help for this version (offline)" opens these docs from the
@@ -230,3 +264,21 @@ typed in for another user is not.  `service uninstall` removes the
 An edge in a console answers the tray too, on the default port and with
 the default password, or with what a `.tray` file of the session says;
 Connect and Disconnect are for the service only.
+
+### A configuration from a QR code
+
+The QR codes that `n3n-qr` makes for the Android app (see
+[Tools](../Tools.md)) work on Windows too, with a webcam: Windows' own
+Camera app reads QR codes, on Windows 10 and 11.  "Import from a QR code..."
+opens it; in its barcode mode ("Scan a QR or barcode"), hold the code up
+to the camera - on paper, or on a phone's screen - and click the text it
+shows, which copies it.  The tray takes it from the clipboard (for 5
+minutes after the menu item), clears the clipboard, asks for the PIN if
+the code is sealed with one (`n3n-qr -P`), says which community and
+supernode it is for, and imports it - after a look at it in Notepad, where
+it can be changed, if you say so.  Any other QR reader that copies the text
+does too.
+
+Windows' clipboard history (Win+V), if it is switched on, keeps what was
+copied - the configuration with its key, if the code is not sealed: delete
+it there.  A sealed code keeps only the sealed text there.

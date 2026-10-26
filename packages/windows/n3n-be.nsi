@@ -6,7 +6,9 @@
 ; Program Files, with the docs as their help, Start menu entries and an
 ; entry in "Apps" with the uninstaller; optionally starts the tray app with
 ; Windows, gets Wintun where there is no TAP driver, and installs the edge
-; as a service (asking for a configuration if there is none).
+; as a service (asking for a configuration if there is none, which it
+; imports into %ProgramData%\n3n-be; "setup.exe /S /CONF=FILE" for one
+; without asking).
 ;
 ; It knows earlier installs, its own and the zip's: it stops the services
 ; and closes the tray apps before it replaces the programs, points services
@@ -346,10 +348,14 @@ Section "Edge as a service" SecService
   ; one installed before goes on below, with its own configuration
   ReadRegStr $R0 HKLM "${SERVICES_KEY}\n3n-be-edge" "ImagePath"
   StrCmp $R0 "" 0 done
+  ; into %ProgramData%\n3n-be, for administrators only, if the edge can
+  ; start with it - no copy of it, with the community's key, elsewhere
   ${If} $ConfFile != ""
-  ${AndIfNot} ${FileExists} "$PROFILE\n3n-be\edge.conf"
-    CreateDirectory "$PROFILE\n3n-be"
-    CopyFiles /SILENT "$ConfFile" "$PROFILE\n3n-be\edge.conf"
+    DetailPrint "importing $ConfFile"
+    nsExec::ExecToLog '"$INSTDIR\n3n-be.exe" edge service import "$ConfFile" edge'
+    Pop $R0
+    StrCmp $R0 0 +2
+    DetailPrint "$ConfFile is not taken: the tray's Configuration, $\"Import a file...$\" tries again"
   ${EndIf}
   ${If} ${FileExists} "$PROFILE\n3n-be\edge.conf"
   ${OrIf} ${FileExists} "$ProgramData\n3n-be\edge.conf"
@@ -433,7 +439,7 @@ Function ConfPage
       supernode - an edge.conf as one of your community gave it to you, or edge.conf.sample filled in.$\r$\n$\r$\n\
       Without one, leave this empty: the tray app's $\"Install the service...$\" asks for it later."
   Pop $R0
-  ${NSD_CreateText} 0 54u 78% 13u ""
+  ${NSD_CreateText} 0 54u 78% 13u "$ConfFile"
   Pop $ConfField
   ${NSD_CreateBrowseButton} 80% 53u 20% 15u "Browse..."
   Pop $R0
@@ -466,6 +472,12 @@ Function .onInit
   ${EndIf}
   SetRegView 64
   ReadEnvStr $ProgramData "ProgramData"
+  ; /CONF=FILE: the configuration of the service, as its page would take it
+  ClearErrors
+  ${GetOptions} $CMDLINE "/CONF=" $R0
+  ${IfNot} ${Errors}
+    StrCpy $ConfFile $R0
+  ${EndIf}
 
   ; an install before: there again, and whether this is older
   ReadRegStr $R0 HKLM "${UNINST_KEY}" "InstallLocation"

@@ -79,6 +79,15 @@ the Services app) stop and start it - a stop takes back what the edge
 set up, as Ctrl-C does -, "sc control n3n-be-edge paramchange" reloads
 its configuration, and "n3n-be.exe edge service uninstall" removes it.
 
+The service reads only its own copy in %ProgramData%\n3n-be: to change it,
+
+    n3n-be.exe edge service import FILE     (FILE as its configuration)
+    n3n-be.exe edge service edit            (it in Notepad)
+
+as administrator - or the tray app's Configuration menu.  Either checks
+it first - as the edge would, and for options it does not know (a typo) -,
+keeps the one before as edge.conf.old, and starts the service anew.
+
 The tray app
 ------------
 
@@ -89,8 +98,11 @@ Its menu connects and disconnects, routes all traffic through one of the
 peers ("Route all traffic through"), opens the web page and the log, and
 starts the tray with Windows; without a service, "Install the service..."
 does the above (Windows asks for an administrator), and without
-wintun.dll, "Get Wintun" fetches it.  Help opens the documentation, the
-one in the docs folder or the newest online.  It runs as the user,
+wintun.dll, "Get Wintun" fetches it.  Configuration imports one from a
+file or from a QR code (Windows' Camera app reads it and copies its text,
+the tray takes it from the clipboard), or opens it in Notepad; Windows
+asks for an administrator.  Help opens the documentation, the one in the
+docs folder or the newest online.  It runs as the user,
 not as administrator: "service install" lets the user who installs the
 service start and stop it, and leaves a management password for the tray
 in %USERPROFILE%\n3n-be\edge.tray - so install it as the user who uses

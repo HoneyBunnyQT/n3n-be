@@ -10,7 +10,9 @@
 # app's start at login pointing there - which it has to point at the
 # installed program and take over; again over itself; an older version that
 # has to refuse; and the uninstaller, which has to leave the configurations
-# and nothing else.
+# and nothing else.  Then a fresh install with /CONF=FILE: the file imported
+# into %ProgramData%\n3n-be, no copy of it in the user's profile, the service
+# installed with it.
 #
 #   tests/windows/installer.sh [directory with n3n-be.exe, n3n-be-tray.exe]
 
@@ -133,6 +135,30 @@ check "uninstall: Apps" $? "gone"
 [ -f "$MACHINE/$SESSION.conf" ]
 check "uninstall: the configuration" $? "$MACHINE/$SESSION.conf stays"
 
+# a fresh install, with the configuration of the service given
+printf '[community]\nname = conftest\nkey = conftest-secret\nsupernode = 127.0.0.1:7658\n[management]\nport = 5653\n' \
+    >"$WORK/conftest.conf"
+rm -f "$MACHINE/edge.conf" "$PROFILE/n3n-be/edge.conf"
+"$WORK/setup.exe" //S "/CONF=$(cygpath -w "$WORK/conftest.conf")"
+check "install with /CONF" $? "exit code"
+tr -d '\r' <"$MACHINE/edge.conf" 2>/dev/null | grep -qx "name = conftest"
+check "install with /CONF: imported" $? "$MACHINE/edge.conf"
+[ ! -e "$PROFILE/n3n-be/edge.conf" ]
+check "install with /CONF: no copy" $? "none in $PROFILE/n3n-be"
+sc.exe query n3n-be-edge >/dev/null 2>&1
+check "install with /CONF: the service" $? "n3n-be-edge"
+port=$(tr -d '\r' <"$PROFILE/n3n-be/edge.tray" 2>/dev/null | sed -n 's/^port = //p')
+[ "$port" = 5653 ]
+check "install with /CONF: tray file" $? "port ${port:-none}"
+"$INSTDIR/uninstall.exe" //S
+for _ in $(seq 30); do
+    [ -e "$INSTDIR" ] || break
+    sleep 1
+done
+! sc.exe query n3n-be-edge >/dev/null 2>&1
+check "install with /CONF: uninstalled" $? "n3n-be-edge is gone"
+
 rm -f "$PROFILE/n3n-be/$SESSION.conf" "$MACHINE/$SESSION.conf" "$MACHINE/$SESSION.log" "$MACHINE/$SESSION.log.old"
+rm -f "$MACHINE/edge.conf" "$MACHINE/edge.conf.old" "$MACHINE/edge.log" "$MACHINE/edge.log.old"
 rm -rf "$WORK"
 exit "$failed"
