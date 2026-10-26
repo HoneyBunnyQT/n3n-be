@@ -9,14 +9,16 @@
  * peer, an amber ring when it runs but does not answer -, and its menu
  * connects and disconnects (starts and stops the service), routes all
  * traffic through one of the peers or none, opens the web page and the
- * log, installs the service and starts the tray with Windows.
+ * log, installs the service, gets Wintun - wintun.dll from wintun.net, for
+ * an adapter without a TAP driver to install, see n3n-wintun.c - and starts
+ * the tray with Windows.
  *
  * It runs as the user, not as an administrator: a client of the management
  * API (mgmt_client.h) on the edge's port, with the port and password that
  * "service install" leaves in %USERPROFILE%\n3n-be\SESSION.tray, and of the
  * service manager, where that install lets this user start and stop the
  * service (see n3n-service.c).  What needs an administrator - installing,
- * the log - asks Windows to elevate.
+ * getting Wintun, the log - asks Windows to elevate.
  */
 
 #ifndef _WIN32_WINNT
@@ -53,6 +55,7 @@ enum {
     CMD_PAGE,
     CMD_LOG,
     CMD_INSTALL,
+    CMD_WINTUN,
     CMD_AUTOSTART,
     CMD_QUIT,
     CMD_EXIT_PEER,              // and the peers after it
@@ -334,11 +337,12 @@ static DWORD WINAPI set_gateway (LPVOID arg) {
 }
 
 
-static void run_elevated (const wchar_t *file, const wchar_t *params) {
+// process: where its handle goes, NULL if not wanted
+static void run_elevated (const wchar_t *file, const wchar_t *params, HANDLE *process) {
 
     SHELLEXECUTEINFOW sei = { sizeof(sei) };
 
-    sei.fMask = SEE_MASK_NOASYNC;
+    sei.fMask = SEE_MASK_NOASYNC | (process ? SEE_MASK_NOCLOSEPROCESS : 0);
     sei.hwnd = window;
     sei.lpVerb = L"runas";
     sei.lpFile = file;
@@ -346,6 +350,9 @@ static void run_elevated (const wchar_t *file, const wchar_t *params) {
     sei.nShow = SW_SHOWNORMAL;
     if(!ShellExecuteExW(&sei) && (GetLastError() != ERROR_CANCELLED)) {
         note(L"%ls could not be started [%lu]", file, GetLastError());
+    }
+    if(process) {
+        *process = sei.hProcess;
     }
 }
 
@@ -373,7 +380,7 @@ static void start_stop (bool start) {
         wchar_t params[120];
 
         swprintf(params, 120, L"%ls %hs", start ? L"start" : L"stop", service_name);
-        run_elevated(L"sc.exe", params);
+        run_elevated(L"sc.exe", params, NULL);
     } else if(err && (err != ERROR_SERVICE_ALREADY_RUNNING) && (err != ERROR_SERVICE_NOT_ACTIVE)) {
         note(L"the service could not be %ls [%lu]", start ? L"started" : L"stopped", err);
     }
@@ -435,8 +442,68 @@ static void install (void) {
     }
     // cmd takes off the outer quotes
     swprintf(cmd, 2 * MAX_PATH + 200, L"/c \"\"%ls\" edge service install %hs & pause\"", exe, session);
-    run_elevated(L"cmd.exe", cmd);
+    run_elevated(L"cmd.exe", cmd, NULL);
     SetEvent(wake);
+}
+
+
+// wintun.dll next to n3n-be.exe: an edge without a TAP adapter takes a
+// Wintun adapter then
+static bool wintun_there (void) {
+
+    wchar_t path[MAX_PATH];
+    wchar_t *base;
+
+    if(!program(path, MAX_PATH)) {
+        return false;
+    }
+    base = wcsrchr(path, L'\\');
+    wcscpy(base ? base + 1 : path, L"wintun.dll");
+    return GetFileAttributesW(path) != INVALID_FILE_ATTRIBUTES;
+}
+
+
+// Once "wintun get" is done: a stopped service again, as it may have
+// stopped for want of an adapter
+static DWORD WINAPI after_wintun (LPVOID arg) {
+
+    HANDLE process = arg;
+    DWORD state;
+
+    WaitForSingleObject(process, INFINITE);
+    CloseHandle(process);
+    if(!wintun_there()) {
+        note(L"wintun.dll is not there: the console window said why");
+    } else if(service_state(&state) && (state == SERVICE_STOPPED)) {
+        start_stop(true);
+    }
+    SetEvent(wake);
+    return 0;
+}
+
+
+// "n3n-be.exe edge wintun get", elevated (the program's directory may be
+// one of Program Files), in a console that stays until a key is pressed:
+// wintun.dll from wintun.net, checked, next to n3n-be.exe
+static void get_wintun (void) {
+
+    wchar_t exe[MAX_PATH], cmd[MAX_PATH + 100];
+    HANDLE process = NULL, t;
+
+    if(!program(exe, MAX_PATH)) {
+        note(L"n3n-be.exe is not next to n3n-be-tray.exe");
+        return;
+    }
+    // cmd takes off the outer quotes
+    swprintf(cmd, MAX_PATH + 100, L"/c \"\"%ls\" edge wintun get & pause\"", exe);
+    run_elevated(L"cmd.exe", cmd, &process);
+    if(process) {
+        if((t = CreateThread(NULL, 0, after_wintun, process, 0, NULL))) {
+            CloseHandle(t);
+        } else {
+            CloseHandle(process);
+        }
+    }
 }
 
 
@@ -446,7 +513,7 @@ static void show_log (void) {
     wchar_t log[MAX_PATH + 80];
 
     swprintf(log, MAX_PATH + 80, L"\"%ls\\n3n-be\\%hs.log\"", pd ? pd : L"C:\\ProgramData", session);
-    run_elevated(L"notepad.exe", log);
+    run_elevated(L"notepad.exe", log, NULL);
 }
 
 
@@ -714,6 +781,9 @@ static void menu (int x, int y) {
     } else {
         AppendMenuW(m, MF_STRING, CMD_INSTALL, L"&Install the service...");
     }
+    if(!wintun_there()) {
+        AppendMenuW(m, MF_STRING, CMD_WINTUN, L"Get Win&tun - no TAP driver needed...");
+    }
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
     AppendMenuW(m, MF_STRING | (autostart() ? MF_CHECKED : 0), CMD_AUTOSTART, L"&Start with Windows");
     AppendMenuW(m, MF_STRING, CMD_QUIT, L"&Quit");
@@ -751,6 +821,9 @@ static void menu (int x, int y) {
             break;
         case CMD_INSTALL:
             install();
+            break;
+        case CMD_WINTUN:
+            get_wintun();
             break;
         case CMD_AUTOSTART:
             toggle_autostart();
