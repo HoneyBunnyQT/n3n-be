@@ -142,13 +142,15 @@ printf '[community]\nname = svctest\nkey = svctest-secret\nsupernode = 127.0.0.1
 printf '[community]\nname = svctest\nkey = svctest-secret\nsupernode = 127.0.0.1:7655\n[management]\nport = 5652\n' \
     >"$WORK/new.conf"
 before=$(md5sum <"$MACHINE/$SESSION.conf")
-out=$("$EXE" edge service import "$(cygpath -w "$WORK/typo.conf")" "$SESSION" 2>&1 | tr -d '\r')
-code=${PIPESTATUS[0]}
+out=$("$EXE" edge service import "$(cygpath -w "$WORK/typo.conf")" "$SESSION" 2>&1)
+code=$?
+out=$(echo "$out" | tr -d '\r')
 echo "$out"
 [ "$code" = 4 ] && echo "$out" | grep -q "typo.conf:6" && [ "$(md5sum <"$MACHINE/$SESSION.conf")" = "$before" ]
 check "import: a typo" $? "exit code $code, the configuration stays"
-out=$("$EXE" edge service import "$(cygpath -w "$WORK/new.conf")" "$SESSION" 2>&1 | tr -d '\r')
-code=${PIPESTATUS[0]}
+out=$("$EXE" edge service import "$(cygpath -w "$WORK/new.conf")" "$SESSION" 2>&1)
+code=$?
+out=$(echo "$out" | tr -d '\r')
 echo "$out"
 [ "$code" = 0 ] && tr -d '\r' <"$MACHINE/$SESSION.conf" | grep -q "^port = 5652" && [ -f "$MACHINE/$SESSION.conf.old" ]
 check "import" $? "exit code $code, port 5652 in $MACHINE/$SESSION.conf, the one before as .conf.old"
