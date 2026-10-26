@@ -45,6 +45,9 @@
 #define PAGE_ROWS_MAX 250
 
 
+// the docs online, as the Windows tray app's "Online help" (pages.yml)
+#define N3N_HELP_URL "https://honeybunnyqt.github.io/n3n-be/"
+
 static const char page_style[] =
     ":root{--bg:#f6f7f9;--fg:#1d2330;--card:#fff;--line:#dde1e7;--dim:#667085;"
     "--ok:#1a7f37;--warn:#9a6700;--info:#0969da;--bad:#cf222e}"
@@ -639,7 +642,8 @@ void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_run
     html_text(b, rt->conf.sessionname ? rt->conf.sessionname : "", 64);
     sb_reprintf(b, "</small></h1>\n<span>%s | up %s | version %s</span>\n"
                 "<nav><a href=\"/\">refresh</a> | <a href=\"/metrics\">metrics</a> | "
-                "<a href=\"/help\">API</a></nav>\n</header>\n<main>\n",
+                "<a href=\"/help\">API</a> | "
+                "<a href=\"" N3N_HELP_URL "\">help</a></nav>\n</header>\n<main>\n",
                 roles, uptime(up, sizeof(up), now, rt->start_time), VERSION);
 
     // what the whole process does: the log, stopping it
