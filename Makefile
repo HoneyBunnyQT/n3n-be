@@ -410,8 +410,8 @@ test.fuzz: fuzz
 test.netns.full: apps fuzz	# needs apps, and fuzz-spray
 	$(NETNS_RUN) $(NETNS_ARGS)
 
-.PHONY: lint lint.python lint.ccode lint.shell lint.yaml lint.man
-lint: lint.python lint.ccode lint.shell lint.yaml lint.man
+.PHONY: lint lint.python lint.ccode lint.shell lint.yaml lint.man lint.docs
+lint: lint.python lint.ccode lint.shell lint.yaml lint.man lint.docs
 
 lint.python:
 	flake8 \
@@ -432,6 +432,15 @@ lint.shell:
 
 lint.yaml:
 	yamllint .
+
+# the docs as a website (mkdocs.yml), where mkdocs is there: --strict fails
+# on a link to a page or an anchor that is not there.  The Windows zip has
+# them as its help, and GitHub Pages online, see pages.yml
+lint.docs:
+	@if command -v mkdocs >/dev/null; then \
+	    d=$$(mktemp -d) && mkdocs build --strict --site-dir "$$d"; \
+	    rc=$$?; rm -rf "$$d"; exit $$rc; \
+	else echo "no mkdocs, the docs are not checked"; fi
 
 # the man pages, where groff is there to check them
 lint.man:

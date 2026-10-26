@@ -213,6 +213,11 @@ jobs:
           sudo cp /tmp/uncrustify/build/uncrustify /usr/local/bin/
           uncrustify --version
 
+      # as pages.yml and release.yml build the docs
+      - name: Install mkdocs 1.6.1
+        run: |
+          pip install mkdocs==1.6.1
+
       - name: Run the lint tools
         run: |
           make lint
