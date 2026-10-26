@@ -1,0 +1,103 @@
+/*
+ * SPDX-License-Identifier: AGPL-3.0-only
+ * SPDX-FileCopyrightText: Copyright Honey Bunny QT
+ *
+ * The docs (mkdocs' readthedocs theme) in the look of the management page
+ * (src/management_page.c, page_style): its colours, light and dark, its
+ * system fonts, cards on a grey ground; the pink of the Windows tray's icon
+ * and the Android app marks where one is.
+ */
+
+:root {
+    --bg: #f6f7f9; --fg: #1d2330; --card: #fff; --line: #dde1e7; --dim: #667085;
+    --info: #0969da; --bad: #cf222e; --pink: #c2185b; --code: #eef1f5;
+}
+@media (prefers-color-scheme: dark) {
+    :root {
+        --bg: #0f1218; --fg: #e6e9ef; --card: #181c24; --line: #2b313c; --dim: #9aa3b2;
+        --info: #58a6ff; --bad: #f85149; --pink: #f06292; --code: #222834;
+    }
+}
+
+body, .wy-body-for-nav, .wy-nav-content-wrap, .wy-nav-content, .rst-content,
+.wy-menu-vertical a, .btn, input {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+body, .wy-body-for-nav, .wy-nav-content-wrap { background: var(--bg); color: var(--fg); }
+
+/* the content: a card, as the page's sections */
+.wy-nav-content {
+    background: var(--card); color: var(--fg); max-width: 60rem;
+    margin: 1rem; border: 1px solid var(--line); border-radius: .6rem;
+}
+.rst-content h1, .rst-content h2, .rst-content h3, .rst-content h4 {
+    font-family: inherit; color: var(--fg); font-weight: 600;
+}
+.rst-content h1 { font-size: 1.6rem; }
+.rst-content h2 { font-size: 1.3rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+.rst-content h3 { font-size: 1.1rem; }
+a, a:visited, .rst-content a, .wy-breadcrumbs a { color: var(--info); }
+.wy-breadcrumbs, .wy-breadcrumbs-aside a, .rst-footer-buttons, footer { color: var(--dim); }
+hr { border-color: var(--line); }
+
+/* code: the page's monospace, quiet */
+code, pre, .rst-content code, .rst-content pre code, kbd {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+.rst-content code, code {
+    color: var(--fg); background: var(--code); border: 1px solid var(--line);
+    border-radius: .3rem; font-size: .85em;
+}
+.rst-content pre, pre {
+    background: var(--code); border: 1px solid var(--line); border-radius: .4rem;
+}
+.rst-content pre code, pre code { border: 0; background: none; }
+
+/* tables as on the page */
+.rst-content table, .wy-table, table.docutils {
+    border-collapse: collapse; border: 0; font-size: .9rem;
+}
+.rst-content table th, .rst-content table td, table.docutils th, table.docutils td {
+    border: 0; border-bottom: 1px solid var(--line); background: transparent;
+    padding: .3rem .6rem; color: var(--fg);
+}
+.rst-content table th, table.docutils th { color: var(--dim); font-weight: 500; }
+.rst-content table tr:nth-child(2n-1) td, .wy-table-odd td { background: transparent; }
+
+/* the side: the page's ground, the current page marked in pink */
+.wy-nav-side, .wy-side-scroll { background: var(--bg); border-right: 1px solid var(--line); }
+.wy-side-nav-search {
+    background: var(--bg); color: var(--fg); border-bottom: 2px solid var(--pink);
+}
+.wy-side-nav-search > a, .wy-side-nav-search .wy-dropdown > a { color: var(--fg); font-weight: 600; }
+.wy-side-nav-search input[type=text] {
+    border: 1px solid var(--line); background: var(--card); color: var(--fg); border-radius: .4rem;
+}
+.wy-menu-vertical a, .wy-menu-vertical li.toctree-l1 > a { color: var(--fg); }
+.wy-menu-vertical a:hover { background: var(--card); color: var(--fg); }
+.wy-menu-vertical header, .wy-menu-vertical p.caption { color: var(--dim); }
+.wy-menu-vertical li.current, .wy-menu-vertical li.current a,
+.wy-menu-vertical li.toctree-l2.current > a, .wy-menu-vertical li.toctree-l2.current li.toctree-l3 > a,
+.wy-menu-vertical li.toctree-l3.current > a, .wy-menu-vertical li.toctree-l3.current li.toctree-l4 > a {
+    background: var(--card); color: var(--fg); border-color: var(--line);
+}
+.wy-menu-vertical li.current > a, .wy-menu-vertical li.on a {
+    border-left: 3px solid var(--pink); font-weight: 600; background: var(--card);
+}
+.wy-menu-vertical li.current > a:hover { background: var(--card); }
+
+/* the bar on narrow screens, and the one at the bottom of the side */
+.wy-nav-top { background: var(--card); color: var(--fg); border-bottom: 2px solid var(--pink); }
+.wy-nav-top a { color: var(--fg); }
+.rst-versions, .rst-versions .rst-current-version {
+    background: var(--card); color: var(--dim); border-top: 1px solid var(--line);
+}
+.rst-versions *, .rst-versions .rst-current-version span { color: var(--dim); }
+/* the theme gives these links their colour inline: only !important wins */
+.rst-versions a, .rst-versions .rst-current-version a { color: var(--info) !important; }
+
+/* buttons: Previous, Next */
+.btn-neutral, .btn-neutral:visited {
+    background: var(--card) !important; color: var(--fg) !important;
+    border: 1px solid var(--line); border-radius: .4rem; box-shadow: none;
+}

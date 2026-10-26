@@ -1,7 +1,14 @@
 ---
 
 site_name: 'n3n-be: a peer-to-peer VPN'
-theme: readthedocs
+# readthedocs, in the look of the management page (docs/css/n3n-be.css);
+# without highlight.js, which would come from a CDN: the docs are the
+# Windows zip's help too, offline, and load nothing from elsewhere
+theme:
+  name: readthedocs
+  highlightjs: false
+extra_css:
+  - css/n3n-be.css
 
 repo_url: https://github.com/HoneyBunnyQT/n3n-be
 edit_uri: https://github.com/HoneyBunnyQT/n3n-be/blob/main/docs/
