@@ -101,6 +101,10 @@ check "install again: the same password" $? "$(echo "$out" | grep -i password)"
 # an entry with the rights to start and stop it besides SYSTEM's: the
 # user's (as SDDL names it, "LA" for the runner's account, the
 # computer's Administrator, a SID otherwise)
+rule=$(netsh advfirewall firewall show rule name="$NAME" verbose 2>&1 | tr -d '\r')
+echo "$rule" | grep -qi "n3n-be.exe" && echo "$rule" | grep -qi "Allow"
+check "install: firewall rule" $? "$(echo "$rule" | grep -i -e "Program" -e "Action" | tr -s ' ' | tr '\n' ' ')"
+
 sd=$(sc.exe sdshow "$NAME" | tr -d '\r\n ')
 echo "$sd" | grep -o '(A;;CCLCSWRPWPDTLOCRRC;;;[^)]*)' | grep -qv ';SY)'
 check "install: this user may start and stop it" $? "$sd"
@@ -140,6 +144,8 @@ check "stop: stays stopped" $? "state $(state) 8s later, not started again"
 "$EXE" edge service uninstall "$SESSION"
 ! sc.exe query "$NAME" >/dev/null 2>&1
 check "uninstall" $? "the service is gone"
+! netsh advfirewall firewall show rule name="$NAME" >/dev/null 2>&1
+check "uninstall: firewall rule" $? "gone"
 
 if [ "$failed" != 0 ]; then
     echo "--- $MACHINE/$SESSION.log"

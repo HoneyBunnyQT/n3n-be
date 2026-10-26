@@ -12,6 +12,9 @@
  * manager that it runs once it does, through the hook of notify.h - as
  * systemd's Type=notify on Linux, where the units do the rest of this.
  *
+ * The install also lets what comes to the edge unasked through Windows'
+ * firewall, by a rule of the service's name.
+ *
  * For the tray app (n3n-be-tray.c), which runs as the user who installed the
  * service: that user may start and stop it, and finds the management port
  * and password in %USERPROFILE%\n3n-be\SESSION.tray - a random password of
@@ -204,6 +207,32 @@ static void tray_file (int port, const char *password) {
 }
 
 
+// What comes to the edge unasked - a peer on the same network that finds it
+// by multicast, a peer that punches first, an exit peer's answers - passes
+// Windows' firewall: a rule for the program, named as the service.  A
+// console edge gets Windows' question instead, a service none, and so
+// without the rule its peers would fall back to the supernode unseen.
+// exe NULL: the rule goes.  netsh, as route_all.c sets DNS with it.
+static void firewall (const char *exe) {
+
+    char cmd[2 * MAX_PATH + 200];
+
+    // a rule of an earlier install, whose program may have been elsewhere
+    snprintf(cmd, sizeof(cmd), "netsh advfirewall firewall delete rule name=\"%s\" > nul 2>&1", service_name);
+    system(cmd);
+    if(!exe) {
+        return;
+    }
+    snprintf(cmd, sizeof(cmd), "netsh advfirewall firewall add rule name=\"%s\" dir=in action=allow "
+             "program=\"%s\" enable=yes profile=any > nul", service_name, exe);
+    if(system(cmd) != 0) {
+        printf("the firewall rule %s failed: peers that come unasked do not get through\n", service_name);
+    } else {
+        printf("firewall: a rule %s lets what comes to the edge through\n", service_name);
+    }
+}
+
+
 // This user - the one installing it - may start, stop and reload it, as
 // the tray app does, without being an administrator
 static void grant_user (SC_HANDLE svc) {
@@ -305,6 +334,7 @@ static int install (void) {
     ChangeServiceConfig2A(svc, SERVICE_CONFIG_FAILURE_ACTIONS_FLAG, &flag);
     grant_user(svc);
     tray_file(port, password);
+    firewall(exe);
 
     printf("installed: %s, which starts at boot; its configuration is %s, its log %s\\%s.log\n",
            service_name, conf, dir, session);
@@ -354,6 +384,7 @@ static int uninstall (void) {
         return 1;
     }
     printf("uninstalled %s; its configuration and log stay in %%ProgramData%%\\n3n-be\n", service_name);
+    firewall(NULL);
     // the tray app's password for it goes with it
     const char *profile = getenv("USERPROFILE");
     if(profile) {
