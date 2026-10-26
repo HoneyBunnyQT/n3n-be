@@ -787,10 +787,13 @@ static struct n3n_conf_option section_tuntap[] = {
                 "changes and TUN and TAP edges share a community.  For "
                 "systems that offer only TUN devices: Android, and macOS, "
                 "where it is the system's own utun device (a TAP device "
-                "needs a third-party driver there).  IPv6 with "
-                "tuntap.address6, the edge then doing neighbour discovery "
-                "as it does ARP.  No bridging, no dhcp address_mode, one "
-                "thread.  Linux and macOS.",
+                "needs a third-party driver there).  On Windows (64 bit) a "
+                "Wintun adapter of the edge's own, with wintun.dll from "
+                "wintun.net next to the program instead of a TAP driver to "
+                "install.  IPv6 with tuntap.address6 (not yet on Windows), "
+                "the edge then doing neighbour discovery as it does ARP.  "
+                "No bridging, no dhcp address_mode, one thread.  Linux, "
+                "macOS and Windows.",
     },
     {
         .name = "gateway",
@@ -899,7 +902,9 @@ static struct n3n_conf_option section_tuntap[] = {
         .help = "On Linux, this creates a new TAP device with this name. And "
                 "defaults to the sessionname. "
                 "On Windows, this selects an already installed TAP adaptor "
-                "that matches this name.  On macOS with tuntap.type = tun, "
+                "that matches this name; with tuntap.type = tun it names "
+                "the edge's Wintun adapter, n3n-be-<sessionname> by "
+                "default.  On macOS with tuntap.type = tun, "
                 "utunN asks for that utun device, any other name for the "
                 "next free one.  On other operating systems, it is "
                 "ignored.",

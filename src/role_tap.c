@@ -168,6 +168,9 @@ static bool frames_may_pass (struct n3n_runtime_data *eee) {
         return false;
     }
 #ifdef _WIN32
+    if(eee->tap.device.wintun) {
+        return true;
+    }
     return (eee->tap.device.device_handle != NULL)
            && (eee->tap.device.device_handle != INVALID_HANDLE_VALUE);
 #else

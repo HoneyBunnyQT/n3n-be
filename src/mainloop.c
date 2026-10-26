@@ -47,6 +47,9 @@
 #include "netwatch.h"           // for netwatch_read
 #include "notify.h"             // for n3n_notify_tick
 #include "reload.h"             // for n3n_reload_pending
+#ifdef _WIN32
+#include "win32/wintun.h"       // for wintun_ready_begin, wintun_ready_end
+#endif
 #include "sock.h"               // for udp_drain
 #include "role_client.h"        // for edge_network_change
 #include "minmax.h"             // for min, max
@@ -778,7 +781,14 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
             // read ethernet frames from the TAP socket; write on the IP
             // socket
             // TODO: change API to tell it which fd
+#ifdef _WIN32
+            // a Wintun adapter's wake, see wintun.c
+            wintun_ready_begin(&eee->tap.device);
             edge_read_from_tap_batch(eee, FD_DRAIN_MAX);
+            wintun_ready_end(&eee->tap.device);
+#else
+            edge_read_from_tap_batch(eee, FD_DRAIN_MAX);
+#endif
             return;
 
         case fd_info_proto_listen_http: {

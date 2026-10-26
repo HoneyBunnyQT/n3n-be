@@ -6,8 +6,11 @@
 #include <iphlpapi.h>   // for GetAdaptersInfo
 #include <n3n/logging.h>             // for traceEvent
 
+#include <stdbool.h>
+
 #include "n2n.h"
 #include "n2n_win32.h"
+#include "wintun.h"             // for wintun_open
 
 /* ***************************************************** */
 
@@ -458,6 +461,9 @@ int tuntap_read (struct tuntap_dev *tuntap, unsigned char *buf, int len)
     DWORD read_size;
     int last_err;
 
+    if(tuntap->wintun) {
+        return wintun_read(tuntap, buf, len);
+    }
     ResetEvent(tuntap->overlap_read.hEvent);
     if(ReadFile(tuntap->device_handle, buf, len, &read_size, &tuntap->overlap_read)) {
         //printf("tun_read(len=%d)\n", read_size);
@@ -481,6 +487,10 @@ int tuntap_read (struct tuntap_dev *tuntap, unsigned char *buf, int len)
 int tuntap_write (struct tuntap_dev *tuntap, unsigned char *buf, int len)
 {
     DWORD write_size;
+
+    if(tuntap->wintun) {
+        return wintun_write(tuntap, buf, len);
+    }
 
     //printf("tun_write(len=%d)\n", len);
 
@@ -516,12 +526,27 @@ int tuntap_open (struct tuntap_dev *device,
                  const char * device_mac,
                  int mtu,
                  int metric) {
+    // tuntap.type = tun: a Wintun adapter, named as the session's edge
+    if(device->tun) {
+        bool tun = device->tun;
+
+        memset(device, 0, sizeof(*device));
+        device->tun = tun;
+        device->device_handle = INVALID_HANDLE_VALUE;
+        device->if_idx = -1;
+        return wintun_open(device, dev[0] ? dev : "n3n-be", v4subnet, device_mac, mtu, metric);
+    }
     return(open_wintap(device, dev, address_mode, v4subnet, device_mac, mtu, metric));
 }
 
 /* ************************************************ */
 
 void tuntap_close (struct tuntap_dev *tuntap) {
+
+    if(tuntap->wintun) {
+        wintun_close(tuntap);
+        return;
+    }
 
 #ifdef _WIN64
     /* See comment in open_wintap for notes about this ifdef */

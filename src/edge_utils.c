@@ -67,6 +67,7 @@
 #include <direct.h>                  // for _mkdir
 
 #include "win32/edge_utils_win32.h"
+#include "win32/wintun.h"           // for wintun_wake_fd
 #else
 #include <arpa/inet.h>               // for inet_ntoa, inet_addr, inet_ntop
 #include <netdb.h>                   // for EAFNOSUPPORT
@@ -325,8 +326,8 @@ int edge_verify_conf (const n2n_edge_conf_t *conf) {
         return -4;
 
     if(conf->tap.type == N3N_TUNTAP_TUN) {
-#if !defined(__linux__) && !defined(__APPLE__)
-        traceEvent(TRACE_ERROR, "tuntap.type = tun works on Linux and macOS only so far");
+#if !defined(__linux__) && !defined(__APPLE__) && !defined(_WIN32)
+        traceEvent(TRACE_ERROR, "tuntap.type = tun works on Linux, macOS and Windows only so far");
         return -6;
 #endif
         if(conf->tap.tuntap_ip_mode == TUNTAP_IP_MODE_DHCP) {
@@ -587,6 +588,16 @@ struct n3n_runtime_data* edge_init (const n2n_edge_conf_t *conf, int *rv) {
 
 #ifdef _WIN32
     // TODO: more investigations in interface naming/renaming on windows
+    // (with TAP, the name picks an installed adapter); a Wintun adapter is
+    // the edge's own, named after the session
+    if((eee->conf.tap.type == N3N_TUNTAP_TUN) && (eee->conf.tap.tuntap_dev_name[0] == 0)) {
+        snprintf(
+            eee->conf.tap.tuntap_dev_name,
+            sizeof(eee->conf.tap.tuntap_dev_name),
+            "n3n-be-%s",
+            conf->sessionname
+        );
+    }
 #else
     if(eee->conf.tap.tuntap_dev_name[0] == 0) {
         snprintf(
@@ -1516,9 +1527,11 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
     sock_gso_allow(eee->conf.udp_gso);
 
 #ifdef _WIN32
+    // a TAP adapter is read on a thread of its own; a Wintun adapter wakes
+    // the main loop, see wintun.c
     struct tunread_arg arg;
     arg.eee = eee;
-    HANDLE tun_read_thread = startTunReadThread(&arg);
+    HANDLE tun_read_thread = eee->tap.device.wintun ? NULL : startTunReadThread(&arg);
 #endif
 
     // *eee->keep_running is the caller's: true from its start, false
@@ -1563,9 +1576,11 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
     // and unblock to read it.  So I kill it.  The MSDN warns against
     // using this function, but we are on the way to exit the program,
     // so I believe that the risk is low
-    TerminateThread(tun_read_thread, 1);
+    if(tun_read_thread) {
+        TerminateThread(tun_read_thread, 1);
 
-    WaitForSingleObject(tun_read_thread, INFINITE);
+        WaitForSingleObject(tun_read_thread, INFINITE);
+    }
 #endif
 
     supernode_disconnect(eee);
@@ -2104,6 +2119,10 @@ void edge_tap_reopen (struct n3n_runtime_data *eee) {
     sleep(3);
 #ifndef _WIN32
     mainloop_unregister_fd(eee->tap.device.fd);
+#else
+    if(eee->tap.device.wintun) {
+        mainloop_unregister_fd(wintun_wake_fd(&eee->tap.device));
+    }
 #endif
     // the routes of tuntap.route_all go with the device, and come again
     // with it in edge_tap_open()
@@ -2112,6 +2131,10 @@ void edge_tap_reopen (struct n3n_runtime_data *eee) {
     edge_tap_open(eee);
 #ifndef _WIN32
     mainloop_register_fd(eee->tap.device.fd, fd_info_proto_tuntap);
+#else
+    if(eee->tap.device.wintun) {
+        mainloop_register_fd(wintun_wake_fd(&eee->tap.device), fd_info_proto_tuntap);
+    }
 #endif
 
     edge_threads_start(eee, edge_threads_wanted(&eee->conf), &edge_thread_ops);

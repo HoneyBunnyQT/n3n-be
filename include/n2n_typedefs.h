@@ -152,6 +152,7 @@ typedef struct tuntap_dev {
     OVERLAPPED overlap_read, overlap_write;
     unsigned int metric;
     unsigned int metric_original;
+    struct wintun_dev *wintun;              /* tuntap.type = tun: a Wintun adapter, see win32/wintun.c */
 #endif
 } tuntap_dev;
 

@@ -73,6 +73,7 @@
 
 #ifdef _WIN32
 #include "../src/win32/defs.h"  // FIXME: untangle the include path
+#include "../src/win32/wintun.h"  // for wintun_wake_fd
 #else
 #include <netinet/in.h>              // for INADDR_ANY, INADDR_NONE, ntohl
 #include <pwd.h>                     // for getpwnam, passwd
@@ -1238,6 +1239,12 @@ int n3n_edge_main (int argc, char* argv[]) {
 #ifndef _WIN32
             // TODO: this internal fn should not be called publicly
             mainloop_register_fd(eee->tap.device.fd, fd_info_proto_tuntap);
+#else
+            // a Wintun adapter wakes the main loop, a TAP adapter is read
+            // on a thread of its own
+            if(eee->tap.device.wintun) {
+                mainloop_register_fd(wintun_wake_fd(&eee->tap.device), fd_info_proto_tuntap);
+            }
 #endif
             in_addr_t addr = eee->conf.tap.tuntap_v4.net_addr;
             struct in_addr *tmp = (struct in_addr *)&addr;

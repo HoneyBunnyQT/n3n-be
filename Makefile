@@ -216,6 +216,7 @@ OBJS+=src/win32/getopt.o
 OBJS+=src/win32/getopt1.o
 OBJS+=src/win32/win32.o
 OBJS+=src/win32/wintap.o
+OBJS+=src/win32/wintun.o
 endif
 
 # Set the DEPS and CLEAN_FILES last - after setting the OBJS
