@@ -1,0 +1,58 @@
+---
+name: Docs on GitHub Pages
+
+# The docs (mkdocs.yml) as a website, https://honeybunnyqt.github.io/n3n-be/,
+# from main: the newest, with a search that works (the help in the Windows
+# zip, opened as files, has none) - the online help of the tray app, and of
+# the edge's web page.  Needs Pages with "GitHub Actions" as its source in
+# the repository's settings.
+
+# yamllint disable-line rule:truthy
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - docs/**
+      - mkdocs.yml
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# one deployment at a time, the newest wins
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build the docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      # as the lint job checks them and release.yml builds them
+      - name: Build
+        run: |
+          pip install mkdocs==1.6.1
+          mkdocs build --strict --site-dir site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    name: Publish on GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5
