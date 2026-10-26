@@ -3,7 +3,8 @@ name: Release
 
 # The packages of a release, built from its tag - .deb for four
 # architectures, .rpm, the Arch package, the signed Android app, a zip of
-# the Windows programs with the docs as their help, a tarball of the macOS
+# the Windows programs with the docs as their help and their installer
+# (packages/windows/n3n-be.nsi), a tarball of the macOS
 # ones and the OpenWrt packages (openwrt.yml) - and,
 # if asked, a draft GitHub Release of the tag with them, their SHA256SUMS
 # and attestations of where they were built.  See
@@ -277,7 +278,7 @@ jobs:
             > "$name/README.txt"
           cp -r LICENSES "$name/"
           # the docs as web pages, the help that the tray app opens
-          # (docs\build\windows.html); of the tag, as pages.yml has them
+          # (docs\quick_start\Windows.html); of the tag, as pages.yml has them
           # online for main
           python -m pip install mkdocs==1.6.1
           python -m mkdocs build --strict --site-dir "$name/docs"
@@ -306,11 +307,24 @@ jobs:
           done
           7z a -tzip "dist/$name.zip" "$name"
           7z l "dist/$name.zip"
+          # the installer of the same files (NSIS, from Chocolatey if the
+          # runner has none), for tags that have one
+          if [ -f packages/windows/n3n-be.nsi ]; then
+            if ! command -v makensis >/dev/null &&
+                [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
+              choco install nsis -y --no-progress
+            fi
+            PATH="$PATH:/c/Program Files (x86)/NSIS"
+            packages/windows/installer.sh "$name" "$TAG" \
+              "dist/n3n-be-$TAG-windows-x86_64-setup.exe"
+          fi
 
       - uses: actions/upload-artifact@v6
         with:
           name: windows
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*-setup.exe
 
   macos:
     name: macOS universal

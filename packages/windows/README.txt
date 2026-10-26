@@ -10,8 +10,8 @@ What is in here
 - n3n-be.exe, the program: "n3n-be.exe edge" starts it as an edge,
   "n3n-be.exe supernode" as a supernode
 - n3n-be-tray.exe, the edge in the notification area (see "The tray app")
-- docs: the documentation as web pages - docs\build\windows.html is the
-  page on Windows, which the tray app's Help opens; online, the newest:
+- docs: the documentation as web pages - docs\quick_start\Windows.html is
+  the page on Windows, which the tray app's Help opens; online, the newest:
   https://honeybunnyqt.github.io/n3n-be/
 - edge.conf.sample and supernode.conf.sample, configurations to start from
 - n3n-be-ctl, the management client (a Python 3 script)
@@ -42,6 +42,16 @@ of these:
   https://www.wintun.net/.  Without a TAP adapter, the edge then makes an
   adapter of its own, n3n-be-edge, which goes again when it stops; with
   one, "type = tun" in the [tuntap] section of edge.conf asks for Wintun.
+
+The installer
+-------------
+
+n3n-be-VERSION-windows-x86_64-setup.exe, next to this zip in the release,
+installs the same into Program Files, with Start menu entries, the edge as
+a service, Wintun where there is no TAP driver, and the tray app at login;
+over an earlier install, or this zip's service, it is an upgrade.  The
+documentation's page on Windows (docs\quick_start\Windows.html) has the
+details.
 
 Running an edge
 ---------------

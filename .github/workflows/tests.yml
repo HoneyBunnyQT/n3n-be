@@ -255,6 +255,11 @@ jobs:
           tools/tests-mgmt-client.exe
         shell: bash
 
+      # NSIS from Chocolatey if the runner has none
+      - name: The installer
+        run: tests/windows/installer.sh apps
+        shell: bash
+
       - if: ${{ failure() }}
         name: Move test outputs to an arch specific location
         shell: bash
