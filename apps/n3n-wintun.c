@@ -158,7 +158,8 @@ static bool untar (const wchar_t *zip, const wchar_t *dir, const wchar_t *member
         return false;
     }
     _snwprintf(cmd, sizeof(cmd) / sizeof(cmd[0]), L"\"%ls\" -xf \"%ls\" -C \"%ls\" %ls", tar, zip, dir, member);
-    if(!CreateProcessW(tar, cmd, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+    // in this console: what tar.exe says shows
+    if(!CreateProcessW(tar, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
         fail("starting tar.exe");
         return false;
     }
@@ -215,7 +216,12 @@ static int get (void) {
         return 1;
     }
     f = CreateFileW(zip, GENERIC_WRITE, 0, NULL, CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
-    if((f == INVALID_HANDLE_VALUE) || !WriteFile(f, body, size, &written, NULL) || (written != size)) {
+    bool ok = (f != INVALID_HANDLE_VALUE) && WriteFile(f, body, size, &written, NULL) && (written == size);
+    // closed before tar.exe opens it: it is not shared
+    if(f != INVALID_HANDLE_VALUE) {
+        CloseHandle(f);
+    }
+    if(!ok) {
         fail("writing the zip");
     } else if(!untar(zip, dir, L"wintun/bin/amd64/wintun.dll")) {
         printf("unpacking the zip failed\n");
@@ -225,9 +231,6 @@ static int get (void) {
         printf("%ls is there now: an edge without a TAP adapter takes a Wintun adapter "
                "(tuntap.type = tun)\n", target);
         rc = 0;
-    }
-    if(f != INVALID_HANDLE_VALUE) {
-        CloseHandle(f);
     }
     free(body);
 
