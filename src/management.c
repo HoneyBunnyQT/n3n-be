@@ -1388,7 +1388,21 @@ static void render_todo_page (struct n3n_runtime_data *eee, conn_t *conn) {
     generate_http_headers(conn, "text/plain", 200);
 }
 
-static void render_metrics_page (struct n3n_runtime_data *eee, conn_t *conn) {
+// The page (and its subpages as HTML) is too big for the request buffer, which the other replies use:
+// it has buffers of its own, each one free again once its connection has
+// sent it (or gone on to something else)
+#define PAGE_BUFS 4
+
+static struct {
+    strbuf_t *buf;
+    conn_t *owner;
+} page_bufs[PAGE_BUFS];
+
+static bool wants_html (conn_t *conn);
+static int page_buf_take (conn_t *conn);
+
+// The metrics as text, for Prometheus and other tools, see metrics.c
+static void render_metrics_text (struct n3n_runtime_data *eee, conn_t *conn) {
     // the metrics renderer reads the counters from here
     n3n_stats_sum(eee, &eee->stats_sum);
 
@@ -1397,6 +1411,26 @@ static void render_metrics_page (struct n3n_runtime_data *eee, conn_t *conn) {
     // Update the reply buffer after last potential realloc
     conn->reply = conn->request;
     generate_http_headers(conn, "text/plain", 200);
+}
+
+// The same, and for a browser in the page's style - from that text, in a
+// buffer of the page's
+static void render_metrics_page (struct n3n_runtime_data *eee, conn_t *conn) {
+
+    if(!wants_html(conn)) {
+        render_metrics_text(eee, conn);
+        return;
+    }
+    int i = page_buf_take(conn);
+    if(i < 0) {
+        render_metrics_text(eee, conn);
+        return;
+    }
+    n3n_stats_sum(eee, &eee->stats_sum);
+    n3n_metrics_render(&conn->request);
+    mgmt_page_metrics(&page_bufs[i].buf, eee, conn->request->str);
+    conn->reply = page_bufs[i].buf;
+    generate_http_headers(conn, "text/html; charset=utf-8", 200);
 }
 
 // The roles running in the process whose management interface rt has: its
@@ -1414,6 +1448,17 @@ static struct n3n_runtime_data *mgmt_relay (struct n3n_runtime_data *rt) {
 
 
 // The value of a header of the request into buf; false without one
+static bool http_header (conn_t *conn, const char *name, char *buf, size_t size);
+
+// Whether the request asks for HTML: a browser does, with text/html in its
+// Accept header; curl, Prometheus and n3n-be-ctl do not, and get text
+static bool wants_html (conn_t *conn) {
+
+    char accept[512];
+
+    return http_header(conn, "Accept", accept, sizeof(accept)) && strstr(accept, "text/html");
+}
+
 static bool http_header (conn_t *conn, const char *name, char *buf, size_t size) {
 
     const char *str = conn->request->str;
@@ -1463,16 +1508,6 @@ static bool same_origin (conn_t *conn) {
     return o && !strcmp(o + 3, host);
 }
 
-
-// The page is too big for the request buffer, which the other replies use:
-// it has buffers of its own, each one free again once its connection has
-// sent it (or gone on to something else)
-#define PAGE_BUFS 4
-
-static struct {
-    strbuf_t *buf;
-    conn_t *owner;
-} page_bufs[PAGE_BUFS];
 
 static int page_buf_take (conn_t *conn) {
 
@@ -1619,13 +1654,38 @@ static const struct mgmt_api_endpoint api_endpoints[] = {
     { "GET /unlock ", render_unlock_page, "Human interface, with the names header encryption hides" },
     { "GET /debug/slots ", render_debug_slots, "Internal slots dump" },
     { "GET /events/", event_subscribe, "Subscribe to events" },
-    { "GET /help ", render_help_page, "Describe available endpoints" },
-    { "GET /metrics ", render_metrics_page, "Fetch metrics data" },
+    { "GET /help ", render_help_page, "Describe available endpoints (for a browser as a page)" },
+    { "GET /metrics ", render_metrics_page, "Fetch metrics data (for a browser as a page)" },
+    { "GET /metrics.txt ", render_metrics_text, "Fetch metrics data, as text" },
     { "GET /script.js ", render_script_page, "javascript helpers" },
     { "GET /status ", render_todo_page, "Quick health check" },
 };
 
 static void render_help_page (struct n3n_runtime_data *eee, conn_t *conn) {
+
+    int nr_endpoints = sizeof(api_endpoints) / sizeof(api_endpoints[0]);
+    int nr_methods = sizeof(jsonrpc_methods) / sizeof(jsonrpc_methods[0]);
+    int slot;
+
+    // for a browser: the page's style, with the JSON API's methods too
+    if(wants_html(conn) && ((slot = page_buf_take(conn)) >= 0)) {
+        struct mgmt_page_pair endpoints[sizeof(api_endpoints) / sizeof(api_endpoints[0])];
+        struct mgmt_page_pair methods[sizeof(jsonrpc_methods) / sizeof(jsonrpc_methods[0])];
+
+        for(int i = 0; i < nr_endpoints; i++) {
+            endpoints[i].name = api_endpoints[i].match;
+            endpoints[i].desc = api_endpoints[i].desc;
+        }
+        for(int i = 0; i < nr_methods; i++) {
+            methods[i].name = jsonrpc_methods[i].method;
+            methods[i].desc = jsonrpc_methods[i].desc;
+        }
+        mgmt_page_help(&page_bufs[slot].buf, eee, endpoints, nr_endpoints, methods, nr_methods);
+        conn->reply = page_bufs[slot].buf;
+        generate_http_headers(conn, "text/html; charset=utf-8", 200);
+        return;
+    }
+
     // Reuse the request buffer
     sb_zero(conn->request);
     sb_reprintf(&conn->request, "endpoint, desc\n");

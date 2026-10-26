@@ -20,4 +20,18 @@ struct n3n_runtime_data;
 void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_runtime_data *edge,
                        struct n3n_runtime_data *relay, bool unlocked);
 
+// The subpages as HTML, for a browser (one that asks for it): in the
+// page's style, with its header and navigation.  The metrics from their
+// text as n3n_metrics_render() gives it, in a table per module
+void mgmt_page_metrics (strbuf_t **b, struct n3n_runtime_data *rt, const char *text);
+
+// What the management interface answers, and the methods of its JSON API
+struct mgmt_page_pair {
+    const char *name;
+    const char *desc;
+};
+void mgmt_page_help (strbuf_t **b, struct n3n_runtime_data *rt,
+                     const struct mgmt_page_pair *endpoints, int n_endpoints,
+                     const struct mgmt_page_pair *methods, int n_methods);
+
 #endif

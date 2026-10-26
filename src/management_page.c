@@ -86,14 +86,16 @@ static const char page_style[] =
     "button{font:inherit;padding:.25rem .7rem;border-radius:.4rem;cursor:pointer;"
     "border:1px solid var(--line);background:var(--card);color:var(--fg)}"
     "button.bad{border-color:var(--bad)}"
-    "nav{margin-left:auto;color:var(--dim)}a{color:var(--info)}";
+    "nav{margin-left:auto;color:var(--dim)}a{color:var(--info)}"
+    "nav a.here{color:var(--fg);font-weight:600;text-decoration:none}";
 
 // Refresh the page in place every few seconds, keeping open what is open,
-// and each table scrolled where it was
+// and each table scrolled where it was; asking for HTML, which /metrics and
+// /help give only when asked
 static const char page_script[] =
     "setInterval(function(){"
     "if(document.hidden||!window.fetch||!window.DOMParser)return;"
-    "fetch(location.pathname).then(function(r){return r.text()}).then(function(t){"
+    "fetch(location.pathname,{headers:{Accept:'text/html'}}).then(function(r){return r.text()}).then(function(t){"
     "var n=new DOMParser().parseFromString(t,'text/html').querySelector('main'),"
     "o=document.querySelector('main');if(!n||!o)return;"
     "o.querySelectorAll('details[open]').forEach(function(d){"
@@ -620,6 +622,53 @@ static bool any_hidden (struct n3n_runtime_data *edge, struct n3n_runtime_data *
 }
 
 
+// The navigation of every page: here is the one this is, marked
+static const struct {
+    const char *href;
+    const char *text;
+} nav_links[] = {
+    { "/", "overview" },
+    { "/metrics", "metrics" },
+    { "/help", "API" },
+    { N3N_HELP_URL, "help" },
+};
+
+
+// What every page starts with, up to its <main>: the title (the session's
+// name, and what - NULL on the overview), the style, the header with the
+// session, info under it (NULL: none) and the navigation
+static void page_head (strbuf_t **b, struct n3n_runtime_data *rt, const char *what, const char *info,
+                       const char *here) {
+
+    const char *session = rt->conf.sessionname ? rt->conf.sessionname : "";
+
+    sb_reprintf(b, "<!DOCTYPE html>\n<html lang=en><head><meta charset=utf-8>"
+                "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
+                "<title>" N3N_PROGRAM " ");
+    html_text(b, session, 64);
+    sb_reprintf(b, "%s%s</title>\n<style>%s</style></head>\n<body>\n<header><h1>" N3N_PROGRAM " <small>",
+                what ? ": " : "", what ? what : "", page_style);
+    html_text(b, session, 64);
+    sb_reprintf(b, "%s%s</small></h1>\n", what ? " - " : "", what ? what : "");
+    if(info) {
+        sb_reprintf(b, "<span>%s</span>\n", info);
+    }
+    sb_reprintf(b, "<nav>");
+    for(size_t i = 0; i < sizeof(nav_links) / sizeof(nav_links[0]); i++) {
+        sb_reprintf(b, "%s<a href=\"%s\"%s>%s</a>", i ? " | " : "", nav_links[i].href,
+                    strcmp(nav_links[i].href, here) ? "" : " class=here", nav_links[i].text);
+    }
+    sb_reprintf(b, "</nav>\n</header>\n<main>\n");
+}
+
+
+static void page_tail (strbuf_t **b, bool refresh) {
+
+    sb_reprintf(b, "</main>\n%s%s%s</body></html>\n",
+                refresh ? "<script>" : "", refresh ? page_script : "", refresh ? "</script>\n" : "");
+}
+
+
 void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_runtime_data *edge,
                        struct n3n_runtime_data *relay, bool unlocked) {
 
@@ -634,17 +683,10 @@ void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_run
         strftime(clock, sizeof(clock), "%H:%M:%S", tm);
     }
 
-    sb_reprintf(b, "<!DOCTYPE html>\n<html lang=en><head><meta charset=utf-8>"
-                "<meta name=viewport content=\"width=device-width,initial-scale=1\">"
-                "<title>" N3N_PROGRAM " ");
-    html_text(b, rt->conf.sessionname ? rt->conf.sessionname : "", 64);
-    sb_reprintf(b, "</title>\n<style>%s</style></head>\n<body>\n<header><h1>" N3N_PROGRAM " <small>", page_style);
-    html_text(b, rt->conf.sessionname ? rt->conf.sessionname : "", 64);
-    sb_reprintf(b, "</small></h1>\n<span>%s | up %s | version %s</span>\n"
-                "<nav><a href=\"/\">refresh</a> | <a href=\"/metrics\">metrics</a> | "
-                "<a href=\"/help\">API</a> | "
-                "<a href=\"" N3N_HELP_URL "\">help</a></nav>\n</header>\n<main>\n",
-                roles, uptime(up, sizeof(up), now, rt->start_time), VERSION);
+    char info[160];
+    snprintf(info, sizeof(info), "%s | up %s | version %s", roles, uptime(up, sizeof(up), now, rt->start_time),
+             VERSION);
+    page_head(b, rt, NULL, info, "/");
 
     // what the whole process does: the log, stopping it
     sb_reprintf(b, "<section id=peer><h2>Peer</h2>\n"
@@ -676,5 +718,161 @@ void mgmt_page_render (strbuf_t **b, struct n3n_runtime_data *rt, struct n3n_run
         section_supernode(b, relay, unlocked, now);
     }
 
-    sb_reprintf(b, "</main>\n<script>%s</script>\n</body></html>\n", page_script);
+    page_tail(b, true);
+}
+
+
+// One line of the metrics' text: up to its end or a newline, its length
+static size_t line_len (const char *s) {
+
+    return strcspn(s, "\n");
+}
+
+
+// The last space in a line of len bytes, NULL if none (memrchr() is GNU's)
+static const char *last_space (const char *s, size_t len) {
+
+    while(len--) {
+        if(s[len] == ' ') {
+            return s + len;
+        }
+    }
+    return NULL;
+}
+
+
+void mgmt_page_metrics (strbuf_t **b, struct n3n_runtime_data *rt, const char *text) {
+
+    bool open = false;
+    const char *module = "";
+    size_t module_len = 0;
+
+    page_head(b, rt, "metrics", NULL, "/metrics");
+    sb_reprintf(b, "<p class=dim>The counters of this process, by module.  For Prometheus and other tools "
+                "as text: <a href=\"/metrics.txt\">/metrics.txt</a>, or /metrics without asking for HTML.</p>\n");
+
+    for(const char *s = text; *s; s += line_len(s) + (s[line_len(s)] == '\n')) {
+        size_t len = line_len(s);
+
+        if(!strncmp(s, "## module=", 10)) {
+            // one table for a module that comes in parts (the edge's)
+            if(open && (len - 10 == module_len) && !strncmp(s + 10, module, module_len)) {
+                continue;
+            }
+            module = s + 10;
+            module_len = len - 10;
+            sb_reprintf(b, "%s<section><h2>", open ? "</table></div></section>\n" : "");
+            html_text(b, s + 10, len - 10);
+            sb_reprintf(b, "</h2>\n<div class=scroll><table>\n"
+                        "<tr><th>counter</th><th>labels</th><th class=num>value</th></tr>\n");
+            open = true;
+            continue;
+        }
+        if(!open || !len) {
+            continue;
+        }
+        if(!strncmp(s, "# HELP ", 7)) {
+            // its name, then what it is
+            const char *desc = memchr(s + 7, ' ', len - 7);
+
+            if(desc) {
+                sb_reprintf(b, "<tr><td colspan=3 class=\"w dim\">");
+                html_text(b, desc + 1, s + len - desc - 1);
+                sb_reprintf(b, "</td></tr>\n");
+            }
+            continue;
+        }
+        if(s[0] == '#') {
+            continue;
+        }
+
+        // n3n_MODULE_NAME{session="...",label="value"} VALUE
+        size_t name_len = strcspn(s, "{ \n");
+        const char *labels = (s[name_len] == '{') ? s + name_len + 1 : NULL;
+        const char *close = labels ? memchr(labels, '}', s + len - labels) : NULL;
+        const char *value = last_space(s, len);
+        const char *n = s;
+
+        // n3n_ and the module, which the section has already
+        if(!strncmp(n, "n3n_", 4) && (name_len > 4 + module_len + 1) && !strncmp(n + 4, module, module_len)
+           && (n[4 + module_len] == '_')) {
+            n += 4 + module_len + 1;
+        }
+        sb_reprintf(b, "<tr><td class=mono>");
+        html_text(b, n, s + name_len - n);
+        sb_reprintf(b, "</td><td class=mono>");
+        if(labels && close) {
+            // without the session's, which is the page's
+            bool first = true;
+            for(const char *l = labels; l < close;) {
+                size_t llen = strcspn(l, ",}");
+
+                if(llen && strncmp(l, "session=", 8)) {
+                    sb_reprintf(b, "%s", first ? "" : " ");
+                    html_text(b, l, llen);
+                    first = false;
+                }
+                l += llen + 1;
+            }
+        }
+        sb_reprintf(b, "</td><td class=num>");
+        if(value) {
+            html_text(b, value + 1, s + len - value - 1);
+        }
+        sb_reprintf(b, "</td></tr>\n");
+    }
+    if(open) {
+        sb_reprintf(b, "</table></div></section>\n");
+    }
+    page_tail(b, true);
+}
+
+
+void mgmt_page_help (strbuf_t **b, struct n3n_runtime_data *rt,
+                     const struct mgmt_page_pair *endpoints, int n_endpoints,
+                     const struct mgmt_page_pair *methods, int n_methods) {
+
+    page_head(b, rt, "API", NULL, "/help");
+    sb_reprintf(b, "<section><h2>HTTP</h2>\n<p class=dim>What this management interface answers; "
+                "the documentation of the API is in "
+                "<a href=\"" N3N_HELP_URL "internals/ManagementAPI.html\">Management API</a>.</p>\n"
+                "<div class=scroll><table>\n<tr><th>request</th><th>what</th></tr>\n");
+    for(int i = 0; i < n_endpoints; i++) {
+        // "GET /path ": a page to open, unless it is a prefix ("/events/";
+        // "/" is the overview)
+        const char *e = endpoints[i].name;
+        size_t len = strcspn(e, " ");
+        const char *path = e + len + (e[len] == ' ');
+        size_t plen = strcspn(path, " ");
+
+        sb_reprintf(b, "<tr><td class=mono>");
+        html_text(b, e, len);
+        sb_reprintf(b, " ");
+        if(!strncmp(e, "GET", len) && plen && ((plen == 1) || (path[plen - 1] != '/'))) {
+            sb_reprintf(b, "<a href=\"");
+            html_text(b, path, plen);
+            sb_reprintf(b, "\">");
+            html_text(b, path, plen);
+            sb_reprintf(b, "</a>");
+        } else {
+            html_text(b, path, plen);
+        }
+        sb_reprintf(b, "</td><td class=w>");
+        html_text(b, endpoints[i].desc, 200);
+        sb_reprintf(b, "</td></tr>\n");
+    }
+    sb_reprintf(b, "</table></div></section>\n"
+                "<section><h2>JSON-RPC</h2>\n<p class=dim>The methods of <code>POST /v1</code> "
+                "(<code>n3n-be-ctl</code> calls them): those that change something ask for the "
+                "management password.</p>\n"
+                "<div class=scroll><table>\n<tr><th>method</th><th>what</th></tr>\n");
+    for(int i = 0; i < n_methods; i++) {
+        sb_reprintf(b, "<tr><td class=mono>");
+        html_text(b, methods[i].name, 64);
+        sb_reprintf(b, "</td><td class=w>");
+        html_text(b, methods[i].desc, 200);
+        sb_reprintf(b, "</td></tr>\n");
+    }
+    sb_reprintf(b, "</table></div></section>\n");
+    page_tail(b, false);
 }
