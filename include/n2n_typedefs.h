@@ -546,6 +546,7 @@ typedef struct n2n_edge_conf {
     struct n3n_conf_community community;             /**< The community joined, or the unnamed one */
     struct n3n_conf_community *communities;          /**< The named ones */
     n2n_desc_t dev_desc;                             /**< The device description (hint) */
+    char name[N3N_NAME_SIZE];                        /**< A longer name, announced to the peers (connection.name), "" for none */
     n2n_private_public_key_t *public_key;            /**< edge's public key (for user/password based authentication) */
     n2n_private_public_key_t *shared_secret;         /**< shared secret derived from federation public key, username and password */
     speck_context_t *shared_secret_ctx;              /**< context holding the roundkeys derived from shared secret */
@@ -725,6 +726,10 @@ struct n3n_rt_client {
     n2n_trans_op_t transop_lzo;                                          /**< The transop for LZO  compression */
     n2n_trans_op_t transop_zstd;                                         /**< The transop for ZSTD compression */
     struct n3n_fec *fec;                                                 /**< what forward error correction keeps per peer, see fec.h */
+    struct n3n_announce *announce;                                       /**< what the peers announced of themselves, see announce.h */
+    time_t announce_next;                                                /**< when the edge next announces itself to all; 0: once registered, asking back */
+    uint8_t exit;                                                        /**< what it announces of itself as an exit, N3N_ANNOUNCE_EXIT_* */
+    char announced_name[N3N_NAME_SIZE];                                  /**< the name it last announced: a reload's new one goes out at once */
     uint8_t dynamic_key[N2N_AUTH_CHALLENGE_SIZE];                        /**< with user/password: the header key the supernode gave last */
     bool dynamic_key_known;
     uint64_t sn_selection_criterion_common_data;

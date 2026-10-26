@@ -89,6 +89,10 @@
 #define N3N_FEC_REPAIR          3
 #define N3N_FEC_RIDE            4
 #define N3N_FEC_SCHEME_MAX      N3N_FEC_RIDE
+// the schemes this edge reads, as bits - announced to the peers (announce.h);
+// and those an edge sends, all of which a peer has to read to get them
+#define N3N_FEC_READS           ((1 << (N3N_FEC_SCHEME_MAX + 1)) - 1)
+#define N3N_FEC_SENT            (N3N_FEC_READS & ~(1 << N3N_FEC_NONE))
 
 // community.fec: what an edge sends
 #define N3N_FEC_MODE_NONE       0   // nothing: PACKETs as in v3, which every edge reads

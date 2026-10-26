@@ -91,7 +91,8 @@ enum phase {
 
 struct peer {
     char addr[16];
-    wchar_t label[100];
+    wchar_t label[160];
+    bool exit;                  // it announced itself as an exit to the internet
 };
 
 // how the edge is, as the poller last saw it
@@ -228,7 +229,9 @@ static bool service_state (DWORD *state) {
 
 
 // The peers that may be exit peers: the edges of the community, known
-// directly or through the supernode
+// directly or through the supernode - those that announced themselves as
+// exits to the internet first, see announce.h - by their names (longer
+// than the descriptions, where they announced one)
 static void peers (struct snapshot *s, int port, const char *password) {
 
     char err[160];
@@ -238,9 +241,10 @@ static void peers (struct snapshot *s, int port, const char *password) {
         const struct mc_json *row = mc_json_at(r, i);
         const char *mode = mc_json_str(mc_json_get(row, "mode"));
         const char *addr = mc_json_str(mc_json_get(row, "ip4addr"));
-        const char *desc = mc_json_str(mc_json_get(row, "desc"));
+        const char *desc = mc_json_str(mc_json_get(row, "name"));
+        const struct mc_json *exit = mc_json_get(row, "exit");
         struct peer *p = &s->peers[s->npeers];
-        wchar_t wdesc[N2N_DESC_SIZE + 1], label[100];
+        wchar_t wdesc[N3N_NAME_SIZE + 1], label[160];
         int k = 0;
 
         if(!mode || !strcmp(mode, "sn") || !addr || !*addr) {
@@ -254,14 +258,19 @@ static void peers (struct snapshot *s, int port, const char *password) {
         if(dup) {
             continue;
         }
-        widen(desc ? desc : "", wdesc, N2N_DESC_SIZE + 1);
+        if(!desc) {
+            // an edge of a version before the names
+            desc = mc_json_str(mc_json_get(row, "desc"));
+        }
+        p->exit = mc_json_num(exit, 0) > 0;
+        widen(desc ? desc : "", wdesc, N3N_NAME_SIZE + 1);
         if(wdesc[0]) {
-            swprintf(label, 100, L"%ls (%hs)", wdesc, p->addr);
+            swprintf(label, 160, L"%ls (%hs)%ls", wdesc, p->addr, p->exit ? L" - an exit" : L"");
         } else {
-            swprintf(label, 100, L"%hs", p->addr);
+            swprintf(label, 160, L"%hs%ls", p->addr, p->exit ? L" - an exit" : L"");
         }
         // a '&' of a menu item underlines what follows: "&&" for one
-        for(int j = 0; label[j] && (k < 98); j++) {
+        for(int j = 0; label[j] && (k < 158); j++) {
             if(label[j] == L'&') {
                 p->label[k++] = L'&';
             }
@@ -271,6 +280,18 @@ static void peers (struct snapshot *s, int port, const char *password) {
         s->npeers++;
     }
     mc_json_free(r);
+
+    // the exits first, otherwise as they came
+    for(int i = 1; i < s->npeers; i++) {
+        struct peer p = s->peers[i];
+        int j = i;
+
+        while(p.exit && (j > 0) && !s->peers[j - 1].exit) {
+            s->peers[j] = s->peers[j - 1];
+            j--;
+        }
+        s->peers[j] = p;
+    }
 }
 
 

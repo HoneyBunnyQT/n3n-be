@@ -39,6 +39,7 @@ nav:
       - Overview: advanced/index.md
       - NAT Traversal: advanced/NatTraversal.md
       - Forward Error Correction: advanced/FEC.md
+      - What an Edge Tells Its Peers: advanced/Announcements.md
       - Threads: advanced/Threads.md
       - Routing: advanced/Routing.md
       - Bridging: advanced/Bridging.md

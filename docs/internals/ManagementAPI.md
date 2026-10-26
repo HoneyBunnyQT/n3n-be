@@ -45,6 +45,12 @@ route all traffic through an exit peer, its section says through which
 one ("All traffic"), with a button to stop that, and its peers each have a
 button "route all", as the Android app's "Route all traffic through a
 peer"; see [Routing](../advanced/Routing.md#switching-while-it-runs).
+The peers show by the names they announced, those that are exits to the
+internet marked "internet" ([What an Edge Tells Its
+Peers](../advanced/Announcements.md)).  `get_edges` has these for each
+peer - `name` (its announced name, else its description), `announced` (0
+for an edge of an older version), `reads_fec`, `exit` -, `get_info` the
+edge's own `name` and `exit`.
 
 - Its header links to the API's own help (`/help`), the metrics, and the
   documentation online (https://honeybunnyqt.github.io/n3n-be/).

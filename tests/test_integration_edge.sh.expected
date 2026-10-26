@@ -11,7 +11,7 @@
 [
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "transop"
   },
   {
@@ -21,12 +21,12 @@
   },
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "super"
   },
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "super_broadcast"
   },
   {

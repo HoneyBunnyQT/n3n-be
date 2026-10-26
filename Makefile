@@ -108,6 +108,7 @@ endif
 
 OBJS=\
 	libs/lzo/minilzo.o \
+	src/announce.o \
 	src/auth.o \
 	src/base64.o \
 	src/benchmark/basics.o \

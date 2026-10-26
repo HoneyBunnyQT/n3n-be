@@ -1,0 +1,26 @@
+frame               ffffffffffff02000000000a88b5 | 6e336e0101 | 0102001f02156c6976696e6720726f6f6d2c2075707374616972730301810000000000000000000000
+read back           flags 01, fec 001f, name "living room, upstairs", exit 81
+nothing to say      60 bytes, the least of a frame
+read back           flags 00, fec (none) 0000, name "", exit 00
+unknown TLV         flags 00, fec 0001, name "one ", exit 00
+version 2           none
+cut in a TLV        none
+IPv4                no announcement
+0x88b5, not n3n     no announcement
+too short           none
+a, new              answered
+a, again            not answered
+a, asks             not answered
+a, asks 2s later    answered
+a reads FEC         yes
+b reads FEC         no
+b reads none        no
+b reads SEQ only    no
+b says nothing      no
+a's name            "a, the long name"
+a new, 9s later     kept
+a new, 18s later    ask
+a forgotten         gone
+a reads FEC         no
+b, kept             there
+b, then purged      gone

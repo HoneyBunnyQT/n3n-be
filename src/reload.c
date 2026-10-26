@@ -52,6 +52,7 @@ static const char *const live_options[] = {
     "connection.allow_p2p",
     "connection.description",
     "connection.local_discovery",
+    "connection.name",
     "connection.p2p_max_loss",
     "connection.punch_ports",
     "connection.punch_ttl",

@@ -268,7 +268,20 @@ static struct n3n_conf_option section_connection[] = {
         .desc = "annotate the edge's description",
         .help = "Used either for easier identification of nodes in the "
                 "management API or as the username when user-password edge "
-                "authentication is used",
+                "authentication is used.  It goes with the registrations, "
+                "up to 15 bytes; connection.name is a longer one.",
+    },
+    {
+        .name = "name",
+        .type = n3n_conf_strncpy,
+        .length = N3N_NAME_SIZE,
+        .offset = offsetof(n2n_edge_conf_t, name),
+        .desc = "the edge's name for its peers, up to 64 bytes",
+        .help = "Announced to the peers of a version that reads "
+                "announcements (n3n-be after 3.4.8), which show it in place "
+                "of the description - which is still what the others see, "
+                "and stays the username of user/password authentication "
+                "(and what the supernode derives an address from).",
     },
     {
         .name = "local_discovery",

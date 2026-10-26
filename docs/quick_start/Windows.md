@@ -231,9 +231,12 @@ in, not as an administrator, as a client of the service's management port.
   ring when the service runs but its management port does not answer.
   The tooltip and the menu's first line say the same in words.
 - Connect and Disconnect start and stop the service.
-- "Route all traffic through" lists the peers; one of them sends all
-  traffic through it, "None: directly" ends that (`set_gateway`, with the
-  password below).  It takes `tuntap.dns` as it is.
+- "Route all traffic through" lists the peers, by the names they
+  announced - those that announced themselves as exits to the internet
+  first, "- an exit" after them (see [What an Edge Tells Its
+  Peers](../advanced/Announcements.md)); one of them sends all traffic
+  through it, "None: directly" ends that (`set_gateway`, with the password
+  below).  It takes `tuntap.dns` as it is.
 - "Open the web page", "Show the log" (in an administrator's Notepad, as
   the log is for administrators only), and "Start with Windows" (the
   tray, at login: `HKCU\...\Run`).

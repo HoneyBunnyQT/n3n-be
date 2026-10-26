@@ -17,6 +17,9 @@ import java.io.File
  */
 object Status {
 
+    /** A peer that announces itself as an exit to the internet (announce.h) */
+    data class Exit(val name: String, val addr: String)
+
     class Info(
         val registered: Boolean,
         val supernode: String?,
@@ -25,6 +28,7 @@ object Status {
         val direct: Int,
         // reaching the supernode over TCP (connection.tcp_fallback, tcp://)
         val tcp: Boolean,
+        val exits: List<Exit>,
     )
 
     fun query(context: Context): Info? {
@@ -54,13 +58,20 @@ object Status {
             registered = info.optInt("registered") == 1
         }
         var direct = 0
+        val exits = mutableListOf<Exit>()
         for (i in 0 until edges.length()) {
-            if (edges.optJSONObject(i)?.optString("mode") == "p2p") {
+            val row = edges.optJSONObject(i) ?: continue
+            if (row.optString("mode") == "p2p") {
                 direct++
+            }
+            // by the name it announced, else its description
+            val addr = row.optString("ip4addr").substringBefore('/')
+            if (row.optInt("exit") > 0 && addr.isNotEmpty() && exits.none { it.addr == addr }) {
+                exits.add(Exit(row.optString("name").ifEmpty { row.optString("desc") }, addr))
             }
         }
         val tcp = info?.optString("transport") == "tcp"
-        return Info(registered, supernode, rttMs, edges.length(), direct, tcp)
+        return Info(registered, supernode, rttMs, edges.length(), direct, tcp, exits)
     }
 
     private fun callList(context: Context, method: String): JSONArray? =

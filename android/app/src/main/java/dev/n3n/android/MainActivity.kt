@@ -13,6 +13,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
+import android.widget.LinearLayout
 import android.widget.Switch
 import android.widget.TextView
 import android.widget.Toast
@@ -42,6 +43,9 @@ class MainActivity : Activity() {
     private lateinit var routeAll: Switch
     private lateinit var gateway: EditText
     private lateinit var dns: EditText
+    private lateinit var exits: LinearLayout
+    // the exits shown, so that they are not made anew each second
+    private var exitsShown: List<Status.Exit> = emptyList()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +62,7 @@ class MainActivity : Activity() {
         routeAll = findViewById(R.id.route_all)
         gateway = findViewById(R.id.gateway)
         dns = findViewById(R.id.dns)
+        exits = findViewById(R.id.exits)
         setupRoute()
 
         connect.setOnClickListener { toggle() }
@@ -244,5 +249,30 @@ class MainActivity : Activity() {
         // a row of its own: the address keeps its size while this changes
         roundTrip.text = if (!sn.isNullOrEmpty() && rtt != null) getString(R.string.rtt, rtt) else getString(R.string.none)
         peers.text = if (info != null) getString(R.string.peers_count, info.peers, info.direct) else getString(R.string.none)
+        showExits(info?.exits ?: emptyList())
+    }
+
+    /** The peers that announce themselves as exits, below the exit peer's
+     * field: a tap puts one's address there */
+    private fun showExits(list: List<Status.Exit>) {
+        if (list == exitsShown) {
+            return
+        }
+        exitsShown = list
+        // the label stays, the entries go
+        exits.removeViews(1, exits.childCount - 1)
+        for (e in list) {
+            val entry = TextView(this)
+            entry.text = getString(R.string.exit_entry, e.name.ifEmpty { e.addr }, e.addr)
+            entry.setTextColor(getColor(R.color.accent))
+            entry.textSize = 15f
+            entry.setPadding(0, 12, 0, 12)
+            entry.setOnClickListener {
+                gateway.setText(e.addr)
+                gateway.setSelection(e.addr.length)
+            }
+            exits.addView(entry)
+        }
+        exits.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
     }
 }

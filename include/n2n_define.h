@@ -181,6 +181,8 @@ enum n3n_event_topic {
 #define N3N_REG_SUPER_OTHER_FAMILY 0x6e33616c  /* "n3al" */
 #define N3N_LIFETIME_OTHER_FAMILY  0x8000
 #define N2N_DESC_SIZE              16
+// connection.name: what an edge announces as its name, see announce.h
+#define N3N_NAME_SIZE              65
 #define N2N_PKT_BUF_SIZE           2048
 #define N3N_SOCKBUF_SIZE           128  /* string representation of INET or INET6 sockets */
 #define N3N_PORTBUF_SIZE           8    /* string representation of a port 0 - 65535 */

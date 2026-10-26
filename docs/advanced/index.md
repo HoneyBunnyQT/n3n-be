@@ -9,6 +9,8 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
   when they cannot
 - [Forward Error Correction](FEC.md): frames lost on a bad line undone
   by the receiving edge
+- [What an Edge Tells Its Peers](Announcements.md): announcements of FEC,
+  a longer name, and exits to the internet, without breaking v3
 - [Threads](Threads.md): handling packets on several cores
 - [Routing](Routing.md): reaching networks behind an edge, or the
   internet through one

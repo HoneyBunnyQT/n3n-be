@@ -155,9 +155,15 @@ Default: `true`
 
 Annotate the edge's description.
 
-Used either for easier identification of nodes in the management API or as the username when user-password edge authentication is used
+Used either for easier identification of nodes in the management API or as the username when user-password edge authentication is used. It goes with the registrations, up to 15 bytes; connection.name is a longer one.
 
 Default: the host name.
+
+### connection.name
+
+The edge's name for its peers, up to 64 bytes.
+
+Announced to the peers of a version that reads announcements (n3n-be after 3.4.8), which show it in place of the description - which is still what the others see, and stays the username of user/password authentication (and what the supernode derives an address from).
 
 ### connection.local_discovery
 

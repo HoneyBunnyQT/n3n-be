@@ -58,6 +58,8 @@
     <!-- routing -->
     <string name="route_all">Route all traffic through a peer</string>
     <string name="route_gateway">Exit peer: its address in the network</string>
+    <string name="exits_announced">Peers that are exits to the internet - a tap takes one:</string>
+    <string name="exit_entry">%1$s (%2$s)</string>
     <string name="route_dns">DNS server, reached through the exit peer</string>
     <string name="route_note">The exit peer needs filter.allow_routing = true in its configuration, IP forwarding and NAT (masquerade) towards the internet. IPv6 is held back meanwhile, so that nothing goes around the exit peer. Applies on the next connect.</string>
     <string name="route_need_gateway">Enter the exit peer\'s address in the network (e.g. 10.1.2.1)</string>

@@ -13,6 +13,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <n3n/logging.h>
+#include <n3n/random.h>       // for n3n_rand
 #include <n3n/strings.h>
 #include <n3n/transform.h>
 #include <stdbool.h>
@@ -27,6 +28,7 @@
 
 #include "config.h"
 #include "edge_utils.h"
+#include "announce.h"         // for n3n_announce_is, n3n_announce_reads_fec
 #include "fec.h"              // for n3n_fec_wrap, n3n_fec_unwrap
 #include "header_encryption.h"
 #include "ipv6.h"              // for n3n_ipv6_address
@@ -118,6 +120,79 @@ static int build_gratuitous_arp (struct n3n_runtime_data * eee, char *buffer, ui
 
 /** Called from update_supernode_reg to periodically send gratuitous ARP
  *    broadcasts. */
+// What the edge says of itself to its peers: that it reads FEC, its name,
+// whether it is an exit
+static void announce_own (struct n3n_runtime_data *eee, struct n3n_announce_info *info) {
+
+    memset(info, 0, sizeof(*info));
+    info->has_fec = true;
+    info->fec_reads = N3N_FEC_READS;
+    snprintf(info->name, sizeof(info->name), "%s", eee->conf.name);
+    info->exit = eee->client.exit;
+}
+
+
+void edge_announce (struct n3n_runtime_data *eee, const n2n_mac_t dst, uint8_t flags) {
+
+    uint8_t frame[N3N_ANNOUNCE_FRAME_MAX];
+    struct n3n_announce_info info;
+    size_t len;
+
+    if(is_null_mac(eee->tap.device.mac_addr) || !SHARED_LOAD(eee->client.last_sup)) {
+        return;
+    }
+    announce_own(eee, &info);
+    len = n3n_announce_encode(frame, sizeof(frame), dst ? dst : broadcast_mac, eee->tap.device.mac_addr,
+                              flags, &info);
+    if(len) {
+        edge_send_packet2net(eee, frame, len);
+    }
+}
+
+
+void edge_announce_all (struct n3n_runtime_data *eee, time_t now) {
+
+    snprintf(eee->client.announced_name, sizeof(eee->client.announced_name), "%s", eee->conf.name);
+    edge_announce(eee, NULL, eee->client.announce_next ? 0 : N3N_ANNOUNCE_ASK);
+    eee->client.announce_next = now + N3N_ANNOUNCE_INTERVAL * 9 / 10
+                                + n3n_rand() % (N3N_ANNOUNCE_INTERVAL / 5 + 1);
+}
+
+
+// An announcement of a peer, see announce.h: kept, and answered if it asks
+// (by the main thread, which sends)
+static void announce_rx (struct n3n_runtime_data *eee, const n2n_mac_t from,
+                         const uint8_t *frame, size_t len, time_t now) {
+
+    struct n3n_announce_info info, before;
+    uint8_t flags = 0;
+    macstr_t mac_buf;
+    bool known;
+
+    if(!memcmp(from, eee->tap.device.mac_addr, sizeof(n2n_mac_t))) {
+        return;
+    }
+    if(n3n_announce_decode(frame, len, &flags, &info) < 0) {
+        traceEvent(TRACE_DEBUG, "an announcement from %s of another version", macaddr_str(mac_buf, from));
+        return;
+    }
+    known = n3n_announce_get(eee->client.announce, from, &before);
+    if(!known || strcmp(before.name, info.name) || (before.exit != info.exit)
+       || (before.fec_reads != info.fec_reads) || (before.has_fec != info.has_fec)) {
+        traceEvent(TRACE_INFO, "%s announces%s%s%s%s, FEC %s%s", macaddr_str(mac_buf, from),
+                   info.name[0] ? ": " : "", info.name[0] ? "\"" : "", info.name, info.name[0] ? "\"" : "",
+                   (info.has_fec && ((info.fec_reads & N3N_FEC_SENT) == N3N_FEC_SENT)) ? "read" : "not read",
+                   info.exit ? ", an exit" : "");
+    }
+    if(n3n_announce_learn(eee->client.announce, from, flags, &info, now)) {
+        struct edge_event ev = { .type = EDGE_EVENT_ANNOUNCE, .now = now };
+
+        memcpy(ev.mac, from, sizeof(n2n_mac_t));
+        edge_event_post(eee, &ev);
+    }
+}
+
+
 void send_grat_arps (struct n3n_runtime_data * eee) {
 
     uint8_t buffer[48];
@@ -203,6 +278,12 @@ static int tap_deliver (struct n3n_runtime_data *eee,
     uint8_t is_multicast;
     ssize_t data_sent_len;
     ipstr_t ip_buf;
+
+    // what the peer says of itself: for the edge, not for the device
+    if(n3n_announce_is(eth_payload, eth_size)) {
+        announce_rx(eee, pkt->srcMac, eth_payload, eth_size, now);
+        return 0;
+    }
 
     if(is_link_local_frame(eth_payload, eth_size)) {
         traceEvent(TRACE_INFO, "dropping RX link-local frame");
@@ -736,11 +817,13 @@ size_t edge_encode_packet_head (struct n3n_runtime_data *eee,
     // compression needs to be tried before encode_PACKET is called for compression indication gets encoded there
     pkt.compression = N2N_COMPRESSION_ID_NONE;
 
-    // forward error correction first, to a peer: the compression takes
-    // its trailer in too, and a repair riding along - as long as a full
-    // frame of the device at most, which a PACKET has room for
+    // forward error correction first, to a peer that said it reads it
+    // (announce.h): the compression takes its trailer in too, and a repair
+    // riding along - as long as a full frame of the device at most, which
+    // a PACKET has room for
     int fec_scheme = N3N_FEC_NONE;
-    if(eee->conf.community.fec && !is_multi_broadcast(out_destMac)) {
+    if(eee->conf.community.fec && !is_multi_broadcast(out_destMac)
+       && n3n_announce_reads_fec(eee->client.announce, out_destMac, N3N_FEC_SENT)) {
         size_t room = eee->conf.tap.mtu + ETH_FRAMESIZE;
         size_t fec_len;
 

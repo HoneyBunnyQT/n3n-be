@@ -288,6 +288,23 @@
                     android:textColor="@color/text"
                     android:textColorHint="@color/text_dim" />
 
+                <!-- the peers that announce themselves as exits to the
+                     internet: a tap takes one, see MainActivity.showExits() -->
+                <LinearLayout
+                    android:id="@+id/exits"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:visibility="gone">
+
+                    <TextView
+                        style="@style/Label"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/exits_announced" />
+                </LinearLayout>
+
                 <TextView
                     style="@style/Label"
                     android:layout_width="wrap_content"

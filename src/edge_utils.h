@@ -38,6 +38,7 @@ enum edge_event_type {
     EDGE_EVENT_PEER_IDLE,           /* not heard from the peer directly of late */
     EDGE_EVENT_PEER_PROBE,          /* frames go to the peer: probe the direct path */
     EDGE_EVENT_QUERY_PEER,          /* check_query_peer_info() */
+    EDGE_EVENT_ANNOUNCE,            /* answer the peer's announcement with ours, see announce.h */
 };
 
 struct edge_event {
@@ -48,7 +49,7 @@ struct edge_event {
     n2n_cookie_t cookie;            /* PEER_SEEN */
     uint8_t from_supernode;         /* PEER_SEEN */
     uint8_t via_multicast;          /* PEER_SEEN */
-    time_t now;                     /* HOST_SEEN, PEER_EXPIRE, QUERY_PEER */
+    time_t now;                     /* HOST_SEEN, PEER_EXPIRE, QUERY_PEER, ANNOUNCE */
 };
 
 // apply a change described in an event - on the thread that owns the tables

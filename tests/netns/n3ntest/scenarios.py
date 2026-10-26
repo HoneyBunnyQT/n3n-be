@@ -332,6 +332,27 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", tags=["interop"]),
     Scenario(
+        "announce-names",
+        "edges with names longer than the 16 bytes of a description "
+        "(connection.name), UTF-8: each announces its own (announce.h), the "
+        "other shows it - and still does after the REGISTERs that bring the "
+        "description, again and again",
+        Site(["easy-kept"],
+             conf={"connection": {"name": "Wohnzimmer – der große Rechner "
+                                          "im Erdgeschoss"}}),
+        Site(["easy-changed"],
+             conf={"connection": {"name": "b, with a name longer than "
+                                          "sixteen bytes"}}),
+        "direct", tags=["quick"]),
+    Scenario(
+        "interop-fec",
+        "a is an edge of the last release, which reads no FEC, b of this "
+        "tree with community.fec always: as a never announced that it reads "
+        "it (announce.h), b sends it plain PACKETs, and the frames arrive",
+        Site(["easy-kept"], version=OLD),
+        Site(["easy-changed"], conf={"community": {"fec": "always"}}),
+        "direct", tags=["interop"]),
+    Scenario(
         "interop-old-sn",
         "the supernodes are of the last release, the edges of this tree",
         Site(["easy-kept"]),

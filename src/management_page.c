@@ -21,6 +21,7 @@
 #include <stdio.h>              // for snprintf
 #include <string.h>
 #include <time.h>
+#include "announce.h"           // for n3n_announce_get
 #include "counter.h"            // for SHARED_LOAD
 #include "fec.h"                // for n3n_fec_peer_info
 #include "management.h"         // for mgmt_password_is_default
@@ -210,10 +211,12 @@ static void community_name (strbuf_t **b, const char *name, uint8_t header_encry
 }
 
 
-// A peer of the edge, or an edge registered at the supernode
+// A peer of the edge, or an edge registered at the supernode; with what the
+// peers announced (announce.h), by the name the peer announced, and marked
+// where it is an exit to the internet
 static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mode, const char *mode_class,
                       const char *cells, const struct sn_community *community, bool unlocked,
-                      struct nat_peer *nat_peers, const char *tail, time_t now) {
+                      struct nat_peer *nat_peers, struct n3n_announce *announce, const char *tail, time_t now) {
 
     macstr_t mac_buf;
     n3n_sock_str_t sockbuf;
@@ -240,8 +243,19 @@ static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     if(nat_peers) {
         sb_reprintf(b, "<td>%s</td>", nat_hint_str(nat, sizeof(nat), np ? np->hint : 0));
     }
+    struct n3n_announce_info info;
+    bool announced = announce && n3n_announce_get(announce, peer->mac_addr, &info);
+
     sb_reprintf(b, "<td class=w>");
-    html_text(b, peer->dev_desc, N2N_DESC_SIZE);
+    if(announced && info.name[0]) {
+        html_text(b, info.name, N3N_NAME_SIZE);
+    } else {
+        html_text(b, peer->dev_desc, N2N_DESC_SIZE);
+    }
+    if(announced && info.exit) {
+        sb_reprintf(b, " <span class=\"b ok\" title=\"an exit to the internet: %s\">internet</span>",
+                    (info.exit & N3N_ANNOUNCE_EXIT_PROBED) ? "its probe went through" : "as it is set");
+    }
     sb_reprintf(b, "</td><td><span class=t>%s</span></td>%s</tr>\n", ago(when, sizeof(when), now, peer->last_seen),
                 tail ? tail : "");
 }
@@ -445,14 +459,14 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
             bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
             peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
                      peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers,
-                     exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
+                     eee->client.announce, exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
             peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
-                     NULL, false, eee->client.nat_peers, exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL,
-                     now);
+                     NULL, false, eee->client.nat_peers, eee->client.announce,
+                     exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
     }
     row_more(b, cols, rows - PAGE_ROWS_MAX);
@@ -558,7 +572,7 @@ static void section_supernode (strbuf_t **b, struct n3n_runtime_data *sss, bool 
             if(rows++ < PAGE_ROWS_MAX) {
                 // its own edge is at 127.0.0.1:0, see local_link.h
                 peer_row(b, peer, peer->sock.port ? "here" : "own", peer->sock.port ? "b info" : "b ok",
-                         NULL, comm, unlocked, NULL, NULL, now);
+                         NULL, comm, unlocked, NULL, NULL, NULL, now);
             }
         }
     }

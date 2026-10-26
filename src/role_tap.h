@@ -28,6 +28,15 @@ void edge_fec_flush (struct n3n_runtime_data *eee);
 
 void send_grat_arps (struct n3n_runtime_data * eee);
 
+// The edge's announcement (announce.h) to dst, or to all for NULL; flags
+// N3N_ANNOUNCE_ASK for theirs back.  On the main thread.
+void edge_announce (struct n3n_runtime_data *eee, const n2n_mac_t dst, uint8_t flags);
+
+// The edge's announcement to all: the first one asking back, then the
+// next in N3N_ANNOUNCE_INTERVAL seconds, give or take a tenth, so that the
+// edges of a community do not all send at once
+void edge_announce_all (struct n3n_runtime_data *eee, time_t now);
+
 // The handler of a PACKET, on any thread
 void edge_rx_packet (struct n3n_runtime_data *eee, struct pdu_ctx *c);
 

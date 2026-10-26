@@ -11,7 +11,7 @@
 [
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "transop"
   },
   {
@@ -21,12 +21,12 @@
   },
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "super"
   },
   {
     "rx_pkt": 0,
-    "tx_pkt": 2,
+    "tx_pkt": 3,
     "type": "super_broadcast"
   },
   {
@@ -41,6 +41,7 @@
 ### test: ./scripts/n3n-be-ctl -s ci_sn get_edges --raw
 [
     {
+        "announced": 0,
         "community": "test",
         "desc": "ci_edge1",
         "ip4addr": "10.200.175.139/24",
@@ -50,6 +51,7 @@
         "loss": 0,
         "macaddr": "02:00:00:77:00:00",
         "mode": "sn",
+        "name": "ci_edge1",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",

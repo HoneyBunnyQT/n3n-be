@@ -64,6 +64,7 @@ recv:
 ### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 [
     {
+        "announced": 0,
         "community": "test",
         "desc": "packetgenerator",
         "ip4addr": "10.200.175.115/24",
@@ -73,6 +74,7 @@ recv:
         "loss": 0,
         "macaddr": "00:00:00:00:00:03",
         "mode": "sn",
+        "name": "packetgenerator",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",
@@ -348,6 +350,7 @@ recv:
 ### test: ./scripts/n3n-be-ctl -s ci_sn1 get_edges --raw
 [
     {
+        "announced": 0,
         "community": "test",
         "desc": "claim-c",
         "ip4addr": "10.9.0.5/24",
@@ -357,6 +360,7 @@ recv:
         "loss": 0,
         "macaddr": "02:00:00:00:00:0C",
         "mode": "sn",
+        "name": "claim-c",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",
@@ -367,6 +371,7 @@ recv:
         "version": ""
     },
     {
+        "announced": 0,
         "community": "test",
         "desc": "claim-b",
         "ip4addr": "10.200.175.120/24",
@@ -376,6 +381,7 @@ recv:
         "loss": 0,
         "macaddr": "02:00:00:00:00:0B",
         "mode": "sn",
+        "name": "claim-b",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",
@@ -386,6 +392,7 @@ recv:
         "version": ""
     },
     {
+        "announced": 0,
         "community": "test",
         "desc": "claim-a",
         "ip4addr": "10.200.175.126/24",
@@ -395,6 +402,7 @@ recv:
         "loss": 0,
         "macaddr": "02:00:00:00:00:0A",
         "mode": "sn",
+        "name": "claim-a",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",
@@ -405,6 +413,7 @@ recv:
         "version": ""
     },
     {
+        "announced": 0,
         "community": "test",
         "desc": "claim-a",
         "ip4addr": "10.200.175.125/24",
@@ -414,6 +423,7 @@ recv:
         "loss": 0,
         "macaddr": "02:00:00:00:00:0E",
         "mode": "sn",
+        "name": "claim-a",
         "nat": "unknown",
         "other_sockaddr": "",
         "prefered_sockaddr": "0.0.0.0:0",

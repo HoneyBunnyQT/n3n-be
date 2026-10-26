@@ -1201,6 +1201,46 @@ class Run:
                    "peers show their descriptions" if not empty else
                    "no description for " + ", ".join(empty))
 
+    def check_announcements(self, name="announced"):
+        """What an edge of this tree announces to its peers of this tree
+        (src/announce.h): that it reads FEC, and its name where it has one
+        (connection.name) - which the 16 bytes of the description its
+        REGISTERs bring, again and again, do not replace"""
+        def ours(site):
+            return not is_other(site.version) and not site.on_supernode
+        pairs = [(s, d) for s, d in self.sc.directions()
+                 if "daemon" in self.edges[s] and "daemon" in self.edges[d]
+                 and ours(self.sc.sites[s]) and ours(self.sc.sites[d])]
+        if not pairs:
+            return
+
+        def wanted(d):
+            return (self.sc.sites[d].conf.get("connection", {}).get("name")
+                    or self.sc.conf.get("connection", {}).get("name"))
+
+        def fine(row, d):
+            return (row.get("announced") == 1 and row.get("reads_fec") == 1
+                    and (not wanted(d) or row.get("name") == wanted(d)))
+
+        def rows():
+            out = {}
+            for s, d in pairs:
+                _, row = self.edges[s]["daemon"].peer(self.edges[d]["mac"])
+                out[(s, d)] = row or {}
+            return out
+        wait_for(lambda: all(fine(r, d) for (_, d), r in rows().items()),
+                 10, interval=0.5)
+        bad = ["{}->{}: announced {}, reads_fec {}, name {!r}".format(
+                   s, d, r.get("announced"), r.get("reads_fec"),
+                   r.get("name"))
+               for (s, d), r in rows().items() if not fine(r, d)]
+        names = [wanted(d) for _, d in pairs if wanted(d)]
+        self.check(name, not bad,
+                   "the peers announced themselves, FEC read{}".format(
+                       ", names " + ", ".join(repr(n) for n in names)
+                       if names else "")
+                   if not bad else "; ".join(bad))
+
     def warm_up(self):
         warm = [self.sender(s, d, FLOW_WARM, 0, 10)
                 for s, d in self.sc.directions()]
@@ -1224,6 +1264,7 @@ class Run:
                            self._modes_str(modes), took))
             if ok:
                 self.check_descriptions()
+                self.check_announcements()
             # Let a few frames go the new way before measuring
             time.sleep(1)
         else:
@@ -2251,7 +2292,10 @@ class Run:
 
         total = n * len(self.sc.directions())
         if self.expect == "direct":
-            ok = sn_fwd <= slack
+            # and an announcement each way for each edge, which asks a peer
+            # that is new to it again (after a failover, say) through the
+            # supernode, see src/announce.h
+            ok = sn_fwd <= slack + 2 * len(self.edges)
         else:
             ok = sn_fwd >= total - slack
         self.check("relay:supernodes", ok,
@@ -2655,11 +2699,13 @@ class Run:
                     self.check_span(received, "roam", self.sc.roam_max_gap)
                 if self.check_alive("measurement"):
                     self.check_descriptions("description after")
+                    self.check_announcements("announced after")
             if self.sc.route_all in ("switch", "reload") and \
                     self.check_alive("measurement"):
                 self.check_route_all_switch()
             if self.sc.gateway and self.check_alive("measurement"):
                 self.check_gateway()
+
             if self.sc.route_all and self.check_alive("gateway"):
                 self.check_route_all()
             if self.sc.inner6 and self.check_alive("measurement"):

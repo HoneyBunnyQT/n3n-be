@@ -21,8 +21,7 @@ packets - which, where they undo a loss, save what TCP would otherwise
 have sent again, and the time it would have waited for that.
 
 > Under development: what goes on the wire may still change before it is
-> part of a release.  Give all edges of a community the same build when
-> switching it on.
+> part of a release.
 
 ## Switching it on
 
@@ -31,11 +30,14 @@ have sent again, and the time it would have waited for that.
 fec = auto
 ```
 
-on every edge of the community.  An edge that does not know it drops the
-PACKETs that carry it ("decompression: failed: unsupported" in its log), as
-with a compression it does not know - so first every edge, then the
-setting.  The supernodes pass such PACKETs on as any others; they need
-nothing.  It can be changed while the edge runs (`n3n-be-ctl reload`).
+on the edges that are to send it.  An edge sends FEC only to the peers
+that announced they read it ([What an Edge Tells Its
+Peers](Announcements.md)): an edge of an older version, which would drop
+such PACKETs ("decompression: failed: unsupported" in its log), announces
+nothing, and gets them as ever.  So it can be switched on in a community
+where not all edges read it.  The supernodes pass such PACKETs on as any
+others; they need nothing.  It can be changed while the edge runs
+(`n3n-be-ctl reload`).
 
 - `none`, the default: PACKETs as ever, which every version of n3n reads
 - `auto`: frames to a peer go in groups, and after each group as many

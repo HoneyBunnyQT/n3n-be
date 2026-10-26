@@ -27,6 +27,7 @@
 
 #include "base64.h"      // for base64decode
 #include "connslot/strbuf.h"
+#include "announce.h"    // for n3n_announce_get
 #include "fec.h"         // for n3n_fec_peer_info
 #include "local_link.h"  // for local_link_edge
 #include "management.h"
@@ -771,8 +772,33 @@ static const char *fec_str (char *buf, size_t size, struct n3n_fec *fec, const n
     return buf;
 }
 
+// What the peer announced (announce.h): its name - the description where it
+// announced none, which the 16 bytes of its REGISTERs do not replace -,
+// whether it reads FEC, whether it is an exit; "announced":0 where it did
+// not announce, an edge of an older version
+static const char *announce_str (char *buf, size_t size, struct n3n_announce *announce,
+                                 const struct peer_info *peer) {
+
+    struct n3n_announce_info info;
+    char name[JSON_STR_SIZE(N3N_NAME_SIZE)];
+    bool announced = announce && n3n_announce_get(announce, peer->mac_addr, &info);
+
+    if(!announced || !info.name[0]) {
+        json_str(name, peer->dev_desc, N2N_DESC_SIZE);
+    } else {
+        json_str(name, info.name, N3N_NAME_SIZE);
+    }
+    if(!announced) {
+        snprintf(buf, size, "\"name\":\"%s\",\"announced\":0,", name);
+    } else {
+        snprintf(buf, size, "\"name\":\"%s\",\"announced\":1,\"reads_fec\":%d,\"exit\":%u,", name,
+                 info.has_fec && ((info.fec_reads & N3N_FEC_SENT) == N3N_FEC_SENT), (unsigned)info.exit);
+    }
+    return buf;
+}
+
 static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, const char *mode, const char *community,
-                                   struct nat_peer *nat_peers, struct n3n_fec *fec) {
+                                   struct nat_peer *nat_peers, struct n3n_fec *fec, struct n3n_announce *announce) {
     macstr_t mac_buf;
     n3n_sock_str_t sockbuf;
     n3n_sock_str_t sockbuf2;
@@ -783,6 +809,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
     char desc[JSON_STR_SIZE(N2N_DESC_SIZE)];
     char version[JSON_STR_SIZE(N2N_VERSION_STRING_SIZE)];
     char fec_buf[200];
+    char announce_buf[JSON_STR_SIZE(N3N_NAME_SIZE) + 80];
     const struct nat_peer *np = nat_peer_find(nat_peers, peer->mac_addr, false);
 
     sb_reprintf(reply,
@@ -797,6 +824,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 "\"prefered_sockaddr\":\"%s\","
                 "\"other_sockaddr\":\"%s\","
                 "\"desc\":\"%s\","
+                "%s"
                 "\"version\":\"%s\","
                 "\"nat\":\"%s\","
                 "\"loss\":%u,"
@@ -819,6 +847,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 (peer->other_seen && ((time(NULL) - peer->other_seen) < REGISTRATION_TIMEOUT))
                 ? sock_to_cstr(sockbuf3, &(peer->other_sock)) : "",
                 json_str(desc, peer->dev_desc, N2N_DESC_SIZE),
+                announce_str(announce_buf, sizeof(announce_buf), announce, peer),
                 json_str(version, peer->version, N2N_VERSION_STRING_SIZE),
                 nat_hint_str(nat, sizeof(nat), np ? np->hint : 0),
                 (unsigned)peer->loss,
@@ -866,7 +895,8 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
             eee->client.nat_peers,
-            eee->client.fec
+            eee->client.fec,
+            eee->client.announce
         );
 
         if(jsonrpc_error_overflow(id, conn, count)) {
@@ -895,7 +925,8 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
             mgmt_name_hidden(eee->conf.community.header_encryption, rpc_unlocked) ?
             MGMT_NAME_HIDDEN : eee->conf.community.community_name,
             eee->client.nat_peers,
-            eee->client.fec
+            eee->client.fec,
+            eee->client.announce
         );
 
         if(jsonrpc_error_overflow(id, conn, count)) {
@@ -926,6 +957,7 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
                 (community->is_federation) ? "-/-" :
                 mgmt_name_hidden(community->header_encryption, rpc_unlocked) ? MGMT_NAME_HIDDEN : community->community,
                 eee->client.nat_peers,
+                NULL,
                 NULL
             );
 
@@ -981,6 +1013,17 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
                 // does not count as gone
                 eee->conf.is_edge ? edge_is_registered(eee, time(NULL)) : 0
     );
+    if(eee->conf.is_edge) {
+        // what it announces of itself, see announce.h
+        char name[JSON_STR_SIZE(N3N_NAME_SIZE)];
+
+        if(eee->conf.name[0]) {
+            json_str(name, eee->conf.name, N3N_NAME_SIZE);
+        } else {
+            json_str(name, eee->conf.dev_desc, N2N_DESC_SIZE);
+        }
+        sb_reprintf(&conn->request, ",\"name\":\"%s\",\"exit\":%u", name, (unsigned)eee->client.exit);
+    }
     if(may_route_all(eee)) {
         sb_reprintf(&conn->request, ",");
         route_all_json(&conn->request, eee);

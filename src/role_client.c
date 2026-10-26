@@ -28,6 +28,7 @@
 #include <stddef.h>
 
 #include "config.h"
+#include "announce.h"          // for n3n_announce_renew
 #include "edge_utils.h"
 #include "header_encryption.h"
 #include "management.h"
@@ -766,6 +767,16 @@ static void register_with_new_peer (struct n3n_runtime_data *eee,
 
     /* NOTE: pending_peers are purged periodically with purge_expired_nodes */
     if(scan == NULL) {
+        struct peer_info *known;
+
+        // new to the edge, or again: what it announced may be of a program
+        // that is no more - an older one started in its place, which reads
+        // no FEC.  So it is asked anew, see announce.h.
+        HASH_FIND_PEER(eee->client.known_peers, mac, known);
+        if(!known && n3n_announce_renew(eee->client.announce, mac, time(NULL))) {
+            edge_announce(eee, mac, N3N_ANNOUNCE_ASK);
+        }
+
         scan = peer_info_malloc(mac);
 
         scan->sock = *peer;
@@ -2285,13 +2296,19 @@ void edge_rx_register_super_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c
     // update last_sup only on 'real' REGISTER_SUPER_ACKs, not on bootstrap ones (own MAC address
     // still null_mac) this allows reliable in/out PACKET drop if not really registered with a supernode yet
     if(!is_null_mac(eee->tap.device.mac_addr)) {
-        if(!SHARED_LOAD(eee->client.last_sup)) {
+        bool first = !SHARED_LOAD(eee->client.last_sup);
+
+        if(first) {
             // indicates first successful connection between the edge and a supernode
             traceEvent(TRACE_NORMAL, "[OK] edge <<< ================ >>> supernode");
             // send gratuitous ARP only upon first registration with supernode
             send_grat_arps(eee);
         }
         SHARED_STORE(eee->client.last_sup, c->now);
+        // and what it is to its peers, asking theirs back (announce.h)
+        if(first && !eee->client.announce_next) {
+            edge_announce_all(eee, c->now);
+        }
 
         // and the address of the other family, where it keeps one
         send_register_super_other(eee, c->now);

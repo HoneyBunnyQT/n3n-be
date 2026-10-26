@@ -286,9 +286,11 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
             other side) leave `auto` with the way back's loss at most
             (phase 2): take the probes' loss of the direct path
             (`p2p_max_loss`'s) where there is none
-      - [ ] Per peer instead of per community: an edge that learns a
-            peer reads FEC (a flag in its REGISTER, or from a PACKET of a
-            scheme) sends it to that one only - mixed communities
+      - [x] Per peer instead of per community: an edge sends FEC only
+            to the peers that announced they read it (2026-10-26,
+            `src/announce.c`, see below) - mixed communities; netns
+            `interop-fec` (an edge of an older version, which got 0 of
+            500 frames before)
       - [x] The loss per peer in `get_edges` (`fec`), beside the probes'
             `loss` of the direct path; [ ] on the page
 - [x] A supernode answered an edge's REGISTER_SUPER at once - with the
@@ -467,6 +469,20 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       restart), the edge of a supernode (`supernode.tap`) takes what of
       its own changes in the supernode's configuration (`sn-tap-reload`),
       and a new description reaches the peers at once
+- [x] What an edge tells its peers (asked 2026-10-26): an announcement,
+      an Ethernet frame of IEEE's "local experimental" EtherType (0x88B5)
+      with "n3n" and TLVs, in an ordinary PACKET - which older edges drop
+      at their device, so v3 stays as it is (`src/announce.c`,
+      docs/advanced/Announcements.md; `tests-announce`).  To all once
+      registered (asking back) and every minute, to a new peer asking back,
+      answered to the asker; kept 150 s, a peer new again asked anew.
+      First TLVs: the FEC schemes read (FEC per peer, above), a name of up
+      to 64 bytes (`connection.name`, which the REGISTERs' description
+      never overwrites), an exit to the internet, shown first in the
+      tray's list, as "internet" on the page, as a tap in the Android
+      app.  netns: `announce-names`, `interop-fec`, and every scenario of
+      this tree checks that its edges announce themselves.  Open: how an
+      edge knows it is an exit
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
@@ -1156,6 +1172,12 @@ release has it - as FEC was; there is no branch for it (see Decisions
 - 2026-10-26: The Windows installer is NSIS: it builds on Linux too (so
   under Wine before CI), its script is plain, and it is what 7-Zip and
   Notepad++ use; per machine, into Program Files.
+- 2026-10-26: What an edge tells its peers beyond v3 goes as a frame
+  inside the tunnel (EtherType 0x88B5, "n3n", TLVs), not as flags in the
+  header: every receiver takes a header with a flag bit above 0x40 for an
+  encrypted one (`pdu_header_plain()`), so an older edge or supernode
+  would drop such a packet in a community without header encryption.
+  The frame passes any supernode, and an older edge's device drops it.
 - 2026-10-26: Help on Windows is the docs as web pages, not a CHM file:
   a .chm from a downloaded zip is blocked until unblocked by hand, and
   the format is no longer developed.  In the zip (offline, of that

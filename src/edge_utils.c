@@ -45,6 +45,7 @@
 #include "auth.h"                    // for generate_private_key, generate_shared_secret, ...
 #include "config.h"                  // for HAVE_LIBZSTD
 #include "edge_utils.h"
+#include "announce.h"                // for n3n_announce_new, n3n_announce_purge
 #include "fec.h"                     // for n3n_fec_new, n3n_fec_free
 #include "header_encryption.h"       // for packet_header_encrypt, packet_he...
 #include "management.h"              // for mgmt_event_post
@@ -646,9 +647,11 @@ struct n3n_runtime_data* edge_init (const n2n_edge_conf_t *conf, int *rv) {
     if(rc) goto edge_init_error; /* error message is printed in zstd_init */
 #endif
 
-    // forward error correction is read always, as the compressions
+    // forward error correction is read always, as the compressions; what
+    // the peers announce tells which of them read it too
     eee->client.fec = n3n_fec_new();
-    if(!eee->client.fec) {
+    eee->client.announce = n3n_announce_new();
+    if(!eee->client.fec || !eee->client.announce) {
         traceEvent(TRACE_ERROR, "cannot allocate memory");
         rc = -1;
         goto edge_init_error;
@@ -939,6 +942,10 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
 
         case EDGE_EVENT_QUERY_PEER:
             check_query_peer_info(eee, ev->now, ev->mac);
+            break;
+
+        case EDGE_EVENT_ANNOUNCE:
+            edge_announce(eee, ev->mac, 0);
             break;
     }
 }
@@ -1384,6 +1391,24 @@ static void edge_tick_fec (struct n3n_runtime_data *eee, time_t now) {
     edge_fec_flush(eee);
 }
 
+// the edge's announcement to all (announce.h), every N3N_ANNOUNCE_INTERVAL
+// seconds or so - the first goes with the first registration
+static void edge_tick_announce (struct n3n_runtime_data *eee, time_t now) {
+
+    n3n_announce_purge(eee->client.announce, now);
+    if(!SHARED_LOAD(eee->client.last_sup)) {
+        return;
+    }
+    // a new name, by a reload: at once too
+    if(eee->client.announce_next && strcmp(eee->client.announced_name, eee->conf.name)) {
+        eee->client.announce_next = now;
+    }
+    if(now < eee->client.announce_next) {
+        return;
+    }
+    edge_announce_all(eee, now);
+}
+
 static void edge_tick_registrations (struct n3n_runtime_data *eee, time_t now) {
 
     update_supernode_reg(eee, now);
@@ -1504,6 +1529,7 @@ static void edge_register_ticks (struct n3n_runtime_data *rt) {
     mainloop_register_tick_rt(edge_tick_tap, 0, rt);
     mainloop_register_tick_rt(edge_tick_fec, 0, rt);
     mainloop_register_tick_rt(edge_tick_registrations, 0, rt);
+    mainloop_register_tick_rt(edge_tick_announce, 1, rt);
     mainloop_register_tick_rt(edge_tick_purge, PURGE_REGISTRATION_FREQUENCY, rt);
 #ifdef HAVE_BRIDGING_SUPPORT
     mainloop_register_tick_rt(edge_tick_purge_hosts, SWEEP_TIME, rt);
@@ -1796,6 +1822,7 @@ void edge_term (struct n3n_runtime_data * eee) {
 #endif
 
     n3n_fec_free(eee->client.fec);
+    n3n_announce_free(eee->client.announce);
     eee->client.transop.deinit(&eee->client.transop);
     eee->client.transop_lzo.deinit(&eee->client.transop_lzo);
 #ifdef HAVE_LIBZSTD
