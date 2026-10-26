@@ -126,14 +126,16 @@ for e in a:1 b:2; do
     check "adapter n3n-be-wt$name" $? "MTU ${mtu:-none}"
 done
 
-index_a=$(psh "(Get-NetAdapter -Name n3n-be-wta).ifIndex")
-index_b=$(psh "(Get-NetAdapter -Name n3n-be-wtb).ifIndex")
+index_a=$(psh "(Get-NetAdapter -Name n3n-be-wta -ErrorAction SilentlyContinue).ifIndex")
+index_b=$(psh "(Get-NetAdapter -Name n3n-be-wtb -ErrorAction SilentlyContinue).ifIndex")
 out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/broadcast.ps1")" \
     -From 10.99.7.1 -To 10.99.7.255 -Port $PORT -Want "$index_b" 2>&1 | tr -d '\r')
-check "a to b" $? "$(echo "$out" | tail -1) (b is interface $index_b)"
+[ -n "$index_b" ] && echo "$out" | grep -q "on interface $index_b\$"
+check "a to b" $? "$(echo "$out" | tail -1) (b is interface ${index_b:-none})"
 out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/broadcast.ps1")" \
     -From 10.99.7.2 -To 10.99.7.255 -Port $PORT -Want "$index_a" 2>&1 | tr -d '\r')
-check "b to a" $? "$(echo "$out" | tail -1) (a is interface $index_a)"
+[ -n "$index_a" ] && echo "$out" | grep -q "on interface $index_a\$"
+check "b to a" $? "$(echo "$out" | tail -1) (a is interface ${index_a:-none})"
 
 stop_all
 left=$(psh "Get-NetAdapter -Name n3n-be-wt* -ErrorAction SilentlyContinue | ForEach-Object Name")
