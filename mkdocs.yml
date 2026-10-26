@@ -22,6 +22,7 @@ nav:
   - Getting Started:
       - Installing: quick_start/Install.md
       - Your First Network: quick_start/Config.md
+      - Windows: quick_start/Windows.md
   - Configuration:
       - Overview: configure/index.md
       - Configuration Files: configure/ConfigurationFiles.md

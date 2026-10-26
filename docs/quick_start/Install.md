@@ -54,18 +54,12 @@ Service](../configure/Systemd.md).
 
 ## Windows
 
-`n3n-be-VERSION-windows-x86_64.zip`, for 64 bit Windows 10 and newer:
-unpack it anywhere.  The edge needs a TAP adapter, which Windows does
-not have on its own: install the `tap-windows6` driver of the OpenVPN
-project, which comes with OpenVPN or on its own from
-<https://build.openvpn.net/downloads/releases/> (the "tap-windows"
-installers).
-
-Then run, in a command prompt started as administrator,
-`n3n-be.exe edge` (or `n3n-be.exe supernode`).  The configuration goes into
-`%USERPROFILE%\n3n-be\edge.conf`; the `README.txt` in the zip has the
-details.  The programs are not signed: SmartScreen may warn the first
-time ("More info", "Run anyway").
+`n3n-be-VERSION-windows-x86_64-setup.exe`, for 64 bit Windows 10 and
+newer: the installer, with the edge as a service, the tray app and the
+help; or `n3n-be-VERSION-windows-x86_64.zip`, the same to unpack anywhere.
+The edge needs an adapter: a Wintun one of its own, which the installer
+fetches when there is no TAP driver, or the TAP adapter of the
+`tap-windows6` driver.  See [Windows](Windows.md).
 
 ## macOS
 

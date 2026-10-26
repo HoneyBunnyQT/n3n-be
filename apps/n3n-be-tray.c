@@ -48,8 +48,8 @@
 // the help: the docs as web pages, in the zip next to the programs (of this
 // version, release.yml), and online (the newest, pages.yml) - at the page
 // on Windows
-#define HELP_LOCAL      L"docs\\build\\windows.html"
-#define HELP_ONLINE     L"https://honeybunnyqt.github.io/n3n-be/build/windows.html"
+#define HELP_LOCAL      L"docs\\quick_start\\Windows.html"
+#define HELP_ONLINE     L"https://honeybunnyqt.github.io/n3n-be/quick_start/Windows.html"
 #define PEERS_MAX       24
 
 // the menu's commands

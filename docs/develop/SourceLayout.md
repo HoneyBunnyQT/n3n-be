@@ -65,4 +65,4 @@ a service, and
 management API through `src/mgmt_client.c`: a JSON-RPC call to the port on
 localhost and a small JSON reader, nothing of the daemon's
 (`tools/tests-mgmt-client` tests it); see
-[Windows](../build/windows.md#the-tray-app).
+[Windows](../quick_start/Windows.md#the-tray-app).

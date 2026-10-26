@@ -7,7 +7,7 @@
  * would get it by hand: the zip of Wintun from wintun.net, over HTTPS,
  * checked against the SHA256 it has to have (WINTUN_ZIP_SHA256), and from
  * it the DLL for this program's architecture, unpacked with Windows' own
- * tar.exe.  The zip is not ours to pass on (see docs/build/windows.md), so
+ * tar.exe.  The zip is not ours to pass on (see docs/quick_start/Windows.md), so
  * each computer fetches it from its home.  The tray app runs this, as an
  * administrator when the program's directory needs one.
  */
@@ -261,7 +261,7 @@ int n3n_wintun_main (int argc, char *argv[]) {
            "        %s,\n"
            "        and from it the amd64 DLL.  With it, an edge without a TAP adapter\n"
            "        takes a Wintun adapter of its own (tuntap.type = tun), see\n"
-           "        docs/build/windows.md.\n",
+           "        docs/quick_start/Windows.md.\n",
            WINTUN_VERSION, WINTUN_ZIP_HOST, WINTUN_ZIP_PATH, WINTUN_ZIP_SHA256);
     return 2;
 }
