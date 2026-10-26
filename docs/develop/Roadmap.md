@@ -638,11 +638,15 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       Wintun instead of a TAP driver to install, `tuntap.type = tun` -
       done, with `wintun.dll` next to the program, and in CI the first
       test of the edge on Windows with a device (two edges, a broadcast
-      each way, `tests/windows/wintun.sh`).  Open: whether the zip may
-      bring `wintun.dll` along (its licence allows passing it on with a
-      program that uses its API; whether n3n-be's GPL/AGPL allows it in
-      the same zip is the question), Wintun as the default, the tray
-      offering it
+      each way, `tests/windows/wintun.sh`, green on both runners at its
+      first push).  The zip does not bring the DLL along (decided
+      2026-10-26): each computer fetches it - the tray's "Get Wintun",
+      `n3n-be edge wintun get` (the zip of 0.14.1 from wintun.net, its
+      SHA256 pinned, the DLL out of it by Windows' tar.exe;
+      `apps/n3n-wintun.c`), or by hand as the docs say; and an edge
+      without a TAP adapter takes a Wintun one once the DLL is there, so
+      that is all it takes.  Open: Wintun as the default where both are
+      there
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`
@@ -1105,6 +1109,13 @@ release has it - as FEC was; there is no branch for it (see Decisions
   the Android app is a client of the core; no UAC prompt at each login.
   The tray app in plain Win32 C: the same MinGW toolchain and CI, one
   small .exe without runtime or DLLs, no licence questions.
+- 2026-10-26: Wintun on Windows without a TAP driver to install, but
+  `wintun.dll` not in the release zip: Wintun's licence lets it be passed
+  on with a program that uses its API, whether n3n-be's GPL/AGPL lets the
+  two share a zip is unclear - so each computer fetches it from
+  wintun.net (the tray, `n3n-be edge wintun get`, or by hand), the zip
+  checked against a pinned SHA256.  An edge without a TAP adapter takes
+  Wintun by itself then; TAP stays first where it is installed.
 - 2026-10-25: OpenWrt packages for the current series (25.12, apk) and,
   for a while, the one before it (24.10, opkg) on the most common
   routers - one build per package architecture, not per target or point

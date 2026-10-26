@@ -46,8 +46,9 @@ In order to run n3n on Windows, you will need the following:
     - a TAP adapter: the tap-windows driver, installed into the system, from
       http://build.openvpn.net/downloads/releases (search for
       "tap-windows"), or as it came with OpenVPN
-    - or a Wintun adapter, with `tuntap.type = tun`: nothing to install,
-      `wintun.dll` next to `n3n-be.exe` - see "Wintun" below
+    - or a Wintun adapter: nothing to install, `wintun.dll` next to
+      `n3n-be.exe` (`n3n-be.exe edge wintun get`, or the tray app, fetches
+      it) - see "Wintun" below
  
 - If OpenSSL has been linked dynamically, the corresponding `.dll` file should
   be available onto the target computer.
@@ -125,12 +126,36 @@ forwarding and NAT; see [Routing](../advanced/Routing.md).
 
 ### Wintun
 
-With `tuntap.type = tun` in the `[tuntap]` section, the edge makes a
-[Wintun](https://www.wintun.net/) adapter of its own - WireGuard's TUN
-device - instead of taking a TAP adapter that a driver installation
-brought: `wintun.dll` brings its driver along, and the adapter goes again
-when the edge stops.  Get the zip from https://www.wintun.net/, and put
-`wintun\bin\amd64\wintun.dll` from it next to `n3n-be.exe`.
+Instead of a TAP adapter that a driver installation brought, the edge can
+make a [Wintun](https://www.wintun.net/) adapter of its own - WireGuard's
+TUN device: `wintun.dll` next to `n3n-be.exe` brings its driver along,
+and the adapter goes again when the edge stops.  The release zip does not
+bring the DLL along: each computer fetches it from wintun.net, in one of
+three ways.
+
+- The tray app: "Get Wintun - no TAP driver needed...", shown while there
+  is no `wintun.dll` next to `n3n-be.exe` (Windows asks for an
+  administrator, as the program's directory may need one); a stopped
+  service starts again afterwards.
+- In a command prompt run as administrator:
+
+  ```
+  n3n-be.exe edge wintun get
+  ```
+
+  It downloads the zip of Wintun 0.14.1 from
+  https://www.wintun.net/builds/wintun-0.14.1.zip, checks its SHA256, and
+  puts `wintun\bin\amd64\wintun.dll` from it next to the program.
+- By hand: the same zip from https://www.wintun.net/ (its SHA256 is
+  `07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51`;
+  PowerShell's `Get-FileHash wintun-0.14.1.zip` shows it), and
+  `wintun\bin\amd64\wintun.dll` from it next to `n3n-be.exe`.  Its
+  properties' "Digital Signatures" tab says WireGuard LLC.
+
+With the DLL there, an edge takes a Wintun adapter when there is no TAP
+adapter to take (and none asked for by `tuntap.name`) - so getting it is
+all it takes; `tuntap.type = tun` asks for Wintun also when a TAP adapter
+is there:
 
 ```ini
 [tuntap]
@@ -140,22 +165,23 @@ address_mode = static
 ```
 
 - The adapter is `n3n-be-edge` (`n3n-be-` and the session's name), or
-  `tuntap.name`; Windows keeps its network (private or public) from one
-  start to the next.
+  `tuntap.name` with `tuntap.type = tun`; Windows keeps its network
+  (private or public) from one start to the next.
 - It carries IP packets: the edge adds and removes the Ethernet header
   itself, answers ARP for its address and asks for the others', so TUN
   and TAP edges share a community; as with TUN elsewhere, no bridging, no
-  `address_mode = dhcp`, and IPv6 inside the tunnel (`tuntap.address6`)
-  not yet on Windows.
+  `address_mode = dhcp` (an edge with it stays with TAP), and IPv6 inside
+  the tunnel (`tuntap.address6`) not yet on Windows.
 - As administrator, as with TAP; as a service too.  All traffic through an
   exit peer (`tuntap.route_all`) goes through the adapter as through a TAP
   one - not tried with Wintun yet.
 - 64 bit Windows only (the 32 bit build is for Windows XP).
 
-The release zip does not bring `wintun.dll` along (yet): its licence lets
-it be passed on with programs that use it through its API, as the edge
-does, but whether n3n-be's own licence (the GNU AGPL and GPL) allows it
-to be in the same zip is still to be settled.
+Why the zip does not bring it: Wintun's licence lets `wintun.dll` be
+passed on with programs that use it through its API, as the edge does,
+but whether n3n-be's own licence (the GNU AGPL and GPL) allows the two in
+the same zip is not settled; fetched by each computer from its home, the
+question does not come up.
 
 ### The tray app
 
@@ -179,6 +205,8 @@ in, not as an administrator, as a client of the service's management port.
 - Without a service, "Install the service..." runs `service install` as
   administrator (Windows asks), after asking for a configuration file if
   there is none in `%USERPROFILE%\n3n-be` yet.
+- Without `wintun.dll` next to `n3n-be.exe`, "Get Wintun - no TAP driver
+  needed..." runs `wintun get` as administrator, see "Wintun" above.
 
 So that it may do so, `service install` gives the configuration in
 `%ProgramData%\n3n-be` a management password of its own if it has none but

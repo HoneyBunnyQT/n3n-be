@@ -367,8 +367,11 @@ edge in the notification area, the install lets the installing user start
 and stop the service, gives the configuration a management password of
 its own if it has only the default one, and writes the port and the
 password to %USERPROFILE%\en3n-be\e\fIsessionname\fR.tray.
-\fBn3n-be-edge service uninstall\fR [\fIsessionname\fR] removes it.  See
-docs/build/windows.md.
+\fBn3n-be-edge service uninstall\fR [\fIsessionname\fR] removes it.
+\fBn3n-be-edge wintun get\fR (64 bit Windows) puts wintun.dll from
+wintun.net next to the program, checked against its SHA256: an edge
+without a TAP adapter, or with \fBtuntap.type\fR = tun, then makes a
+Wintun adapter of its own.  See docs/build/windows.md.
 
 .SH RELOAD
 \fBn3n-be-ctl reload\fR, \fBsystemctl reload\fR or SIGHUP (not while it runs

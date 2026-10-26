@@ -28,15 +28,17 @@ of these:
   with OpenVPN, or on its own from
   https://build.openvpn.net/downloads/releases/ (the "tap-windows"
   installers).
-- a Wintun adapter, nothing to install: wintun.dll from the zip on
-  https://www.wintun.net/ (wintun\bin\amd64\wintun.dll) next to
-  n3n-be.exe, and in edge.conf
+- a Wintun adapter, nothing to install: wintun.dll next to n3n-be.exe.
+  The tray app's "Get Wintun" fetches it, or in a command prompt run as
+  administrator
 
-      [tuntap]
-      type = tun
+      n3n-be.exe edge wintun get
 
-  The edge then makes an adapter of its own, n3n-be-edge, which goes
-  again when it stops.
+  (the zip of Wintun 0.14.1 from wintun.net, checked against its SHA256),
+  or by hand: wintun\bin\amd64\wintun.dll from the zip on
+  https://www.wintun.net/.  Without a TAP adapter, the edge then makes an
+  adapter of its own, n3n-be-edge, which goes again when it stops; with
+  one, "type = tun" in the [tuntap] section of edge.conf asks for Wintun.
 
 Running an edge
 ---------------
@@ -73,7 +75,8 @@ connected, with a white dot while all traffic goes through another edge.
 Its menu connects and disconnects, routes all traffic through one of the
 peers ("Route all traffic through"), opens the web page and the log, and
 starts the tray with Windows; without a service, "Install the service..."
-does the above (Windows asks for an administrator).  It runs as the user,
+does the above (Windows asks for an administrator), and without
+wintun.dll, "Get Wintun" fetches it.  It runs as the user,
 not as administrator: "service install" lets the user who installs the
 service start and stop it, and leaves a management password for the tray
 in %USERPROFILE%\n3n-be\edge.tray - so install it as the user who uses
