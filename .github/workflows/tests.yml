@@ -247,6 +247,14 @@ jobs:
           tools/tests-mgmt-client.exe
         shell: bash
 
+      # wintun.dll from wintun.net, for the test: the edge loads it when a
+      # TUN device is asked for, see src/win32/wintun.c
+      - name: Edges on Wintun adapters
+        run: >-
+          tests/windows/wintun.sh apps/n3n-be.exe
+          tools/tests-mgmt-client.exe
+        shell: bash
+
       - if: ${{ failure() }}
         name: Move test outputs to an arch specific location
         shell: bash
