@@ -207,6 +207,10 @@ in, not as an administrator, as a client of the service's management port.
   there is none in `%USERPROFILE%\n3n-be` yet.
 - Without `wintun.dll` next to `n3n-be.exe`, "Get Wintun - no TAP driver
   needed..." runs `wintun get` as administrator, see "Wintun" above.
+- Help: "Help for this version (offline)" opens these docs from the
+  `docs` folder of the release zip, at this page, in the browser; "Online
+  help (newest)" the same on https://honeybunnyqt.github.io/n3n-be/,
+  where the search works too.
 
 So that it may do so, `service install` gives the configuration in
 `%ProgramData%\n3n-be` a management password of its own if it has none but

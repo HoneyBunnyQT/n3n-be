@@ -10,6 +10,9 @@ What is in here
 - n3n-be.exe, the program: "n3n-be.exe edge" starts it as an edge,
   "n3n-be.exe supernode" as a supernode
 - n3n-be-tray.exe, the edge in the notification area (see "The tray app")
+- docs: the documentation as web pages - docs\build\windows.html is the
+  page on Windows, which the tray app's Help opens; online, the newest:
+  https://honeybunnyqt.github.io/n3n-be/
 - edge.conf.sample and supernode.conf.sample, configurations to start from
 - n3n-be-ctl, the management client (a Python 3 script)
 - LICENSES: n3n-be is free software under the GNU Affero GPL, version 3;
@@ -76,7 +79,8 @@ Its menu connects and disconnects, routes all traffic through one of the
 peers ("Route all traffic through"), opens the web page and the log, and
 starts the tray with Windows; without a service, "Install the service..."
 does the above (Windows asks for an administrator), and without
-wintun.dll, "Get Wintun" fetches it.  It runs as the user,
+wintun.dll, "Get Wintun" fetches it.  Help opens the documentation, the
+one in the docs folder or the newest online.  It runs as the user,
 not as administrator: "service install" lets the user who installs the
 service start and stop it, and leaves a management password for the tray
 in %USERPROFILE%\n3n-be\edge.tray - so install it as the user who uses

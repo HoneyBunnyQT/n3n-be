@@ -645,8 +645,13 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       SHA256 pinned, the DLL out of it by Windows' tar.exe;
       `apps/n3n-wintun.c`), or by hand as the docs say; and an edge
       without a TAP adapter takes a Wintun one once the DLL is there, so
-      that is all it takes.  Open: Wintun as the default where both are
-      there
+      that is all it takes.  Help (asked 2026-10-26): the docs as web
+      pages (mkdocs, already set up) in the Windows zip, built from the
+      tag; the tray's Help opens them at the Windows page, or the newest
+      online on GitHub Pages (`pages.yml`, from main), where the search
+      works; the edge's web page links to them; `make lint.docs` (in the
+      lint job) fails on a broken link.  Open: Wintun as the default
+      where both are there
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`
@@ -1116,6 +1121,11 @@ release has it - as FEC was; there is no branch for it (see Decisions
   wintun.net (the tray, `n3n-be edge wintun get`, or by hand), the zip
   checked against a pinned SHA256.  An edge without a TAP adapter takes
   Wintun by itself then; TAP stays first where it is installed.
+- 2026-10-26: Help on Windows is the docs as web pages, not a CHM file:
+  a .chm from a downloaded zip is blocked until unblocked by hand, and
+  the format is no longer developed.  In the zip (offline, of that
+  version) and on GitHub Pages (the newest, with search) - the project's
+  docs online for the first time.
 - 2026-10-25: OpenWrt packages for the current series (25.12, apk) and,
   for a while, the one before it (24.10, opkg) on the most common
   routers - one build per package architecture, not per target or point

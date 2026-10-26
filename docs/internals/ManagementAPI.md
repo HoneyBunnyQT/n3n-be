@@ -46,6 +46,8 @@ one ("All traffic"), with a button to stop that, and its peers each have a
 button "route all", as the Android app's "Route all traffic through a
 peer"; see [Routing](../advanced/Routing.md#switching-while-it-runs).
 
+- Its header links to the API's own help (`/help`), the metrics, and the
+  documentation online (https://honeybunnyqt.github.io/n3n-be/).
 - The daemon builds the page completely, so it reads in a text browser as
   well (`lynx http://localhost:5644/`), and with `curl`.  A small stylesheet
   (with a dark variant) and a few lines of script, which refresh the page
