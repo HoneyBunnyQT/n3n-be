@@ -513,6 +513,14 @@ The peer that takes packets for other networks.
 
 The address in the community of a peer that routes on what is for other networks - an exit node. That peer needs filter.allow_routing = true, IP forwarding and, for the internet, NAT. With tuntap.type = tun, packets for addresses outside the community's subnet go to it, otherwise they are dropped; with tuntap.route_all, all of the host's traffic goes through it. A TAP device without tuntap.route_all leaves this to the routes of the system (see docs/advanced/Routing.md).
 
+### tuntap.exit
+
+Whether to announce the edge as an exit to the internet.
+
+What the edge tells its peers (of versions that read announcements), which show it in their lists of the peers to route all traffic through. auto: if a probe through the host comes back - a datagram as from a peer, to the supernode and back, which takes filter.allow_routing, IP forwarding and NAT (or a route back) as a peer's packets would, and a supernode of this version, which answers it; tried at the start, every 30 minutes, and when the network changes. yes: announced as an exit without a probe (with filter.allow_routing). no: never.
+
+Default: `auto`
+
 ### tuntap.route_all
 
 Route all of the host's traffic through tuntap.gateway.

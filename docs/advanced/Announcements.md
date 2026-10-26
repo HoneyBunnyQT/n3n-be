@@ -79,9 +79,27 @@ announces it at once.
 
 An edge that lets its peers' traffic through to the internet - with
 `filter.allow_routing = true`, IP forwarding and NAT on its host, see
-[Routing](Routing.md) - says so in its announcement, and its peers show it
+[Routing](Routing.md) - announces itself as an exit, and its peers show it
 so: first in the tray app's "Route all traffic through", with "internet"
 on the web page, as a tap below the exit peer's field in the Android app.
+
+`tuntap.exit = auto` (the default) finds out by a **probe**, through the
+way a peer's packets take: the edge puts a UDP datagram onto its own
+device as if it came from a peer - from an address of the community's
+subnet that no peer has, with a MAC of its own - to its supernode.  The
+host forwards it to the internet if it does, with its own address as the
+source; the supernode sends it back as it came; the host forwards the
+answer into the device, to the address that sent it - where the edge
+takes it, as it takes the host's ARP for that address, without passing
+either on.  The answer is the proof: the announcement says "found by a
+probe".  It is tried a few seconds after the edge registered, every 30
+minutes, and when the host's network changes; without an answer within 5
+seconds, the edge is no exit, and says why in its log once.
+
+The supernode has to answer the probe, which supernodes of n3n-be after
+3.4.8 do (up to 50 a second; what goes back is no larger than what came).
+With an older supernode, or to announce an exit without a probe,
+`tuntap.exit = yes` - "set by hand"; `no` never announces one.
 
 `get_edges` gives each peer's `exit` (the TLV's bits, 0 for none),
 `get_info` the edge's own.

@@ -734,6 +734,31 @@ SCENARIOS = [
         Site(["hard-range"]),
         "relayed", gateway="b", route_all=True),
     Scenario(
+        "exit-probe",
+        "b is a's gateway, and its host forwards what comes from the tunnel "
+        "and masquerades it: its probe through the host to the supernode "
+        "and back comes back, and it announces itself as an exit "
+        "(src/exit_probe.h), as a sees.  b's router keeps ports: one that "
+        "maps all of b's UDP to one port (easy-changed) has no other for "
+        "the probe's way to the supernode, the edge's own has it",
+        Site(["easy-kept"]),
+        Site(["easy-kept"]),
+        "direct", gateway="b", exit="nat", tags=["quick"]),
+    Scenario(
+        "exit-probe-none",
+        "as exit-probe, b's host without forwarding: its probe gets no "
+        "answer, and it announces no exit",
+        Site(["easy-kept"]),
+        Site(["easy-kept"]),
+        "direct", gateway="b", exit="none"),
+    Scenario(
+        "exit-set",
+        "as exit-probe-none, with tuntap.exit = yes: announced as an exit "
+        "all the same, as set",
+        Site(["easy-kept"]),
+        Site(["easy-kept"]),
+        "direct", gateway="b", exit="yes"),
+    Scenario(
         "tun-tun",
         "two edges with TUN devices, relayed: each finds the other's MAC "
         "from what it announces",

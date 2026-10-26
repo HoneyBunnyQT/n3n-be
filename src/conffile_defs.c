@@ -12,6 +12,7 @@
 #include <stdlib.h>             // for calloc, free
 #include <string.h>             // for strlen, strcpy
 
+#include "exit_probe.h"         // for N3N_EXIT_AUTO, ...
 #include "fec.h"                // for N3N_FEC_MODE_NONE, ...
 #include "role_client.h"        // for P2P_MAX_LOSS_AUTO
 #include "n2n_define.h"
@@ -35,6 +36,22 @@ static struct n3n_conf_option section_auth[] = {
     },
     // TODO: the connection.description is repurposed as a username for auth
     {.name = NULL},
+};
+
+static struct n3n_conf_str2id_data exit_data[] = {
+    {
+        .id = N3N_EXIT_AUTO,
+        .name = "auto",
+    },
+    {
+        .id = N3N_EXIT_YES,
+        .name = "yes",
+    },
+    {
+        .id = N3N_EXIT_NO,
+        .name = "no",
+    },
+    {},
 };
 
 static struct n3n_conf_str2id_data p2p_max_loss_data[] = {
@@ -822,6 +839,23 @@ static struct n3n_conf_option section_tuntap[] = {
                 "the host's traffic goes through it.  A TAP device without "
                 "tuntap.route_all leaves this to the routes of the system "
                 "(see docs/advanced/Routing.md).",
+    },
+    {
+        .name = "exit",
+        .type = n3n_conf_str2id,
+        .str2id_data = exit_data,
+        .offset = offsetof(n2n_edge_conf_t, tap.exit),
+        .desc = "Whether to announce the edge as an exit to the internet",
+        .help = "What the edge tells its peers (of versions that read "
+                "announcements), which show it in their lists of the peers "
+                "to route all traffic through.  auto: if a probe through "
+                "the host comes back - a datagram as from a peer, to the "
+                "supernode and back, which takes filter.allow_routing, IP "
+                "forwarding and NAT (or a route back) as a peer's packets "
+                "would, and a supernode of this version, which answers "
+                "it; tried at the start, every 30 minutes, and when the "
+                "network changes.  yes: announced as an exit without a "
+                "probe (with filter.allow_routing).  no: never.",
     },
     {
         .name = "route_all",

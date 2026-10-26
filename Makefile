@@ -146,6 +146,7 @@ OBJS=\
 	src/edge_threads.o \
 	src/edge_utils.o \
 	src/embed.o \
+	src/exit_probe.o \
 	src/fec.o \
 	src/gf256.o \
 	src/gf256_neon.o \

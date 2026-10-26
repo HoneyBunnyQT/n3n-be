@@ -98,6 +98,13 @@ Oscar needs NAT (the `iptables` lines above): the office router
 forwards only what comes from its own network.  Oscar also needs its
 route back to hickory.
 
+Once it has, oscar's edge finds out by itself, by a probe through its
+host to the supernode and back, and announces itself to its peers as an
+exit to the internet (`tuntap.exit`, see [What an Edge Tells Its
+Peers](Announcements.md#exits-to-the-internet)): its peers' lists of
+exit peers - the tray app's, the web page's, the Android app's - show it
+as one, first.
+
 On hickory, the edge does the rest with `tuntap.route_all`, as the
 Android app does with its "Route all traffic through a peer" - on Linux
 and on 64-bit Windows alike:

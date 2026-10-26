@@ -29,6 +29,7 @@
 
 #include "config.h"
 #include "announce.h"          // for n3n_announce_renew
+#include "exit_probe.h"        // for edge_exit_network_changed
 #include "edge_utils.h"
 #include "header_encryption.h"
 #include "management.h"
@@ -1308,6 +1309,9 @@ static void edge_network_changed (struct n3n_runtime_data *eee, unsigned why, ti
 
     traceEvent(TRACE_NORMAL, "the network changed (%s): registering again",
                netwatch_str(why, buf, sizeof(buf)));
+
+    // whether the host is an exit may have changed with it
+    edge_exit_network_changed(eee, now);
 
     // a TCP connection to the supernode went with the old network
     if(eee->client.tcp) {

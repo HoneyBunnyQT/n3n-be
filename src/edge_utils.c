@@ -46,6 +46,7 @@
 #include "config.h"                  // for HAVE_LIBZSTD
 #include "edge_utils.h"
 #include "announce.h"                // for n3n_announce_new, n3n_announce_purge
+#include "exit_probe.h"              // for edge_exit_tick
 #include "fec.h"                     // for n3n_fec_new, n3n_fec_free
 #include "header_encryption.h"       // for packet_header_encrypt, packet_he...
 #include "management.h"              // for mgmt_event_post
@@ -1396,6 +1397,8 @@ static void edge_tick_fec (struct n3n_runtime_data *eee, time_t now) {
 static void edge_tick_announce (struct n3n_runtime_data *eee, time_t now) {
 
     n3n_announce_purge(eee->client.announce, now);
+    // whether it is an exit: announced at once when that changes
+    edge_exit_tick(eee, now);
     if(!SHARED_LOAD(eee->client.last_sup)) {
         return;
     }

@@ -143,6 +143,16 @@ AIRPORT = """table inet airport {
 }
 """
 
+# The exit edge's host as one sets it up (see Scenario(exit="nat")): what
+# comes from the tunnel goes out masqueraded
+EXIT_NAT = """table ip exit {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        iifname "n3n0" oifname "eth0" masquerade
+    }
+}
+"""
+
 
 class Site:
     """An edge, and the NAT routers in front of it, outermost first.  Or,
@@ -200,7 +210,7 @@ class Scenario:
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
-                 fec_loss=0, load=0):
+                 fec_loss=0, load=0, exit=None):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -265,6 +275,12 @@ class Scenario:
         # and back while it runs, see check_route_all_switch(); with
         # "reload" also by a reload of its configuration file
         self.route_all = route_all
+        # Whether the gateway's edge is an exit to the internet, as it
+        # announces (src/exit_probe.h), see check_exit(): "nat" - its host
+        # forwards what comes from the tunnel and masquerades it, which the
+        # probe finds; "none" - it does not, which the probe finds too;
+        # "yes" - tuntap.exit = yes, without forwarding
+        self.exit = exit
         # The "internet", the supernodes and the edges on it without NAT
         # have IPv6 next to IPv4 (dual stack)
         self.ipv6 = ipv6
@@ -650,6 +666,9 @@ class Run:
                        optional=True)
         if site.block_udp:
             lab.nft(ns, AIRPORT, sname + "-airport")
+        if self.sc.exit == "nat" and self.sc.gateway == sname:
+            lab.sysctl(ns, "net.ipv4.ip_forward", 1)
+            lab.nft(ns, EXIT_NAT, sname + "-exit")
 
         self.edges[sname] = {
             "ns": ns,
@@ -989,6 +1008,8 @@ class Run:
             conf["tuntap"].setdefault("address6", "auto")
         if self.sc.gateway == sname:
             conf.setdefault("filter", {})["allow_routing"] = True
+            if self.sc.exit == "yes":
+                conf["tuntap"]["exit"] = "yes"
         elif self.sc.route_all in ("switch", "reload"):
             conf["tuntap"]["route_all"] = True
         elif self.sc.gateway:
@@ -2339,6 +2360,31 @@ class Run:
                    "{} of 20 datagrams to {} through {}".format(
                        got, GATEWAY_TARGET, gw))
 
+    def check_exit(self):
+        """What the other edge sees of the gateway's as an exit (its
+        announcement, src/exit_probe.h): one its probe went through, one set
+        by tuntap.exit = yes, or none"""
+        gw = self.sc.gateway
+        src = [s for s in self.edges if s != gw][0]
+        want = {"nat": 0x81, "yes": 0x41, "none": 0}[self.sc.exit]
+
+        def seen():
+            _, row = self.edges[src]["daemon"].peer(self.edges[gw]["mac"])
+            return (row or {}).get("exit")
+        if want:
+            wait_for(lambda: (seen() or 0) & want == want, 25, interval=0.5)
+        else:
+            # the first probe and its time to answer, then a while more
+            time.sleep(14)
+        got = seen()
+        ok = (got is not None) and ((got & want) == want if want
+                                    else got == 0)
+        what = {"nat": "a probe through its host came back",
+                "yes": "tuntap.exit = yes",
+                "none": "no exit: its host does not forward"}[self.sc.exit]
+        self.check("exit", ok, "{} sees {} as exit {} - {}".format(
+            src, gw, "none" if got is None else hex(got), what))
+
     def _fake_resolvectl(self):
         """A resolvectl first in the edge's PATH, which writes down what it
         is asked, and whether it has CAP_NET_ADMIN (bit 12 of CapEff): what
@@ -2705,7 +2751,8 @@ class Run:
                 self.check_route_all_switch()
             if self.sc.gateway and self.check_alive("measurement"):
                 self.check_gateway()
-
+            if self.sc.exit and self.check_alive("measurement"):
+                self.check_exit()
             if self.sc.route_all and self.check_alive("gateway"):
                 self.check_route_all()
             if self.sc.inner6 and self.check_alive("measurement"):

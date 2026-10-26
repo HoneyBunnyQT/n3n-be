@@ -29,6 +29,7 @@
 #include "config.h"
 #include "edge_utils.h"
 #include "announce.h"         // for n3n_announce_is, n3n_announce_reads_fec
+#include "exit_probe.h"       // for edge_exit_take
 #include "fec.h"              // for n3n_fec_wrap, n3n_fec_unwrap
 #include "header_encryption.h"
 #include "ipv6.h"              // for n3n_ipv6_address
@@ -263,6 +264,12 @@ static int tap_write (struct n3n_runtime_data *eee, uint8_t *buf, int len) {
         return tun_from_frame(eee, buf, len, tap_write_device);
     }
     return tap_write_device(eee, buf, len);
+}
+
+
+int edge_tap_inject (struct n3n_runtime_data *eee, uint8_t *frame, int len) {
+
+    return tap_write(eee, frame, len);
 }
 
 
@@ -1204,6 +1211,11 @@ static int edge_tap_take (struct n3n_runtime_data * eee,
         }
         return -1;
 
+    }
+
+    // the exit probe's (exit_probe.h): for the edge, not for the peers
+    if(edge_exit_take(eee, eee->tap.device.tun ? eth_pkt + 14 : eth_pkt, len, eee->tap.device.tun)) {
+        return 1;
     }
 
     if(eee->tap.device.tun) {

@@ -28,6 +28,9 @@ void edge_fec_flush (struct n3n_runtime_data *eee);
 
 void send_grat_arps (struct n3n_runtime_data * eee);
 
+// A frame onto the device, as if from a peer: its length if written
+int edge_tap_inject (struct n3n_runtime_data *eee, uint8_t *frame, int len);
+
 // The edge's announcement (announce.h) to dst, or to all for NULL; flags
 // N3N_ANNOUNCE_ASK for theirs back.  On the main thread.
 void edge_announce (struct n3n_runtime_data *eee, const n2n_mac_t dst, uint8_t flags);

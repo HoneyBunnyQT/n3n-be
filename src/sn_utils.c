@@ -48,6 +48,7 @@
 #include "sn_communities.h"
 #include "sn_utils.h"
 #include "local_link.h"         // for LOCAL_LINK_FD, local_link_to_edge
+#include "exit_probe.h"         // for exit_probe_echo
 #include "sock.h"               // for bind_entry_of_sock, sendto_logged, ...
 #include "stats.h"              // for STATS_INC
 
@@ -874,6 +875,11 @@ int sn_read_proto3_udp (struct n3n_runtime_data *sss,
 void sn_rx_udp (struct n3n_runtime_data *sss, SOCKET sock,
                 struct sockaddr *from, socklen_t from_len,
                 uint8_t *buf, size_t len, time_t now) {
+
+    // an edge's exit probe: back to where it came from, see exit_probe.h
+    if(exit_probe_echo(sock, from, from_len, buf, len, now)) {
+        return;
+    }
 
     // what comes in on a thread's socket is handled as if it came in on the
     // main thread's for the same address, which is what gets remembered

@@ -478,11 +478,15 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       answered to the asker; kept 150 s, a peer new again asked anew.
       First TLVs: the FEC schemes read (FEC per peer, above), a name of up
       to 64 bytes (`connection.name`, which the REGISTERs' description
-      never overwrites), an exit to the internet, shown first in the
-      tray's list, as "internet" on the page, as a tap in the Android
-      app.  netns: `announce-names`, `interop-fec`, and every scenario of
-      this tree checks that its edges announce themselves.  Open: how an
-      edge knows it is an exit
+      never overwrites), an exit to the internet - found by a probe
+      through the host (`src/exit_probe.c`: a datagram onto the device as
+      from a peer, to the supernode, which sends it back; `tuntap.exit`
+      auto/yes/no), shown first in the tray's list, as "internet" on the
+      page, as a tap in the Android app.  netns: `announce-names`,
+      `exit-probe` (with forwarding and NAT), `exit-probe-none`,
+      `exit-set`, `interop-fec`, and every scenario of this tree checks
+      that its edges announce themselves.  Open: IPv6 exits (the probe is
+      IPv4), a probe through supernodes that do not answer it
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
@@ -1178,6 +1182,10 @@ release has it - as FEC was; there is no branch for it (see Decisions
   encrypted one (`pdu_header_plain()`), so an older edge or supernode
   would drop such a packet in a community without header encryption.
   The frame passes any supernode, and an older edge's device drops it.
+  An exit is found by a probe through the host to the supernode and
+  back rather than by reading the host's settings: NAT has too many forms
+  (nftables, iptables, firewalld, Docker; ICS on Windows) to read them
+  all, the probe tests what a peer's packets would meet.
 - 2026-10-26: Help on Windows is the docs as web pages, not a CHM file:
   a .chm from a downloaded zip is blocked until unblocked by hand, and
   the format is no longer developed.  In the zip (offline, of that

@@ -67,6 +67,7 @@ static const char *const live_options[] = {
     "logging.verbose",
     "management.password",
     "tuntap.dns",
+    "tuntap.exit",
     "tuntap.gateway",
     "tuntap.route_all",
     NULL

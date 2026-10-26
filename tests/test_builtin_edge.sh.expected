@@ -66,6 +66,7 @@ output_format=pretty
 address=0.0.0.0/0
 type=tap
 gateway=0.0.0.0/0
+exit=auto
 route_all=false
 dns=0.0.0.0/0
 address_mode=auto

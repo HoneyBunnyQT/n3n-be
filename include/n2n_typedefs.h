@@ -481,6 +481,7 @@ struct n3n_conf_tap {
     char *prefix6;                    // tuntap.prefix6: NULL for the default
     struct n2n_ip_subnet gateway;     // the exit peer: for addresses outside the subnet (TUN, route_all), 0: none
     bool route_all;                   // all of the host's traffic through the gateway, see route_all.h
+    int exit;                         // an exit to the internet for the peers? N3N_EXIT_*, see exit_probe.h
     struct n2n_ip_subnet dns;         // with route_all: the DNS server, 0: none
     uint8_t tuntap_ip_mode;                          /**< Interface IP address allocated mode, eg. DHCP. */
     int type;                                        /**< N3N_TUNTAP_TAP or N3N_TUNTAP_TUN */
@@ -730,6 +731,15 @@ struct n3n_rt_client {
     time_t announce_next;                                                /**< when the edge next announces itself to all; 0: once registered, asking back */
     uint8_t exit;                                                        /**< what it announces of itself as an exit, N3N_ANNOUNCE_EXIT_* */
     char announced_name[N3N_NAME_SIZE];                                  /**< the name it last announced: a reload's new one goes out at once */
+    uint32_t exit_probe_ip;                                              /**< the address its exit probe comes from, network order; 0 for none, see exit_probe.h */
+    uint16_t exit_probe_port;
+    uint8_t exit_probe_nonce[16];
+    n2n_mac_t exit_probe_mac;
+    bool exit_probe_ok;                                                  /**< its answer came, set by the thread that read it */
+    bool exit_probed;                                                    /**< the last probe went through */
+    bool exit_probe_failed;                                              /**< a probe got no answer (said once) */
+    time_t exit_probe_sent;                                              /**< when the probe waited for went, 0 for none */
+    time_t exit_probe_next;                                              /**< when the next goes, 0 once registered */
     uint8_t dynamic_key[N2N_AUTH_CHALLENGE_SIZE];                        /**< with user/password: the header key the supernode gave last */
     bool dynamic_key_known;
     uint64_t sn_selection_criterion_common_data;
