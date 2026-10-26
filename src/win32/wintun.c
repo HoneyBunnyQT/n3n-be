@@ -95,8 +95,8 @@ static void CALLBACK wintun_log (WINTUN_LOGGER_LEVEL level, DWORD64 timestamp, L
 
 
 // wintun.dll from the program's directory (or Windows' own): true once all
-// its functions are there
-static bool wintun_load (void) {
+// its functions are there; quiet: without a line in the log if it is not
+static bool wintun_load (bool quiet) {
 
     static const struct {
         const char *name;
@@ -121,8 +121,11 @@ static bool wintun_load (void) {
     }
     wt.dll = LoadLibraryExW(L"wintun.dll", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR | LOAD_LIBRARY_SEARCH_SYSTEM32);
     if(!wt.dll) {
-        traceEvent(TRACE_ERROR, "tuntap.type = tun needs wintun.dll next to the program - the amd64 one "
-                   "of the zip from https://www.wintun.net/ [%lu]", (unsigned long)GetLastError());
+        if(!quiet) {
+            traceEvent(TRACE_ERROR, "tuntap.type = tun needs wintun.dll next to the program: "
+                       "\"n3n-be edge wintun get\" fetches it, or by hand the amd64 one of the zip "
+                       "from https://www.wintun.net/ [%lu]", (unsigned long)GetLastError());
+        }
         return false;
     }
     for(size_t i = 0; i < sizeof(fns) / sizeof(fns[0]); i++) {
@@ -273,7 +276,7 @@ int wintun_open (tuntap_dev *device, const char *name, struct n2n_ip_subnet v4su
     GUID guid;
     DWORD version;
 
-    if(!wintun_load()) {
+    if(!wintun_load(false)) {
         return -1;
     }
     if(!MultiByteToWideChar(CP_UTF8, 0, name, -1, wname, sizeof(wname) / sizeof(wname[0]))) {
@@ -449,6 +452,12 @@ void wintun_close (tuntap_dev *device) {
 }
 
 
+bool wintun_available (void) {
+
+    return wintun_load(true);
+}
+
+
 int wintun_wake_fd (tuntap_dev *device) {
 
     return device->wintun ? (int)device->wintun->wake_rx : -1;
@@ -507,6 +516,11 @@ int wintun_write (tuntap_dev *device, unsigned char *buf, int len) {
 }
 
 void wintun_close (tuntap_dev *device) {
+}
+
+bool wintun_available (void) {
+
+    return false;
 }
 
 int wintun_wake_fd (tuntap_dev *device) {

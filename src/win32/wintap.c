@@ -233,7 +233,7 @@ int open_wintap (struct tuntap_dev *device,
 
     if(device->device_handle == INVALID_HANDLE_VALUE) {
         if(!devname[0])
-            printf("No Windows tap devices found, did you run tapinstall.exe?\n");
+            printf("No TAP adapter found\n");
         else
             printf("Cannot find tap device \"%s\"\n", devname);
         return -1;

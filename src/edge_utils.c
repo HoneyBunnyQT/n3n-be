@@ -588,16 +588,8 @@ struct n3n_runtime_data* edge_init (const n2n_edge_conf_t *conf, int *rv) {
 
 #ifdef _WIN32
     // TODO: more investigations in interface naming/renaming on windows
-    // (with TAP, the name picks an installed adapter); a Wintun adapter is
-    // the edge's own, named after the session
-    if((eee->conf.tap.type == N3N_TUNTAP_TUN) && (eee->conf.tap.tuntap_dev_name[0] == 0)) {
-        snprintf(
-            eee->conf.tap.tuntap_dev_name,
-            sizeof(eee->conf.tap.tuntap_dev_name),
-            "n3n-be-%s",
-            conf->sessionname
-        );
-    }
+    // (with TAP, the name picks an installed adapter; a Wintun adapter is
+    // named after the session, see edge_tap_open_win())
 #else
     if(eee->conf.tap.tuntap_dev_name[0] == 0) {
         snprintf(

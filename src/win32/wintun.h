@@ -10,7 +10,19 @@
 #ifndef _WINTUN_H_
 #define _WINTUN_H_
 
+#include <stdbool.h>
 #include "n2n_typedefs.h"       // for tuntap_dev, n2n_ip_subnet
+
+// The Wintun that "n3n-be edge wintun get" fetches (apps/n3n-wintun.c), and
+// tests/windows/wintun.sh with it: the zip's address, and the SHA256 it has
+#define WINTUN_VERSION          "0.14.1"
+#define WINTUN_ZIP_HOST         L"www.wintun.net"
+#define WINTUN_ZIP_PATH         L"/builds/wintun-0.14.1.zip"
+#define WINTUN_ZIP_SHA256       "07c256185d6ee3652e09fa55c0b673e2624b565e02c4b9091c79ca7d2f24ef51"
+
+// Whether wintun.dll can be loaded: an edge without a TAP adapter can take
+// a Wintun one then
+bool wintun_available (void);
 
 // An adapter of its own, name its name: 0, or -1 after a line in the log
 int wintun_open (tuntap_dev *device, const char *name, struct n2n_ip_subnet v4subnet,

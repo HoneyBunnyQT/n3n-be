@@ -47,6 +47,7 @@
 #include <direct.h>
 
 #include "win32/edge_utils_win32.h"
+#include "win32/wintun.h"     // for wintun_available
 #else
 #include <arpa/inet.h>
 #include <netdb.h>
@@ -975,6 +976,47 @@ static int edge_ipv6_setup (struct n3n_runtime_data *eee) {
 }
 
 
+#ifdef _WIN32
+// A TAP adapter, or a Wintun adapter of the edge's own: with tuntap.type =
+// tun, and also without when there is no TAP adapter to take (nor one
+// asked for by name) but wintun.dll is there - so that getting it is all
+// it takes.  The Wintun adapter is n3n-be-<sessionname> unless tuntap.name
+// says another name.
+static int edge_tap_open_win (struct n3n_runtime_data *eee) {
+
+    const struct n3n_conf_tap *tap = &eee->conf.tap;
+    char name[N2N_IFNAMSIZ + 64];
+    int fd;
+
+    if(tap->tuntap_dev_name[0]) {
+        snprintf(name, sizeof(name), "%s", tap->tuntap_dev_name);
+    } else if(eee->tap.device.tun) {
+        snprintf(name, sizeof(name), "n3n-be-%s", eee->conf.sessionname);
+    } else {
+        name[0] = '\0';
+    }
+    fd = tuntap_open(&eee->tap.device, name, tap->tuntap_ip_mode, tap->tuntap_v4,
+                     tap->device_mac, tap->mtu, tap->metric);
+    if((fd >= 0) || eee->tap.device.tun || name[0] || (eee->tap.device.device_handle != INVALID_HANDLE_VALUE)) {
+        // opened, or not for want of a TAP adapter
+        return fd;
+    }
+    if((tap->tuntap_ip_mode == TUNTAP_IP_MODE_DHCP) || !wintun_available()) {
+        traceEvent(TRACE_ERROR, "no TAP adapter: the tap-windows driver installs one; or a Wintun adapter "
+                   "of the edge's own, with wintun.dll next to the program (\"n3n-be edge wintun get\" "
+                   "fetches it)%s", (tap->tuntap_ip_mode == TUNTAP_IP_MODE_DHCP) ? ", but not with "
+                   "address_mode = dhcp" : "");
+        return fd;
+    }
+    snprintf(name, sizeof(name), "n3n-be-%s", eee->conf.sessionname);
+    traceEvent(TRACE_NORMAL, "no TAP adapter, but wintun.dll: a Wintun adapter, %s, as with tuntap.type = tun", name);
+    eee->tap.device.tun = true;
+    return tuntap_open(&eee->tap.device, name, tap->tuntap_ip_mode, tap->tuntap_v4,
+                       tap->device_mac, tap->mtu, tap->metric);
+}
+#endif
+
+
 /* Open the tap device - with a queue for each thread that is going to handle
  * packets, now that there still are the privileges for that.
  */
@@ -999,6 +1041,8 @@ int edge_tap_open (struct n3n_runtime_data *eee) {
                                 eee->conf.tap.device_mac,
                                 eee->conf.tap.mtu,
                                 eee->conf.tap.metric);
+#elif defined(_WIN32)
+        fd = edge_tap_open_win(eee);
 #else
         fd = tuntap_open(&eee->tap.device,
                          eee->conf.tap.tuntap_dev_name,
