@@ -11,9 +11,14 @@
 # as there is no TAP adapter -, each with an adapter of its own - address
 # and MTU as configured -, and a UDP broadcast from one edge's address that
 # comes in through the other edge's adapter, both ways: so each edge takes
-# packets off its adapter and puts packets onto it.  Then the edges stop,
-# and their adapters go with them.  Two edges on one host cannot ping each
-# other: Windows keeps traffic to its own addresses inside.
+# packets off its adapter and puts packets onto it.  Then all traffic of
+# edge a through b, with tuntap.dns at b's address (src/route_all.c): Windows'
+# DNS client has the rule for all names to it (NRPT), and asks it - a DNS
+# server of this test there (dns.py); a rule left behind before is gone at
+# the start.  The edges stop, and their adapters and the rule go with them.
+# Two edges on one host cannot ping each other: Windows keeps traffic to its
+# own addresses inside.  While all traffic goes through b, the runner has no
+# way out: a few seconds.
 #
 #   tests/windows/wintun.sh [path to n3n-be.exe [to tests-mgmt-client.exe]]
 
@@ -25,6 +30,7 @@ PROFILE=$(cygpath -u "$USERPROFILE")
 WORK=$(mktemp -d)
 HERE=$(dirname "$0")
 PORT=47123
+NRPT='HKLM\SYSTEM\CurrentControlSet\Services\Dnscache\Parameters\DnsPolicyConfig'
 failed=0
 
 check() {
@@ -96,7 +102,11 @@ done
 
 # the broadcasts come in as on a public network: Windows' firewall lets them
 powershell.exe -NoProfile -Command "New-NetFirewallRule -DisplayName n3n-be-wintun-test \
-    -Direction Inbound -Protocol UDP -LocalPort $PORT -Action Allow" >/dev/null 2>&1
+    -Direction Inbound -Protocol UDP -LocalPort $PORT,53 -Action Allow" >/dev/null 2>&1
+
+# a rule of an edge that did not get to take it back
+reg add "$NRPT\\n3n-be n3n-be-wta" //v Name //t REG_MULTI_SZ //d . //f >/dev/null
+reg add "$NRPT\\n3n-be n3n-be-wta" //v GenericDNSServers //t REG_SZ //d 10.99.7.9 //f >/dev/null
 
 "$EXE" supernode start wtsn >"$WORK/sn.log" 2>&1 &
 sleep 1
@@ -114,6 +124,8 @@ registered 5662 && registered 5663
 check "registered" $? "both edges, with the supernode on this host"
 grep -q "no TAP adapter, but wintun.dll" "$WORK/b.log"
 check "b with tuntap.type = tap" $? "$(grep -i "wintun adapter" "$WORK/b.log" | tail -1 | tr -d '\r')"
+! reg query "$NRPT\\n3n-be n3n-be-wta" >/dev/null 2>&1
+check "dns: the rule left behind" $? "gone at the start"
 
 for e in a:1 b:2; do
     IFS=: read -r name host <<<"$e"
@@ -137,14 +149,33 @@ out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HE
 [ -n "$index_a" ] && echo "$out" | grep -q "on interface $index_a\$"
 check "b to a" $? "$(echo "$out" | tail -1) (a is interface ${index_a:-none})"
 
+# all traffic through b, DNS to b's address: what dns.py answers there
+python -I "$HERE/dns.py" 10.99.7.2 10.1.2.3 30 >"$WORK/dns.log" 2>&1 &
+dns_pid=$!
+sleep 1
+out=$("$CLIENT" call 5662 n3n set_gateway '["10.99.7.2","10.99.7.2"]' 2>&1 | tr -d '\r')
+sleep 2
+grep "all traffic\|DNS server\|tuntap" "$WORK/a.log" | tr -d '\r'
+policy=$(psh "Get-DnsClientNrptPolicy | Where-Object Namespace -eq '.' | ForEach-Object { \$_.NameServers -join ',' }")
+[ "$policy" = 10.99.7.2 ]
+check "dns: the rule for all names" $? "Windows' DNS client asks ${policy:-nothing} (set_gateway: $out)"
+answer=$(psh "(Resolve-DnsName n3n-dns-test.example -Type A -DnsOnly -QuickTimeout -ErrorAction SilentlyContinue |
+    Where-Object Type -eq A).IPAddress")
+[ "$answer" = 10.1.2.3 ] && grep -q "query n3n-dns-test.example" "$WORK/dns.log"
+check "dns: through the tunnel" $? "n3n-dns-test.example is ${answer:-not found}, by dns.py at 10.99.7.2"
+kill "$dns_pid" 2>/dev/null
+wait "$dns_pid" 2>/dev/null
+
 stop_all
+! reg query "$NRPT\\n3n-be n3n-be-wta" >/dev/null 2>&1
+check "dns: stop" $? "the rule is gone$(reg query "$NRPT" 2>/dev/null | tr -d '\r' | grep -i n3n-be | sed 's/^/, not: /')"
 left=$(psh "Get-NetAdapter -Name n3n-be-wt* -ErrorAction SilentlyContinue | ForEach-Object Name")
 [ -z "$left" ]
 check "stop" $? "the adapters are gone${left:+, not: $left}"
 
 powershell.exe -NoProfile -Command "Remove-NetFirewallRule -DisplayName n3n-be-wintun-test" >/dev/null 2>&1
 if [ "$failed" != 0 ]; then
-    for f in sn a b; do
+    for f in sn a b dns; do
         echo "--- $f.log"
         cat "$WORK/$f.log"
     done

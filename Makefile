@@ -421,6 +421,7 @@ lint.python:
 		tests/netns/run.py \
 		tests/netns/n3ntest/ \
 		tests/macos/utun.py \
+		tests/windows/dns.py \
 		scripts/gen_options_md.py \
 		scripts/gen_doc_images.py \
 

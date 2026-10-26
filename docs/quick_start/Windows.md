@@ -112,7 +112,14 @@ dns = 1.1.1.1
 
 The edge sets the routes, the adapter's DNS server and metric while it
 runs, keeps its own traffic outside the tunnel, follows a default route
-that moves to another interface, and takes it all back at its end.
+that moves to another interface, and takes it all back at its end.  For
+the DNS server, it adds a rule to Windows' Name Resolution Policy Table
+(NRPT), "all names to this server": without it, Windows also asks the
+DNS servers of its other networks - the home router's, outside the
+tunnel - and takes the first answer.  `Get-DnsClientNrptRule` in
+PowerShell shows the rule ("n3n-be" and the adapter's name) while it is
+there.  Without `dns`, names go where they went before, around the exit
+peer.
 
 Or, without those lines, from the edge's web page while it runs
 (`management.port = 5644`, then `http://localhost:5644/`): a button

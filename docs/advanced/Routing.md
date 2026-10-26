@@ -150,11 +150,16 @@ supernode and peer:
   more specific than the default route, which stays for the edge.  When
   the default route moves to another interface (WiFi to Ethernet, say),
   the edge binds its sockets anew and registers again.  The adapter gets
-  `tuntap.dns` and the metric 1 (unless `tuntap.metric` gives one), so
-  that Windows asks its DNS server first; Windows may still send queries
-  to the other interfaces' servers too, which a rule of its Name
-  Resolution Policy Table stops, in PowerShell as administrator:
-  `Add-DnsClientNrptRule -Namespace "." -NameServers "1.1.1.1"`.
+  `tuntap.dns` and the metric 1 (unless `tuntap.metric` gives one), and
+  a rule of Windows' Name Resolution Policy Table (NRPT, the local one in
+  the registry) for all names (`.`) to `tuntap.dns`: on its own, the
+  adapter's DNS server is only one of those Windows asks at once - the
+  other interfaces' servers, outside the tunnel, would still get every
+  name.  `Get-DnsClientNrptRule` shows the rule, "n3n-be" and the
+  adapter's name; it goes with the routes, and one left behind by an edge
+  that did not get to take it back goes when the edge opens its adapter
+  again.  Where group policy has NRPT rules, Windows ignores the local
+  ones; the edge says so in its log.
 
 IPv6 goes into the device too, so that it does not go around oscar.  It
 gets through only with a TUN device and `tuntap.address6`, to an exit

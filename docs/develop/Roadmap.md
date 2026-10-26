@@ -663,8 +663,14 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       points a zip's services and start at login at the installed
       programs, takes over their wintun.dll, starts again what ran,
       asks before a downgrade; `tests/windows/installer.sh` in CI, and
-      under Wine.  Open: Wintun as the default where both are there,
-      code signing (SignPath?), editing the configuration from the tray
+      under Wine.  Tried on a Windows 11 computer (2026-10-26): it works,
+      routing all traffic too - but a DNS leak test showed the home
+      router's DNS servers: Windows asks those of all interfaces at once.
+      Now, with `tuntap.dns`, a rule of the NRPT for all names to it while
+      all traffic goes through the exit peer (`src/route_all.c`; in
+      `tests/windows/wintun.sh`, with a DNS server of the test).  Open:
+      Wintun as the default where both are there, code signing
+      (SignPath?), editing the configuration from the tray
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`

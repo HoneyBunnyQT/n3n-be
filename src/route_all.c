@@ -794,13 +794,93 @@ static void metric_back (void) {
 }
 
 
-// tuntap.dns on the adapter, by netsh; 0 for none of its own again
+// The DNS server of the adapter alone is not enough: Windows asks those of
+// all interfaces at once and takes the first answer, the home router's
+// too - outside the tunnel.  A rule of its Name Resolution Policy Table
+// (NRPT), the local one, for all names (".") does: then it asks tuntap.dns
+// only.  The DNS client takes a rule from the registry as it comes; one of
+// group policy there makes it ignore the local ones.
+#define NRPT_LOCAL      "SYSTEM\\CurrentControlSet\\Services\\Dnscache\\Parameters\\DnsPolicyConfig"
+#define NRPT_POLICY     "SOFTWARE\\Policies\\Microsoft\\Windows NT\\DNSClient\\DnsPolicyConfig"
+#define NRPT_SERVERS    0x8     // ConfigOptions: GenericDNSServers holds them
+
+// The edge's rule, by its adapter's name: "n3n-be n3n-be-edge"
+static void nrpt_key (char *buf, size_t size) {
+
+    _snprintf(buf, size, "%s\\n3n-be %s", NRPT_LOCAL, tap_name);
+    buf[size - 1] = '\0';
+}
+
+
+static void nrpt_del (void) {
+
+    char key[300];
+
+    nrpt_key(key, sizeof(key));
+    if(RegDeleteKeyA(HKEY_LOCAL_MACHINE, key) == ERROR_SUCCESS) {
+        // what was asked through the tunnel stays there
+        system("ipconfig /flushdns > nul");
+    }
+}
+
+
+// 0, or the error
+static LONG nrpt_set (const char *ip) {
+
+    const char comment[] = "all names to tuntap.dns while n3n-be routes all traffic through an exit peer";
+    DWORD version = 1, options = NRPT_SERVERS, subkeys = 0;
+    char key[300];
+    HKEY k;
+    LONG err;
+
+    nrpt_key(key, sizeof(key));
+    err = RegCreateKeyExA(HKEY_LOCAL_MACHINE, key, 0, NULL, 0, KEY_SET_VALUE, NULL, &k, NULL);
+    if(err != ERROR_SUCCESS) {
+        return err;
+    }
+    // REG_MULTI_SZ: ".", then the empty string that ends the list
+    err = RegSetValueExA(k, "Name", 0, REG_MULTI_SZ, (const BYTE *)".\0", 3);
+    if(!err) {
+        err = RegSetValueExA(k, "GenericDNSServers", 0, REG_SZ, (const BYTE *)ip, strlen(ip) + 1);
+    }
+    if(!err) {
+        err = RegSetValueExA(k, "ConfigOptions", 0, REG_DWORD, (const BYTE *)&options, sizeof(options));
+    }
+    if(!err) {
+        err = RegSetValueExA(k, "Version", 0, REG_DWORD, (const BYTE *)&version, sizeof(version));
+    }
+    if(!err) {
+        err = RegSetValueExA(k, "Comment", 0, REG_SZ, (const BYTE *)comment, sizeof(comment));
+    }
+    RegCloseKey(k);
+    if(err) {
+        nrpt_del();
+        return err;
+    }
+    // what the other servers answered before
+    system("ipconfig /flushdns > nul");
+    if((RegOpenKeyExA(HKEY_LOCAL_MACHINE, NRPT_POLICY, 0, KEY_READ, &k) == ERROR_SUCCESS)) {
+        RegQueryInfoKeyA(k, NULL, NULL, NULL, &subkeys, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+        RegCloseKey(k);
+    }
+    if(subkeys) {
+        traceEvent(TRACE_WARNING, "tuntap.dns: group policy has rules for name resolution (NRPT), Windows "
+                   "ignores the edge's: names may still be asked of the other interfaces' DNS servers");
+    }
+    return 0;
+}
+
+
+// tuntap.dns on the adapter, by netsh, and for all names; 0 for none of
+// its own again
 static void sys_dns (uint32_t dns) {
 
     char cmd[256];
     char ip[INET_ADDRSTRLEN];
+    LONG err;
 
     if(up_dns && !dns) {
+        nrpt_del();
         _snprintf(cmd, sizeof(cmd), "netsh interface ipv4 set dnsservers name=\"%s\" source=dhcp > nul", tap_name);
         system(cmd);
     }
@@ -816,7 +896,12 @@ static void sys_dns (uint32_t dns) {
         return;
     }
     up_dns = dns;
-    traceEvent(TRACE_NORMAL, "DNS server of the adapter: %s", ip);
+    err = nrpt_set(ip);
+    if(err) {
+        traceEvent(TRACE_WARNING, "tuntap.dns: no rule for all names to %s (NRPT) [%ld]: Windows may still ask "
+                   "the other interfaces' DNS servers", ip, (long)err);
+    }
+    traceEvent(TRACE_NORMAL, "DNS server for all names: %s", ip);
 }
 
 
@@ -824,6 +909,9 @@ static void sys_open (struct n3n_runtime_data *eee) {
 
     tap_index = eee->tap.device.if_idx;
     tap_name = eee->tap.device.ifName;
+    // one left behind by an edge that did not get to take it back: all
+    // names would go to a server that may not answer now
+    nrpt_del();
 }
 
 
