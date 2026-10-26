@@ -21,10 +21,22 @@ What is in here
 Before the first start
 ----------------------
 
-The edge needs a TAP adapter, which Windows does not have on its own: the
-tap-windows6 driver of the OpenVPN project.  It comes with OpenVPN, or on
-its own from https://build.openvpn.net/downloads/releases/ (the
-"tap-windows" installers).
+The edge needs an adapter, which Windows does not have on its own - one
+of these:
+
+- a TAP adapter: the tap-windows6 driver of the OpenVPN project.  It comes
+  with OpenVPN, or on its own from
+  https://build.openvpn.net/downloads/releases/ (the "tap-windows"
+  installers).
+- a Wintun adapter, nothing to install: wintun.dll from the zip on
+  https://www.wintun.net/ (wintun\bin\amd64\wintun.dll) next to
+  n3n-be.exe, and in edge.conf
+
+      [tuntap]
+      type = tun
+
+  The edge then makes an adapter of its own, n3n-be-edge, which goes
+  again when it stops.
 
 Running an edge
 ---------------

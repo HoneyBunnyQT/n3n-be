@@ -512,8 +512,11 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       version for apk: `3.4.8.137~50f0f88` for `3.4.8-137-g50f0f88`
 - [x] TUN mode (layer 3 device): `tuntap.type = tun`, `src/tun.c`, netns
       scenarios `tun-tap` and `tun-tun`; IPv6 (neighbour discovery); macOS
-      on its own `utun` device (2026-10-17, `tests/macos/utun.py` in CI).
-      Open: Windows (Wintun), the BSDs; see [Mobile and TUN](MobileAndTun.md)
+      on its own `utun` device (2026-10-17, `tests/macos/utun.py` in CI);
+      Windows on a Wintun adapter of the edge's own (2026-10-26,
+      `src/win32/wintun.c`, `tests/windows/wintun.sh` in CI).  Open:
+      IPv6 on the Wintun adapter, the BSDs; see
+      [Mobile and TUN](MobileAndTun.md)
 - [~] All traffic through an exit peer, on Windows as simply as in the
       Android app (asked 2026-10-25).  Step 1, done: the edge does what
       the app does - `tuntap.route_all = true` with `tuntap.gateway` the
@@ -631,8 +634,15 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       the DACL, the client with and without the password), and under
       Wine against Linux edges (icon, menu, peers, an error and a wrong
       password in a balloon, start with Windows, quit).  Open: trying it
-      on Windows itself; DNS from the tray; step 3, maybe an installer
-      that brings the TAP driver along (its licence first), or Wintun
+      on Windows itself; DNS from the tray.  Step 3 (asked 2026-10-26):
+      Wintun instead of a TAP driver to install, `tuntap.type = tun` -
+      done, with `wintun.dll` next to the program, and in CI the first
+      test of the edge on Windows with a device (two edges, a broadcast
+      each way, `tests/windows/wintun.sh`).  Open: whether the zip may
+      bring `wintun.dll` along (its licence allows passing it on with a
+      program that uses its API; whether n3n-be's GPL/AGPL allows it in
+      the same zip is the question), Wintun as the default, the tray
+      offering it
 - [x] `n3n-edge help transform`: lists the ciphers and compressions built
       in, with the implementation of each (`*_IMPL` in `src/crypto/*.h`,
       `desc` of the transforms); also on `fixes`

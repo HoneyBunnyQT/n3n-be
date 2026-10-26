@@ -42,9 +42,12 @@ work at the moment.
  
 In order to run n3n on Windows, you will need the following:
  
-- The TAP drivers should be installed into the system. They can be installed
-  from
-  http://build.openvpn.net/downloads/releases, search for "tap-windows".
+- A device for the edge, one of two kinds:
+    - a TAP adapter: the tap-windows driver, installed into the system, from
+      http://build.openvpn.net/downloads/releases (search for
+      "tap-windows"), or as it came with OpenVPN
+    - or a Wintun adapter, with `tuntap.type = tun`: nothing to install,
+      `wintun.dll` next to `n3n-be.exe` - see "Wintun" below
  
 - If OpenSSL has been linked dynamically, the corresponding `.dll` file should
   be available onto the target computer.
@@ -119,6 +122,40 @@ ends it; `n3n-be-ctl -k PASSWORD set_gateway 10.99.99.60` does the same.  It
 has to run as administrator for that, as it has for the TAP adapter's
 address.  The other edge needs `filter.allow_routing = true`, IP
 forwarding and NAT; see [Routing](../advanced/Routing.md).
+
+### Wintun
+
+With `tuntap.type = tun` in the `[tuntap]` section, the edge makes a
+[Wintun](https://www.wintun.net/) adapter of its own - WireGuard's TUN
+device - instead of taking a TAP adapter that a driver installation
+brought: `wintun.dll` brings its driver along, and the adapter goes again
+when the edge stops.  Get the zip from https://www.wintun.net/, and put
+`wintun\bin\amd64\wintun.dll` from it next to `n3n-be.exe`.
+
+```ini
+[tuntap]
+type = tun
+address = 10.99.99.2/24
+address_mode = static
+```
+
+- The adapter is `n3n-be-edge` (`n3n-be-` and the session's name), or
+  `tuntap.name`; Windows keeps its network (private or public) from one
+  start to the next.
+- It carries IP packets: the edge adds and removes the Ethernet header
+  itself, answers ARP for its address and asks for the others', so TUN
+  and TAP edges share a community; as with TUN elsewhere, no bridging, no
+  `address_mode = dhcp`, and IPv6 inside the tunnel (`tuntap.address6`)
+  not yet on Windows.
+- As administrator, as with TAP; as a service too.  All traffic through an
+  exit peer (`tuntap.route_all`) goes through the adapter as through a TAP
+  one - not tried with Wintun yet.
+- 64 bit Windows only (the 32 bit build is for Windows XP).
+
+The release zip does not bring `wintun.dll` along (yet): its licence lets
+it be passed on with programs that use it through its API, as the edge
+does, but whether n3n-be's own licence (the GNU AGPL and GPL) allows it
+to be in the same zip is still to be settled.
 
 ### The tray app
 

@@ -56,7 +56,10 @@ sources in `src/` directly (`android/app/src/main/cpp/CMakeLists.txt`), so
 a file added to or removed from the edge may need a line there too; see
 [its README](https://github.com/HoneyBunnyQT/n3n-be/blob/main/android/README.md).
 
-On Windows, `apps/n3n-service.c` runs the edge as a service, and
+On Windows, `src/win32/wintap.c` is the TAP adapter and
+`src/win32/wintun.c` the Wintun one (`tuntap.type = tun`), whose packets
+the main loop takes off as on the other systems; `apps/n3n-service.c` runs
+the edge as a service, and
 `apps/n3n-be-tray.c` is the tray app (`n3n-be-tray.exe`), a client of its
 management API through `src/mgmt_client.c`: a JSON-RPC call to the port on
 localhost and a small JSON reader, nothing of the daemon's

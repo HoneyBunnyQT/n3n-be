@@ -82,6 +82,12 @@ This is what hin2n, the Android app of n2n, does as well.
    of protocol family utun puts before each packet come off and on there,
    `tun.c` stays as it is; the address and the routes by `ifconfig` and
    `route`, as wg-quick does it.  Tested in CI by `tests/macos/utun.py`.
+6. Done: Windows, on a Wintun adapter of the edge's own
+   (`src/win32/wintun.c`, 64 bit): `wintun.dll` next to the program, the
+   address and MTU by the IP Helper functions; its packets taken off on the
+   main thread, which a thread waiting for Wintun's event wakes.  Tested in
+   CI by `tests/windows/wintun.sh` (two edges, a broadcast each way).
+   IPv6 on the adapter still to come.
 
 ## Android app
 
