@@ -513,11 +513,27 @@ static void n3n_plugin_dispose (GObject *object) {
     N3nPlugin *self = N3N_PLUGIN(object);
 
     if(self->pid) {
-        // going away: the edge with it, at once
-        kill(self->pid, SIGTERM);
+        // going away: the edge with it - asked once, as a second SIGTERM
+        // has it leave at once, without taking back its routes; and waited
+        // for, as long as stop_edge() would
+        int status;
+        int waited = 0;
+
         if(self->child_watch) {
             g_source_remove(self->child_watch);
             self->child_watch = 0;
+        }
+        if(!self->stopping) {
+            kill(self->pid, SIGTERM);
+        }
+        while((waitpid(self->pid, &status, WNOHANG) == 0) && (waited < STOP_WAIT * 10)) {
+            g_usleep(G_USEC_PER_SEC / 10);
+            waited++;
+        }
+        if(waited == STOP_WAIT * 10) {
+            LOG(LOG_WARNING, "the edge (%d) did not stop, killed", (int)self->pid);
+            kill(self->pid, SIGKILL);
+            waitpid(self->pid, &status, 0);
         }
         g_spawn_close_pid(self->pid);
         self->pid = 0;
