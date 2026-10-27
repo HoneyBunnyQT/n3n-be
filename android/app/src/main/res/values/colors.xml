@@ -7,6 +7,8 @@
     <color name="line">#E3E7EE</color>
     <!-- bunny-pink, as in the drawings of the docs (docs/images) -->
     <color name="accent">#C2185B</color>
+    <!-- an exit that only says it is one: the web page's blue -->
+    <color name="exit_says">#0969DA</color>
     <color name="accent_soft">#FDF0F6</color>
     <color name="on_accent">#FFFFFF</color>
     <!-- the connect button: its rim, the light along its top edge, the

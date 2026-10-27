@@ -93,6 +93,7 @@ struct peer {
     char addr[16];
     wchar_t label[160];
     bool exit;                  // it announced itself as an exit to the internet
+    bool confirmed;             // and the edge's check through it went through
 };
 
 // how the edge is, as the poller last saw it
@@ -119,6 +120,11 @@ static struct snapshot shown;   // the window's own copy, for its menu
 static HANDLE wake;             // polls at once when set
 static volatile LONG acting;    // an action under way
 static bool qr_waiting;         // for a QR code's text on the clipboard
+static volatile LONG checks_wanted;     // the exits are to be checked: the menu opened
+// before a peer's name in the menu: a pink dot for a confirmed exit, a blue
+// one for one that only says it is, nothing - of the same size - otherwise
+enum { DOT_EXIT, DOT_SAYS, DOT_NONE, DOTS };
+static HBITMAP dots[DOTS];
 
 
 // As n3n-service.c takes it: letters, digits, '.', '-' and '_'
@@ -230,8 +236,9 @@ static bool service_state (DWORD *state) {
 
 // The peers that may be exit peers: the edges of the community, known
 // directly or through the supernode - those that announced themselves as
-// exits to the internet first, see announce.h - by their names (longer
-// than the descriptions, where they announced one)
+// exits to the internet first, see announce.h, and whether the edge's own
+// check through them went through - by their names (longer than the
+// descriptions, where they announced one)
 static void peers (struct snapshot *s, int port, const char *password) {
 
     char err[160];
@@ -243,6 +250,7 @@ static void peers (struct snapshot *s, int port, const char *password) {
         const char *addr = mc_json_str(mc_json_get(row, "ip4addr"));
         const char *desc = mc_json_str(mc_json_get(row, "name"));
         const struct mc_json *exit = mc_json_get(row, "exit");
+        const char *check = mc_json_str(mc_json_get(row, "exit_check"));
         struct peer *p = &s->peers[s->npeers];
         wchar_t wdesc[N3N_NAME_SIZE + 1], label[160];
         int k = 0;
@@ -263,11 +271,12 @@ static void peers (struct snapshot *s, int port, const char *password) {
             desc = mc_json_str(mc_json_get(row, "desc"));
         }
         p->exit = mc_json_num(exit, 0) > 0;
+        p->confirmed = p->exit && check && !strcmp(check, "ok");
         widen(desc ? desc : "", wdesc, N3N_NAME_SIZE + 1);
         if(wdesc[0]) {
-            swprintf(label, 160, L"%ls (%hs)%ls", wdesc, p->addr, p->exit ? L" - an exit" : L"");
+            swprintf(label, 160, L"%ls (%hs)", wdesc, p->addr);
         } else {
-            swprintf(label, 160, L"%hs%ls", p->addr, p->exit ? L" - an exit" : L"");
+            swprintf(label, 160, L"%hs", p->addr);
         }
         // a '&' of a menu item underlines what follows: "&&" for one
         for(int j = 0; label[j] && (k < 158); j++) {
@@ -341,6 +350,15 @@ static DWORD WINAPI poller (LPVOID arg) {
     struct snapshot *s = malloc(sizeof(*s));
 
     while(s) {
+        // the menu opened: the exits due checked through them, whose
+        // results the next rounds bring
+        if(InterlockedExchange(&checks_wanted, 0)) {
+            char password[260], err[160];
+            int port;
+
+            management(&port, password, sizeof(password));
+            mc_json_free(mc_call(port, NULL, "probe_exits", NULL, err, sizeof(err), NULL));
+        }
         observe(s);
         EnterCriticalSection(&lock);
         now = *s;
@@ -1125,6 +1143,51 @@ static double cover (double d, double r) {
 }
 
 
+// A dot for the menu, in a colour, or none (filled false) of the same
+// size: as a menu's bitmaps are, its alpha premultiplied
+static HBITMAP dot_bitmap (int size, COLORREF colour, bool filled) {
+
+    BITMAPINFO bi = { { sizeof(BITMAPINFOHEADER) } };
+    uint32_t *px;
+    HDC dc = GetDC(NULL);
+    HBITMAP bm;
+    double c = (size - 1) / 2.0, r = size * 0.28;
+
+    bi.bmiHeader.biWidth = size;
+    bi.bmiHeader.biHeight = -size;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    bm = CreateDIBSection(dc, &bi, DIB_RGB_COLORS, (void **)&px, NULL, 0);
+    ReleaseDC(NULL, dc);
+    if(!bm) {
+        return NULL;
+    }
+    for(int y = 0; y < size; y++) {
+        for(int x = 0; x < size; x++) {
+            double a = filled ? cover(sqrt((x - c) * (x - c) + (y - c) * (y - c)), r) : 0;
+
+            px[y * size + x] = ((uint32_t)(a * 255 + 0.5) << 24)
+                               | ((uint32_t)(GetRValue(colour) * a + 0.5) << 16)
+                               | ((uint32_t)(GetGValue(colour) * a + 0.5) << 8)
+                               | (uint32_t)(GetBValue(colour) * a + 0.5);
+        }
+    }
+    return bm;
+}
+
+
+// The last item of a menu with a bitmap before its text
+static void item_bitmap (HMENU m, HBITMAP bm) {
+
+    MENUITEMINFOW mii = { sizeof(mii) };
+
+    mii.fMask = MIIM_BITMAP;
+    mii.hbmpItem = bm;
+    SetMenuItemInfoW(m, GetMenuItemCount(m) - 1, TRUE, &mii);
+}
+
+
 // A ring, a disk, or a disk with a dot, in a colour: drawn for the size of
 // the notification area's icons, its alpha straight as icons have it
 static HICON draw (int size, COLORREF colour, bool filled, bool dot) {
@@ -1278,6 +1341,10 @@ static void menu (int x, int y) {
     UINT busy = acting ? MF_GRAYED : 0;
 
     copy = shown;
+    // the exits not confirmed yet: checked through them, now that someone
+    // looks (see exit_probe.h) - what the check found shows next time
+    InterlockedExchange(&checks_wanted, 1);
+    SetEvent(wake);
     describe(s, line, 200);
     AppendMenuW(m, MF_STRING | MF_GRAYED, 0, line);
     AppendMenuW(m, MF_SEPARATOR, 0, NULL);
@@ -1289,7 +1356,20 @@ static void menu (int x, int y) {
         }
     }
 
+    // what the dots mean, where there are any - a menu has no tooltips
+    bool any_exit = false;
+    for(int i = 0; i < s->npeers; i++) {
+        any_exit |= s->peers[i].exit;
+    }
+    if(any_exit) {
+        AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"An exit to the internet, confirmed: traffic comes out through it");
+        item_bitmap(exits, dots[DOT_EXIT]);
+        AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"Says it is an exit, not confirmed (yet) by this computer");
+        item_bitmap(exits, dots[DOT_SAYS]);
+        AppendMenuW(exits, MF_SEPARATOR, 0, NULL);
+    }
     AppendMenuW(exits, MF_STRING | busy | (s->gateway[0] ? 0 : MF_CHECKED), CMD_DIRECT, L"None: &directly");
+    item_bitmap(exits, dots[DOT_NONE]);
     if(s->npeers || s->gateway[0]) {
         AppendMenuW(exits, MF_SEPARATOR, 0, NULL);
     }
@@ -1297,11 +1377,13 @@ static void menu (int x, int y) {
         bool on = !strcmp(s->peers[i].addr, s->gateway);
         gateway_listed |= on;
         AppendMenuW(exits, MF_STRING | busy | (on ? MF_CHECKED : 0), CMD_EXIT_PEER + i, s->peers[i].label);
+        item_bitmap(exits, dots[!s->peers[i].exit ? DOT_NONE : s->peers[i].confirmed ? DOT_EXIT : DOT_SAYS]);
     }
     if(s->gateway[0] && !gateway_listed) {
         // the exit peer is not among the peers right now
         swprintf(line, 200, L"%hs (not seen)", s->gateway);
         AppendMenuW(exits, MF_STRING | MF_CHECKED | MF_GRAYED, 0, line);
+        item_bitmap(exits, dots[DOT_NONE]);
     }
     if(!s->npeers && !s->gateway[0]) {
         AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"no peers yet");
@@ -1471,6 +1553,10 @@ int WINAPI WinMain (HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show) {
     InitializeCriticalSection(&lock);
     wake = CreateEventW(NULL, FALSE, FALSE, NULL);
     make_icons();
+    // the pink of the icons, the blue of the web page's
+    dots[DOT_EXIT] = dot_bitmap(GetSystemMetrics(SM_CXSMICON), RGB(0xc2, 0x18, 0x5b), true);
+    dots[DOT_SAYS] = dot_bitmap(GetSystemMetrics(SM_CXSMICON), RGB(0x09, 0x69, 0xda), true);
+    dots[DOT_NONE] = dot_bitmap(GetSystemMetrics(SM_CXSMICON), 0, false);
 
     wc.lpfnWndProc = proc;
     wc.hInstance = inst;

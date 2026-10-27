@@ -2384,6 +2384,25 @@ class Run:
                 "none": "no exit: its host does not forward"}[self.sc.exit]
         self.check("exit", ok, "{} sees {} as exit {} - {}".format(
             src, gw, "none" if got is None else hex(got), what))
+        if not want:
+            return
+
+        # and the other edge's own check through it (probe_exits, as the
+        # tray app's menu or the page asks for it): through an exit whose
+        # host forwards, it comes back; through one that only says it is -
+        # set, without forwarding - it does not
+        mgmt = self.edges[src]["daemon"].mgmt
+        expect = "ok" if self.sc.exit == "nat" else "failed"
+
+        def check():
+            _, row = self.edges[src]["daemon"].peer(self.edges[gw]["mac"])
+            return (row or {}).get("exit_check")
+        started = mgmt.try_call("probe_exits")
+        wait_for(lambda: check() == expect, 10, interval=0.5)
+        got = check()
+        self.check("exit check", got == expect,
+                   "{}'s check through {}: {} ({})".format(
+                       src, gw, got, started))
 
     def _fake_resolvectl(self):
         """A resolvectl first in the edge's PATH, which writes down what it

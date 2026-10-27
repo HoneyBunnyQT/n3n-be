@@ -23,6 +23,7 @@
 #include <time.h>
 #include "announce.h"           // for n3n_announce_get
 #include "counter.h"            // for SHARED_LOAD
+#include "exit_probe.h"         // for edge_exit_check
 #include "fec.h"                // for n3n_fec_peer_info
 #include "management.h"         // for mgmt_password_is_default
 #include "management_page.h"
@@ -51,10 +52,10 @@
 
 static const char page_style[] =
     ":root{--bg:#f6f7f9;--fg:#1d2330;--card:#fff;--line:#dde1e7;--dim:#667085;"
-    "--ok:#1a7f37;--warn:#9a6700;--info:#0969da;--bad:#cf222e}"
+    "--ok:#1a7f37;--warn:#9a6700;--info:#0969da;--bad:#cf222e;--pink:#c2185b}"
     "@media(prefers-color-scheme:dark){:root{--bg:#0f1218;--fg:#e6e9ef;"
     "--card:#181c24;--line:#2b313c;--dim:#9aa3b2;--ok:#3fb950;--warn:#d29922;"
-    "--info:#58a6ff;--bad:#f85149}}"
+    "--info:#58a6ff;--bad:#f85149;--pink:#f06292}}"
     "body{margin:0;background:var(--bg);color:var(--fg);"
     "font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}"
     "header,main{max-width:72rem;margin:auto;padding:0 1rem}"
@@ -83,6 +84,10 @@ static const char page_style[] =
     "border:1px solid currentColor}"
     ".ok{color:var(--ok)}.warn{color:var(--warn)}.info{color:var(--info)}"
     ".bad{color:var(--bad)}.dim{color:var(--dim)}"
+    // before a peer's name: a dot where it is an exit - pink where this
+    // edge's check through it went through, blue where not (yet) -, and
+    // where it is none the room for one, so that the names line up
+    ".dot{display:inline-block;width:1.2em}.dot.ex{color:var(--pink)}.dot.un{color:var(--info)}"
     "form{display:flex;gap:.4rem;flex-wrap:wrap;margin:0}form.in{display:inline-flex;margin-left:.4rem}"
     "button{font:inherit;padding:.25rem .7rem;border-radius:.4rem;cursor:pointer;"
     "border:1px solid var(--line);background:var(--card);color:var(--fg)}"
@@ -212,9 +217,9 @@ static void community_name (strbuf_t **b, const char *name, uint8_t header_encry
 
 
 // A peer of the edge, or an edge registered at the supernode; with what the
-// peers announced (announce.h), by the name the peer announced, and marked
-// where it is an exit to the internet
-static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mode, const char *mode_class,
+// peers announced (announce.h), by the name the peer announced, and a dot
+// before it where it is an exit to the internet: true then
+static bool peer_row (strbuf_t **b, const struct peer_info *peer, const char *mode, const char *mode_class,
                       const char *cells, const struct sn_community *community, bool unlocked,
                       struct nat_peer *nat_peers, struct n3n_announce *announce, const char *tail, time_t now) {
 
@@ -246,18 +251,33 @@ static void peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     struct n3n_announce_info info;
     bool announced = announce && n3n_announce_get(announce, peer->mac_addr, &info);
 
+    bool exit = announced && info.exit;
+
     sb_reprintf(b, "<td class=w>");
+    if(exit) {
+        int check = n3n_announce_check_state(announce, peer->mac_addr);
+        const char *says = (info.exit & N3N_ANNOUNCE_EXIT_PROBED) ? "found by its own probe" : "as it is set there";
+
+        if(check == N3N_ANNOUNCE_CHECK_OK) {
+            sb_reprintf(b, "<span class=\"dot ex\" title=\"an exit to the internet (%s): this edge's check through it "
+                        "went through\">&#x25cf;</span>", says);
+        } else {
+            sb_reprintf(b, "<span class=\"dot un\" title=\"announces itself as an exit to the internet (%s): this "
+                        "edge's check through it %s\">&#x25cf;</span>", says,
+                        (check == N3N_ANNOUNCE_CHECK_FAILED) ? "did not come back"
+                        : (check == N3N_ANNOUNCE_CHECK_WAITING) ? "is on its way" : "has not been done yet");
+        }
+    } else if(announce) {
+        sb_reprintf(b, "<span class=dot></span>");
+    }
     if(announced && info.name[0]) {
         html_text(b, info.name, N3N_NAME_SIZE);
     } else {
         html_text(b, peer->dev_desc, N2N_DESC_SIZE);
     }
-    if(announced && info.exit) {
-        sb_reprintf(b, " <span class=\"b ok\" title=\"an exit to the internet: %s\">internet</span>",
-                    (info.exit & N3N_ANNOUNCE_EXIT_PROBED) ? "its probe went through" : "as it is set");
-    }
     sb_reprintf(b, "</td><td><span class=t>%s</span></td>%s</tr>\n", ago(when, sizeof(when), now, peer->last_seen),
                 tail ? tail : "");
+    return exit;
 }
 
 
@@ -446,9 +466,16 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
     uint32_t exit = route_all_exit();
     char tail[256];
     int cols = (fec ? 9 : 8) + exits;
+    bool dots = false;
+
+    // the peers that announce themselves as exits: checked through them
+    // now that someone looks, if they are due (exit_probe.h)
+    if(!own_of_supernode) {
+        edge_exit_check(eee, now);
+    }
     sb_reprintf(b, "<h3>Peers</h3><div class=scroll><table>"
                 "<tr><th>path</th><th class=num>lost</th>%s<th>address</th><th>MAC</th><th>socket</th>"
-                "<th>NAT</th><th>description</th><th>last seen</th>%s</tr>\n",
+                "<th>NAT</th><th>name</th><th>last seen</th>%s</tr>\n",
                 fec ? "<th>FEC</th>" : "", exits ? "<th>exit peer</th>" : "");
     rows = 0;
     HASH_ITER(hh, eee->client.known_peers, peer, tmp) {
@@ -457,16 +484,16 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
             // see peer_probe()
             char cells[256];
             bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
-            peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
-                     peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers,
-                     eee->client.announce, exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
+            dots |= peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
+                             peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers,
+                             eee->client.announce, exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {
         if(rows++ < PAGE_ROWS_MAX) {
-            peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
-                     NULL, false, eee->client.nat_peers, eee->client.announce,
-                     exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
+            dots |= peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
+                             NULL, false, eee->client.nat_peers, eee->client.announce,
+                             exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
     }
     row_more(b, cols, rows - PAGE_ROWS_MAX);
@@ -474,6 +501,12 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         sb_reprintf(b, "<tr><td colspan=%d class=dim>none yet</td></tr>\n", cols);
     }
     sb_reprintf(b, "</table></div>\n");
+    if(dots) {
+        sb_reprintf(b, "<p class=dim><span class=\"dot ex\">&#x25cf;</span>an exit to the internet, which this "
+                    "edge's check through it confirmed &nbsp; <span class=\"dot un\">&#x25cf;</span>announces itself "
+                    "as one, not confirmed by this edge (yet) - a check tells that traffic comes out through it, "
+                    "not whether it can be trusted with it</p>\n");
+    }
 
     if(!own_of_supernode) {
         char version[N2N_VERSION_STRING_SIZE + 1];

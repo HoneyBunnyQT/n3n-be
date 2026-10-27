@@ -10,6 +10,9 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import android.text.Editable
+import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
 import android.text.TextWatcher
 import android.view.View
 import android.widget.EditText
@@ -252,8 +255,18 @@ class MainActivity : Activity() {
         showExits(info?.exits ?: emptyList())
     }
 
+    /** A dot in front of text: pink for an exit the edge's check confirmed,
+     * blue for one that only says it is */
+    private fun dotted(confirmed: Boolean, text: String): CharSequence {
+        val s = SpannableStringBuilder("\u25CF  ").append(text)
+        val colour = getColor(if (confirmed) R.color.accent else R.color.exit_says)
+        s.setSpan(ForegroundColorSpan(colour), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        return s
+    }
+
     /** The peers that announce themselves as exits, below the exit peer's
-     * field: a tap puts one's address there */
+     * field: a tap puts one's address there, a long press says what its dot
+     * means; under them, what the dots mean */
     private fun showExits(list: List<Status.Exit>) {
         if (list == exitsShown) {
             return
@@ -263,15 +276,33 @@ class MainActivity : Activity() {
         exits.removeViews(1, exits.childCount - 1)
         for (e in list) {
             val entry = TextView(this)
-            entry.text = getString(R.string.exit_entry, e.name.ifEmpty { e.addr }, e.addr)
-            entry.setTextColor(getColor(R.color.accent))
+            entry.text = dotted(e.confirmed, getString(R.string.exit_entry, e.name.ifEmpty { e.addr }, e.addr))
+            entry.setTextColor(getColor(R.color.text))
             entry.textSize = 15f
             entry.setPadding(0, 12, 0, 12)
             entry.setOnClickListener {
                 gateway.setText(e.addr)
                 gateway.setSelection(e.addr.length)
             }
+            val meaning = getString(if (e.confirmed) R.string.exit_confirmed else R.string.exit_says)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                entry.tooltipText = meaning
+            } else {
+                entry.setOnLongClickListener {
+                    Toast.makeText(this, meaning, Toast.LENGTH_SHORT).show()
+                    true
+                }
+            }
             exits.addView(entry)
+        }
+        if (list.isNotEmpty()) {
+            for (confirmed in listOf(true, false)) {
+                val legend = TextView(this)
+                legend.text = dotted(confirmed, getString(if (confirmed) R.string.exit_confirmed else R.string.exit_says))
+                legend.setTextColor(getColor(R.color.text_dim))
+                legend.textSize = 12f
+                exits.addView(legend)
+            }
         }
         exits.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
     }

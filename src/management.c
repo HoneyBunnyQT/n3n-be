@@ -28,6 +28,7 @@
 #include "base64.h"      // for base64decode
 #include "connslot/strbuf.h"
 #include "announce.h"    // for n3n_announce_get
+#include "exit_probe.h"  // for edge_exit_check
 #include "fec.h"         // for n3n_fec_peer_info
 #include "local_link.h"  // for local_link_edge
 #include "management.h"
@@ -774,8 +775,9 @@ static const char *fec_str (char *buf, size_t size, struct n3n_fec *fec, const n
 
 // What the peer announced (announce.h): its name - the description where it
 // announced none, which the 16 bytes of its REGISTERs do not replace -,
-// whether it reads FEC, whether it is an exit; "announced":0 where it did
-// not announce, an edge of an older version
+// whether it reads FEC, whether it is an exit, and for one what this edge's
+// own check through it found; "announced":0 where it did not announce, an
+// edge of an older version
 static const char *announce_str (char *buf, size_t size, struct n3n_announce *announce,
                                  const struct peer_info *peer) {
 
@@ -788,11 +790,15 @@ static const char *announce_str (char *buf, size_t size, struct n3n_announce *an
     } else {
         json_str(name, info.name, N3N_NAME_SIZE);
     }
+    static const char *const checks[] = { "none", "waiting", "ok", "failed" };
+    int check = announced ? n3n_announce_check_state(announce, peer->mac_addr) : 0;
+
     if(!announced) {
         snprintf(buf, size, "\"name\":\"%s\",\"announced\":0,", name);
     } else {
-        snprintf(buf, size, "\"name\":\"%s\",\"announced\":1,\"reads_fec\":%d,\"exit\":%u,", name,
-                 info.has_fec && ((info.fec_reads & N3N_FEC_SENT) == N3N_FEC_SENT), (unsigned)info.exit);
+        snprintf(buf, size, "\"name\":\"%s\",\"announced\":1,\"reads_fec\":%d,\"exit\":%u,%s%s%s", name,
+                 info.has_fec && ((info.fec_reads & N3N_FEC_SENT) == N3N_FEC_SENT), (unsigned)info.exit,
+                 info.exit ? "\"exit_check\":\"" : "", info.exit ? checks[check & 3] : "", info.exit ? "\"," : "");
     }
     return buf;
 }
@@ -809,7 +815,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
     char desc[JSON_STR_SIZE(N2N_DESC_SIZE)];
     char version[JSON_STR_SIZE(N2N_VERSION_STRING_SIZE)];
     char fec_buf[200];
-    char announce_buf[JSON_STR_SIZE(N3N_NAME_SIZE) + 80];
+    char announce_buf[JSON_STR_SIZE(N3N_NAME_SIZE) + 120];
     const struct nat_peer *np = nat_peer_find(nat_peers, peer->mac_addr, false);
 
     sb_reprintf(reply,
@@ -863,6 +869,18 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
     // TODO:
     // - add a proto: TCP|UDP item to the output
     // - add last_cookie to the output?
+}
+
+// This edge's checks of the peers that announce themselves as exits, those
+// due (exit_probe.h): for what shows them, when it is looked at - the
+// results come with get_edges' exit_check
+static void jsonrpc_probe_exits (char *id, struct n3n_runtime_data *eee, conn_t *conn, const char *params) {
+
+    int n = eee->conf.is_edge ? edge_exit_check(eee, time(NULL)) : 0;
+
+    jsonrpc_result_head(id, conn);
+    sb_reprintf(&conn->request, "{\"started\":%d}", n);
+    jsonrpc_result_tail(conn, 200);
 }
 
 static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *conn, const char *params) {
@@ -1309,6 +1327,7 @@ static const struct mgmt_jsonrpc_method jsonrpc_methods[] = {
     { "help", jsonrpc_help, "Show JsonRPC methods" },
     { "help.events", jsonrpc_help_events, "Show available event topics" },
     { "post.test", jsonrpc_post_test, "Send a test event" },
+    { "probe_exits", jsonrpc_probe_exits, "Check the peers that announce themselves as exits, through them" },
     { "reload", jsonrpc_reload, "Reads the configuration again, applies what can change while running" },
     { "reload_communities", jsonrpc_reload_communities, "Reloads communities and user's public keys" },
     { "set_gateway", jsonrpc_set_gateway, "All traffic through an exit peer: its address, or \"\" for none" },

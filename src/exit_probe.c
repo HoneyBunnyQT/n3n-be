@@ -110,34 +110,17 @@ static const n3n_sock_t *probe_target (struct n3n_runtime_data *eee) {
 }
 
 
-// The probe onto the device, as a peer's packet would come
-static bool probe_send (struct n3n_runtime_data *eee, time_t now) {
+// A probe's frame: a UDP datagram from ip:port to the supernode, with the
+// nonce, from the MAC src to dst
+static void probe_frame (uint8_t frame[PROBE_FRAME], const n2n_mac_t dst, const n2n_mac_t src,
+                         uint32_t ip, uint16_t port, const n3n_sock_t *sn, const uint8_t nonce[16]) {
 
-    const n3n_sock_t *sn = probe_target(eee);
-    uint32_t ip = probe_address(eee);
-    uint8_t frame[PROBE_FRAME], *h = frame + ETH_HLEN, *u = h + IP_HLEN, *payload = u + UDP_HLEN;
-    uint16_t port = 49152 + n3n_rand() % 16384, id = n3n_rand();
+    uint8_t *h = frame + ETH_HLEN, *u = h + IP_HLEN, *payload = u + UDP_HLEN;
+    uint16_t id = n3n_rand();
 
-    if(!sn || !ip) {
-        traceEvent(TRACE_INFO, "exit probe: %s", !sn ? "no supernode with an IPv4 address"
-                   : "no address of the subnet to spare");
-        return false;
-    }
-    // what the answer is known by, before the reader threads may see it
-    eee->client.exit_probe_mac[0] = 0x02;
-    for(int i = 1; i < 6; i++) {
-        eee->client.exit_probe_mac[i] = n3n_rand();
-    }
-    for(int i = 0; i < 16; i++) {
-        eee->client.exit_probe_nonce[i] = n3n_rand();
-    }
-    eee->client.exit_probe_port = port;
-    SHARED_STORE(eee->client.exit_probe_ok, false);
-    SHARED_STORE(eee->client.exit_probe_ip, ip);
-
-    memset(frame, 0, sizeof(frame));
-    memcpy(frame, eee->tap.device.mac_addr, 6);
-    memcpy(frame + 6, eee->client.exit_probe_mac, 6);
+    memset(frame, 0, PROBE_FRAME);
+    memcpy(frame, dst, 6);
+    memcpy(frame + 6, src, 6);
     frame[12] = 0x08;
     frame[13] = 0x00;
     h[0] = 0x45;
@@ -160,8 +143,58 @@ static bool probe_send (struct n3n_runtime_data *eee, time_t now) {
     u[5] = (UDP_HLEN + N3N_EXIT_PROBE_LEN) & 0xff;
     // no UDP checksum, as IPv4 allows
     memcpy(payload, N3N_EXIT_PROBE_MAGIC, 16);
-    memcpy(payload + 16, eee->client.exit_probe_nonce, 16);
+    memcpy(payload + 16, nonce, 16);
+}
 
+
+// A probe's answer: from what an IPv4 packet for ip holds, the port it went
+// to and the nonce; false if it is none
+static bool probe_answer (const uint8_t *h, size_t len, uint32_t ip, uint16_t *port, const uint8_t **nonce) {
+
+    size_t ihl;
+    const uint8_t *u;
+
+    if((len < IP_HLEN) || ((h[0] >> 4) != 4) || memcmp(h + 16, &ip, 4) || (h[9] != 17)) {
+        return false;
+    }
+    ihl = (h[0] & 0x0f) * 4;
+    u = h + ihl;
+    if((len < ihl + UDP_HLEN + N3N_EXIT_PROBE_LEN) || memcmp(u + UDP_HLEN, N3N_EXIT_PROBE_MAGIC, 16)) {
+        return false;
+    }
+    *port = ((unsigned)u[2] << 8) | u[3];
+    *nonce = u + UDP_HLEN + 16;
+    return true;
+}
+
+
+// The probe onto the device, as a peer's packet would come
+static bool probe_send (struct n3n_runtime_data *eee, time_t now) {
+
+    const n3n_sock_t *sn = probe_target(eee);
+    uint32_t ip = probe_address(eee);
+    uint8_t frame[PROBE_FRAME], *h = frame + ETH_HLEN;
+    uint16_t port = 49152 + n3n_rand() % 16384;
+
+    if(!sn || !ip) {
+        traceEvent(TRACE_INFO, "exit probe: %s", !sn ? "no supernode with an IPv4 address"
+                   : "no address of the subnet to spare");
+        return false;
+    }
+    // what the answer is known by, before the reader threads may see it
+    eee->client.exit_probe_mac[0] = 0x02;
+    for(int i = 1; i < 6; i++) {
+        eee->client.exit_probe_mac[i] = n3n_rand();
+    }
+    for(int i = 0; i < 16; i++) {
+        eee->client.exit_probe_nonce[i] = n3n_rand();
+    }
+    eee->client.exit_probe_port = port;
+    SHARED_STORE(eee->client.exit_probe_ok, false);
+    SHARED_STORE(eee->client.exit_probe_ip, ip);
+
+    probe_frame(frame, eee->tap.device.mac_addr, eee->client.exit_probe_mac, ip, port, sn,
+                eee->client.exit_probe_nonce);
     if(edge_tap_inject(eee, frame, sizeof(frame)) != (int)sizeof(frame)) {
         traceEvent(TRACE_INFO, "exit probe: cannot write to the device");
         return false;
@@ -220,14 +253,52 @@ bool edge_exit_take (struct n3n_runtime_data *eee, const uint8_t *buf, size_t le
         return false;
     }
     // for the probe's address: the answer, if it is the one
-    size_t ihl = (h[0] & 0x0f) * 4;
-    const uint8_t *u = h + ihl;
+    uint16_t port;
+    const uint8_t *nonce;
 
-    if((h[9] == 17) && (len >= ihl + UDP_HLEN + N3N_EXIT_PROBE_LEN)
-       && ((((unsigned)u[2] << 8) | u[3]) == eee->client.exit_probe_port)
-       && !memcmp(u + UDP_HLEN, N3N_EXIT_PROBE_MAGIC, 16)
-       && !memcmp(u + UDP_HLEN + 16, eee->client.exit_probe_nonce, 16)) {
+    if(probe_answer(h, len, probe, &port, &nonce) && (port == eee->client.exit_probe_port)
+       && !memcmp(nonce, eee->client.exit_probe_nonce, 16)) {
         SHARED_STORE(eee->client.exit_probe_ok, true);
+    }
+    return true;
+}
+
+
+// ---- at the edge, of its peers that announce themselves as exits
+
+int edge_exit_check (struct n3n_runtime_data *eee, time_t now) {
+
+    struct n3n_announce_check due[8];
+    const n3n_sock_t *sn = probe_target(eee);
+    uint32_t ip = eee->tap.device.ip_addr;
+    uint8_t frame[PROBE_FRAME];
+    macstr_t mac_buf;
+    int n;
+
+    if(!sn || !ip || is_null_mac(eee->tap.device.mac_addr) || !SHARED_LOAD(eee->client.last_sup)) {
+        return 0;
+    }
+    n = n3n_announce_checks_due(eee->client.announce, now, due, sizeof(due) / sizeof(due[0]));
+    for(int i = 0; i < n; i++) {
+        probe_frame(frame, due[i].peer, eee->tap.device.mac_addr, ip, due[i].port, sn, due[i].nonce);
+        edge_send_packet2net(eee, frame, sizeof(frame));
+        traceEvent(TRACE_INFO, "exit check: through %s to the supernode", macaddr_str(mac_buf, due[i].peer));
+    }
+    return n;
+}
+
+
+bool edge_exit_check_take (struct n3n_runtime_data *eee, const uint8_t *frame, size_t len) {
+
+    uint16_t port;
+    const uint8_t *nonce;
+
+    if((len < ETH_HLEN + IP_HLEN) || (frame[12] != 0x08) || (frame[13] != 0x00)
+       || !probe_answer(frame + ETH_HLEN, len - ETH_HLEN, eee->tap.device.ip_addr, &port, &nonce)) {
+        return false;
+    }
+    if(n3n_announce_checked(eee->client.announce, port, nonce)) {
+        traceEvent(TRACE_INFO, "exit check: an answer came back through a peer");
     }
     return true;
 }

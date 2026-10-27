@@ -233,10 +233,14 @@ in, not as an administrator, as a client of the service's management port.
 - Connect and Disconnect start and stop the service.
 - "Route all traffic through" lists the peers, by the names they
   announced - those that announced themselves as exits to the internet
-  first, "- an exit" after them (see [What an Edge Tells Its
-  Peers](../advanced/Announcements.md)); one of them sends all traffic
-  through it, "None: directly" ends that (`set_gateway`, with the password
-  below).  It takes `tuntap.dns` as it is.
+  first, with a dot before them: pink where the check of this computer
+  went through the peer, blue where not (yet), as it says on top of the
+  list (opening the menu checks those due, what it found shows the next
+  time; see [What an Edge Tells Its
+  Peers](../advanced/Announcements.md#checking-an-exit-yourself)).  One
+  of them sends all traffic through it, "None: directly" ends that
+  (`set_gateway`, with the password below).  It takes `tuntap.dns` as it
+  is.
 - "Open the web page", "Show the log" (in an administrator's Notepad, as
   the log is for administrators only), and "Start with Windows" (the
   tray, at login: `HKCU\...\Run`).

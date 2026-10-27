@@ -348,6 +348,10 @@ none) and the buttons of its web page choose the exit peer: on Windows in
 any edge, on Linux in one started with \fBtuntap.route_all\fR=true, which
 may then start without \fBtuntap.gateway\fR.
 See docs/advanced/Routing.md.
+Peers that announce themselves as exits are checked by a probe through
+them when someone looks (\fBn3n-be-ctl probe_exits\fR, the web page, the
+tray app); \fBget_edges\fR shows the result as \fIexit_check\fR.
+See docs/advanced/Announcements.md.
 
 .SH SERVICE MANAGERS
 Under systemd with \fBType=notify\fR (as the packaged units are), the edge

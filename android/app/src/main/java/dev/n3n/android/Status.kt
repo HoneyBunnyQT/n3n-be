@@ -17,8 +17,9 @@ import java.io.File
  */
 object Status {
 
-    /** A peer that announces itself as an exit to the internet (announce.h) */
-    data class Exit(val name: String, val addr: String)
+    /** A peer that announces itself as an exit to the internet (announce.h),
+     * and whether the edge's own check through it went through */
+    data class Exit(val name: String, val addr: String, val confirmed: Boolean)
 
     class Info(
         val registered: Boolean,
@@ -33,6 +34,10 @@ object Status {
 
     fun query(context: Context): Info? {
         val supernodes = callList(context, "get_supernodes") ?: return null
+        // the exits not confirmed yet: checked through them now that the
+        // app looks, those due only (exit_probe.h); get_edges brings what
+        // the checks found
+        call(context, "probe_exits")
         val edges = callList(context, "get_edges") ?: JSONArray()
         // as the edge itself sees it: still registered while its periodic
         // re-registration waits for the answer
@@ -67,7 +72,8 @@ object Status {
             // by the name it announced, else its description
             val addr = row.optString("ip4addr").substringBefore('/')
             if (row.optInt("exit") > 0 && addr.isNotEmpty() && exits.none { it.addr == addr }) {
-                exits.add(Exit(row.optString("name").ifEmpty { row.optString("desc") }, addr))
+                exits.add(Exit(row.optString("name").ifEmpty { row.optString("desc") }, addr,
+                    row.optString("exit_check") == "ok"))
             }
         }
         val tcp = info?.optString("transport") == "tcp"

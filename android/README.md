@@ -88,8 +88,10 @@ what comes next.
 The main screen's "Route all traffic through a peer" sends everything the
 phone does through the VPN to one peer, which takes it on to the internet
 (below the exit peer's field, the peers that announce themselves as exits
-to the internet, by their names - a tap takes one, see
-[What an Edge Tells Its Peers](../docs/advanced/Announcements.md)):
+to the internet, by their names - a tap takes one; a pink dot before one
+where the phone's own check went through it, a blue one where not (yet),
+which a long press explains, see
+[What an Edge Tells Its Peers](../docs/advanced/Announcements.md#checking-an-exit-yourself)):
 the app routes all IPv4 into the device (IPv6 too, which the exit peer
 drops unless it routes IPv6, so that nothing goes around it), sets the DNS server given there
 (1.1.1.1 by default), and tells the edge `tuntap.gateway`, see

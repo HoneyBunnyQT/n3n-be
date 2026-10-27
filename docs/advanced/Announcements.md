@@ -80,8 +80,11 @@ announces it at once.
 An edge that lets its peers' traffic through to the internet - with
 `filter.allow_routing = true`, IP forwarding and NAT on its host, see
 [Routing](Routing.md) - announces itself as an exit, and its peers show it
-so: first in the tray app's "Route all traffic through", with "internet"
-on the web page, as a tap below the exit peer's field in the Android app.
+so: first in the tray app's "Route all traffic through", below the exit
+peer's field in the Android app, and on the web page, each with a dot
+before its name - pink where the peer's own check went through it, blue
+where not (yet), see below.  The names of the other peers keep the room
+for the dot, so that they line up.
 
 `tuntap.exit = auto` (the default) finds out by a **probe**, through the
 way a peer's packets take: the edge puts a UDP datagram onto its own
@@ -103,3 +106,32 @@ With an older supernode, or to announce an exit without a probe,
 
 `get_edges` gives each peer's `exit` (the TLV's bits, 0 for none),
 `get_info` the edge's own.
+
+## Checking an exit yourself
+
+What a peer announces is what it says of itself.  So an edge checks it,
+with the same probe sent another way: from its own address in the
+community, to the peer's MAC, as a packet to be routed through it - the
+peer's host forwards it to the supernode if it is an exit, and the
+supernode's answer back to the edge, which takes it without passing it
+on.  An answer within 5 seconds, and the peer is an exit for this edge
+too: a **pink** dot.  No answer, or no check yet: a **blue** one.  The
+tooltip of the dot says which (on the web page and in the Android app; a
+Windows menu has no tooltips, so the tray says it on top of the list).
+
+The check goes only when someone looks - the tray's menu opens, the web
+page or the Android app's main screen shows, the management API's
+`probe_exits` - and then only to the exits that are due: never checked,
+failed 5 minutes ago or more, confirmed 30 minutes ago or more; at most 8
+at a time.  A new announcement with other exit flags starts over.  Nothing
+goes through the network every minute.
+
+What it proves: traffic from this edge comes out on the internet through
+that peer, and the answers come back.  What it does not prove: that the
+peer is honest.  A peer that runs a changed program can answer the probe
+itself, and an exit sees - like any router - where the traffic goes.  A
+dot never routes anything by itself: all traffic goes through an exit only
+when you choose one, so choose one you trust.
+
+`get_edges` gives each exit's `exit_check`: `none` (not yet), `waiting`,
+`ok` or `failed`.

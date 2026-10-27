@@ -10,6 +10,9 @@
  *   - the peers' announcements: kept and replaced, answered when asked or
  *     new but not again at once, forgotten, purged; and whether a peer
  *     reads FEC - not when it never said, nor when it said it does not
+ *   - this edge's checks of the exits: due for those that say they are,
+ *     once; answered by port and nonce, or failed after a while and due
+ *     again later; anew when what a peer says of itself as an exit changes
  */
 
 #include <stdio.h>            // for printf
@@ -141,6 +144,39 @@ int main (int argc, char *argv[]) {
     printf("%-20s%s\n", "b, kept", n3n_announce_get(a, peer_b, &back) ? "there" : "gone");
     n3n_announce_purge(a, now + N3N_ANNOUNCE_KEEP + 1);
     printf("%-20s%s\n", "b, then purged", n3n_announce_get(a, peer_b, &back) ? "there" : "gone");
+
+    // the checks of the exits
+    static const char *const states[] = { "none", "waiting", "ok", "failed" };
+    struct n3n_announce_check due[4];
+    int n;
+
+    now = 5000;
+    memset(&info, 0, sizeof(info));
+    n3n_announce_learn(a, peer_a, 0, &info, now);
+    info.exit = N3N_ANNOUNCE_EXIT_IPV4 | N3N_ANNOUNCE_EXIT_PROBED;
+    n3n_announce_learn(a, peer_b, 0, &info, now);
+    n = n3n_announce_checks_due(a, now, due, 4);
+    printf("%-20s%d, %s\n", "due", n, (n == 1) && !memcmp(due[0].peer, peer_b, 6) ? "b, the exit" : "?");
+    printf("%-20s%d\n", "due again at once", n3n_announce_checks_due(a, now + 1, due + 1, 3));
+    uint8_t wrong[16];
+    memcpy(wrong, due[0].nonce, 16);
+    wrong[0] ^= 1;
+    printf("%-20s%s\n", "another nonce", n3n_announce_checked(a, due[0].port, wrong) ? "taken" : "not taken");
+    printf("%-20s%s\n", "the answer", n3n_announce_checked(a, due[0].port, due[0].nonce) ? "taken" : "not taken");
+    printf("%-20s%s\n", "b", states[n3n_announce_check_state(a, peer_b)]);
+    printf("%-20s%s\n", "the answer again", n3n_announce_checked(a, due[0].port, due[0].nonce) ? "taken" : "not taken");
+    printf("%-20s%d\n", "due after 29 min", n3n_announce_checks_due(a, now + N3N_ANNOUNCE_RECHECK_OK - 60, due, 4));
+    // b says it is set by hand now: checked anew, and no answer comes
+    info.exit = N3N_ANNOUNCE_EXIT_IPV4 | N3N_ANNOUNCE_EXIT_SET;
+    n3n_announce_learn(a, peer_b, 0, &info, now + 10);
+    printf("%-20s%s\n", "b, says otherwise", states[n3n_announce_check_state(a, peer_b)]);
+    n = n3n_announce_checks_due(a, now + 10, due, 4);
+    n3n_announce_purge(a, now + 10 + N3N_ANNOUNCE_CHECK_WAIT - 1);
+    printf("%-20s%d, %s\n", "due, 4s later", n, states[n3n_announce_check_state(a, peer_b)]);
+    n3n_announce_purge(a, now + 10 + N3N_ANNOUNCE_CHECK_WAIT);
+    printf("%-20s%s\n", "5s later", states[n3n_announce_check_state(a, peer_b)]);
+    printf("%-20s%d\n", "due after 4 min", n3n_announce_checks_due(a, now + 250, due, 4));
+    printf("%-20s%d\n", "due after 5 min", n3n_announce_checks_due(a, now + 10 + N3N_ANNOUNCE_RECHECK_FAILED, due, 4));
 
     n3n_announce_free(a);
     return 0;

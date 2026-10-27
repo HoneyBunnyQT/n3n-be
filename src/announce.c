@@ -11,6 +11,7 @@
 
 #include "config.h"         // for HAVE_LIBPTHREAD
 
+#include <n3n/random.h>     // for n3n_rand
 #include <stdlib.h>         // for calloc, free
 #include <string.h>         // for memcpy, memset, strlen
 
@@ -35,6 +36,11 @@ struct announce_peer {
     struct n3n_announce_info info;
     time_t seen;
     time_t answered;            // when it was last answered, 0 for never
+    // this edge's check of it as an exit, see n3n_announce_checks_due()
+    int check;                  // N3N_ANNOUNCE_CHECK_*
+    time_t check_time;          // when it was sent
+    uint16_t check_port;
+    uint8_t check_nonce[16];
     UT_hash_handle hh;
 };
 
@@ -225,6 +231,10 @@ bool n3n_announce_learn (struct n3n_announce *a, const n2n_mac_t peer, uint8_t f
         fresh = true;
     }
     if(p) {
+        // what it says of itself as an exit changed: checked anew
+        if(p->info.exit != info->exit) {
+            p->check = N3N_ANNOUNCE_CHECK_NONE;
+        }
         p->info = *info;
         p->seen = now;
         if(((flags & N3N_ANNOUNCE_ASK) || fresh)
@@ -306,7 +316,83 @@ void n3n_announce_purge (struct n3n_announce *a, time_t now) {
         if(now - p->seen > N3N_ANNOUNCE_KEEP) {
             HASH_DEL(a->peers, p);
             free(p);
+        } else if((p->check == N3N_ANNOUNCE_CHECK_WAITING) && (now - p->check_time >= N3N_ANNOUNCE_CHECK_WAIT)) {
+            p->check = N3N_ANNOUNCE_CHECK_FAILED;
         }
     }
     unlock(a);
+}
+
+
+int n3n_announce_checks_due (struct n3n_announce *a, time_t now, struct n3n_announce_check *out, int max) {
+
+    struct announce_peer *p, *tmp;
+    int n = 0;
+
+    if(!a) {
+        return 0;
+    }
+    lock(a);
+    HASH_ITER(hh, a->peers, p, tmp) {
+        bool due = (p->check == N3N_ANNOUNCE_CHECK_NONE)
+                   || ((p->check == N3N_ANNOUNCE_CHECK_FAILED)
+                       && (now - p->check_time >= N3N_ANNOUNCE_RECHECK_FAILED))
+                   || ((p->check == N3N_ANNOUNCE_CHECK_OK) && (now - p->check_time >= N3N_ANNOUNCE_RECHECK_OK));
+
+        if((n >= max) || !p->info.exit || !due) {
+            continue;
+        }
+        p->check = N3N_ANNOUNCE_CHECK_WAITING;
+        p->check_time = now;
+        p->check_port = 49152 + n3n_rand() % 16384;
+        for(int i = 0; i < 16; i++) {
+            p->check_nonce[i] = n3n_rand();
+        }
+        memcpy(out[n].peer, p->mac, sizeof(n2n_mac_t));
+        out[n].port = p->check_port;
+        memcpy(out[n].nonce, p->check_nonce, sizeof(p->check_nonce));
+        n++;
+    }
+    unlock(a);
+    return n;
+}
+
+
+bool n3n_announce_checked (struct n3n_announce *a, uint16_t port, const uint8_t nonce[16]) {
+
+    struct announce_peer *p, *tmp;
+    bool found = false;
+
+    if(!a) {
+        return false;
+    }
+    lock(a);
+    HASH_ITER(hh, a->peers, p, tmp) {
+        if((p->check == N3N_ANNOUNCE_CHECK_WAITING) && (p->check_port == port)
+           && !memcmp(p->check_nonce, nonce, sizeof(p->check_nonce))) {
+            p->check = N3N_ANNOUNCE_CHECK_OK;
+            found = true;
+            break;
+        }
+    }
+    unlock(a);
+    return found;
+}
+
+
+int n3n_announce_check_state (struct n3n_announce *a, const n2n_mac_t peer) {
+
+    struct announce_peer *p;
+    int state = N3N_ANNOUNCE_CHECK_NONE;
+
+    if(!a) {
+        return state;
+    }
+    lock(a);
+    HASH_FIND(hh, a->peers, peer, sizeof(n2n_mac_t), p);
+    if(p) {
+        state = p->check;
+    }
+    unlock(a);
+    return state;
 }

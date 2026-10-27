@@ -134,7 +134,44 @@ bool n3n_announce_get (struct n3n_announce *a, const n2n_mac_t peer, struct n3n_
 // lately.  One that never said or said otherwise does not.
 bool n3n_announce_reads_fec (struct n3n_announce *a, const n2n_mac_t peer, uint16_t schemes);
 
-// Those not heard from for N3N_ANNOUNCE_KEEP seconds go
+// Those not heard from for N3N_ANNOUNCE_KEEP seconds go; checks not
+// answered in N3N_ANNOUNCE_CHECK_WAIT seconds failed
 void n3n_announce_purge (struct n3n_announce *a, time_t now);
+
+
+// What this edge itself found of a peer that announces itself as an exit,
+// by a check through it (exit_probe.h): an announcement says what its
+// sender would have one believe, the check whether traffic sent to it
+// comes out to the internet and back - not whether the peer can be
+// trusted with it, as a program changed to lie could forge the answer
+#define N3N_ANNOUNCE_CHECK_NONE         0       // not checked yet
+#define N3N_ANNOUNCE_CHECK_WAITING      1       // a check is on its way
+#define N3N_ANNOUNCE_CHECK_OK           2       // it came back through the peer
+#define N3N_ANNOUNCE_CHECK_FAILED       3       // it did not
+
+// a check's answer is waited for so long; one that failed is done again
+// (when someone looks) after so long, one that went through after so long
+#define N3N_ANNOUNCE_CHECK_WAIT         5
+#define N3N_ANNOUNCE_RECHECK_FAILED     300
+#define N3N_ANNOUNCE_RECHECK_OK         1800
+
+// a check: through the peer, from the edge's port, with a nonce of its own
+struct n3n_announce_check {
+    n2n_mac_t peer;
+    uint16_t port;
+    uint8_t nonce[16];
+};
+
+// The peers that announce themselves as exits and are to be checked now -
+// never checked, or long enough ago: up to max of them into out, each
+// with a port and nonce of its own, waiting from now.  How many.
+int n3n_announce_checks_due (struct n3n_announce *a, time_t now, struct n3n_announce_check *out, int max);
+
+// The answer to a check, by its port and nonce: true if it was one, which
+// went through then
+bool n3n_announce_checked (struct n3n_announce *a, uint16_t port, const uint8_t nonce[16]);
+
+// What this edge found of the peer as an exit: N3N_ANNOUNCE_CHECK_*
+int n3n_announce_check_state (struct n3n_announce *a, const n2n_mac_t peer);
 
 #endif

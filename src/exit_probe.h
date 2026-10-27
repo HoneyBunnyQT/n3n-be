@@ -69,6 +69,18 @@ void edge_exit_network_changed (struct n3n_runtime_data *eee, time_t now);
 // ARP for its address), which then goes nowhere else
 bool edge_exit_take (struct n3n_runtime_data *eee, const uint8_t *buf, size_t len, bool ip_only);
 
+// This edge's checks of the peers that announce themselves as exits
+// (announce.h, N3N_ANNOUNCE_CHECK_*): the same probe, from the edge's own
+// address, sent to the peer - whose host forwards it to the supernode if
+// it is an exit, and the answer back to the edge.  Those due (never
+// checked, or long enough ago) go now, on the main thread, when someone
+// looks (the management API's probe_exits, the page): how many
+int edge_exit_check (struct n3n_runtime_data *eee, time_t now);
+
+// A frame from a peer for the device, on any thread: true if it was the
+// answer to such a check, which then goes nowhere else
+bool edge_exit_check_take (struct n3n_runtime_data *eee, const uint8_t *frame, size_t len);
+
 // At a supernode, what came to its UDP port: true if it was a probe, which
 // it answered then
 bool exit_probe_echo (SOCKET sock, const struct sockaddr *from, socklen_t from_len,

@@ -286,9 +286,13 @@ static int tap_deliver (struct n3n_runtime_data *eee,
     ssize_t data_sent_len;
     ipstr_t ip_buf;
 
-    // what the peer says of itself: for the edge, not for the device
+    // what the peer says of itself: for the edge, not for the device; and
+    // the answer to this edge's check of a peer as an exit
     if(n3n_announce_is(eth_payload, eth_size)) {
         announce_rx(eee, pkt->srcMac, eth_payload, eth_size, now);
+        return 0;
+    }
+    if(edge_exit_check_take(eee, eth_payload, eth_size)) {
         return 0;
     }
 

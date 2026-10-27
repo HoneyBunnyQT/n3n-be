@@ -24,3 +24,15 @@ a forgotten         gone
 a reads FEC         no
 b, kept             there
 b, then purged      gone
+due                 1, b, the exit
+due again at once   0
+another nonce       not taken
+the answer          taken
+b                   ok
+the answer again    not taken
+due after 29 min    0
+b, says otherwise   none
+due, 4s later       1, waiting
+5s later            failed
+due after 4 min     0
+due after 5 min     1

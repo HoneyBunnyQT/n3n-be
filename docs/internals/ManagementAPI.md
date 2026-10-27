@@ -46,11 +46,14 @@ one ("All traffic"), with a button to stop that, and its peers each have a
 button "route all", as the Android app's "Route all traffic through a
 peer"; see [Routing](../advanced/Routing.md#switching-while-it-runs).
 The peers show by the names they announced, those that are exits to the
-internet marked "internet" ([What an Edge Tells Its
-Peers](../advanced/Announcements.md)).  `get_edges` has these for each
-peer - `name` (its announced name, else its description), `announced` (0
-for an edge of an older version), `reads_fec`, `exit` -, `get_info` the
-edge's own `name` and `exit`.
+internet with a dot before them, pink where the edge's own check went
+through the peer, blue where not (yet) - the page checks those due when it
+shows ([What an Edge Tells Its
+Peers](../advanced/Announcements.md#checking-an-exit-yourself)).
+`get_edges` has these for each peer - `name` (its announced name, else its
+description), `announced` (0 for an edge of an older version),
+`reads_fec`, `exit`, and for an exit `exit_check` (`none`, `waiting`,
+`ok`, `failed`) -, `get_info` the edge's own `name` and `exit`.
 
 - Its header links to the API's own help (`/help`), the metrics, and the
   documentation online (https://honeybunnyqt.github.io/n3n-be/).
@@ -163,6 +166,7 @@ Those marked with a key need the password (see Authentication below):
 | `get_communities` | yes | yes | the edge: its community; the supernode: its communities with their address range of the auto ip service, the federation shown as `-/-` |
 | `get_packetstats` | yes | yes | counters of received and sent packets by kind: `transop`, `p2p`, `super`, `super_broadcast`, `tuntap_error`, `multicast_drop`, and on a supernode `sn_fwd`, `sn_broadcast`, `sn_reg` (with `nak`), `sn_errors` |
 | `get_timestamps` | yes | yes | when things last happened, as Unix times: `start_time`, `last_register_req`, `last_rx_p2p`, `last_rx_super`, `last_sn_fwd`, `last_sn_reg`, `last_sweep` |
+| `probe_exits` | yes | | check through the peers that announce themselves as exits, those due (never checked, failed 5 minutes ago, confirmed 30 minutes ago): `{"started": 1}`, how many; `get_edges` has the result as `exit_check` a few seconds later |
 | `get_mac` | yes | | the MAC addresses the edge has seen behind its peers (with routing and bridging) |
 | `get_verbose` | yes | yes | the log level |
 | `set_verbose` (key) | yes | yes | set the log level: `n3n-be-ctl -k n3n set_verbose 3` |
