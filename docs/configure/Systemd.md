@@ -31,6 +31,11 @@ The units are of `Type=notify`: n3n tells systemd
   `WatchdogSec` below 30 seconds is too short.
 - when it is stopping.
 
+The supernode's unit runs it as the user `n3n-be`, with one of root's
+rights: ports below 1024 (`AmbientCapabilities=CAP_NET_BIND_SERVICE`), for
+a TCP port 443 or 80 that edges behind firewalls letting only the web
+through can reach.
+
 `systemctl reload` sends SIGHUP (`ExecReload`): n3n reads its configuration
 again and applies what can change while running, see [Configuration
 Files](ConfigurationFiles.md#reloading); it tells systemd so (`RELOADING=1`,

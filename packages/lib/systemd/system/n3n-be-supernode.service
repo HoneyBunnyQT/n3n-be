@@ -12,6 +12,9 @@ NotifyAccess=main
 WatchdogSec=60
 User=n3n-be
 Group=n3n-be
+# ports below 1024 too - a TCP port 443 or 80 for edges behind firewalls
+# that let only the web through - and nothing else of root's
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 RuntimeDirectory=n3n-be
 ExecStart=/usr/sbin/n3n-be-supernode start
 # reads the configuration again: what can change while running changes,
