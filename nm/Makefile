@@ -5,7 +5,7 @@
 # n3n-be for NetworkManager (./configure --with-network-manager), see
 # n3n-nm.h: the VPN service, the plugin that imports, exports and loads the
 # settings page, the settings pages of GTK 4 and GTK 3, the dialog for the
-# key.  Built against libnm, GLib and GTK, not against libn3n: the edge is
+# key, and the GNOME Shell extension (shell-extension/).  Built against libnm, GLib and GTK, not against libn3n: the edge is
 # a program of its own, which the service starts.
 #
 
@@ -16,6 +16,9 @@ N3N_EDGE?=$(CONFIG_PREFIX)/sbin/n3n-be-edge
 # where NetworkManager looks for the .name files of its VPN plugins
 NM_VPNDIR?=$(shell pkg-config --variable=vpnservicedir libnm)
 DBUS_SYSTEMDIR?=$(CONFIG_PREFIX)/share/dbus-1/system.d
+# the GNOME Shell extension, for all users (each enables it)
+EXTENSION=n3n-be@honeybunnyqt.github.io
+EXTENSIONDIR?=$(CONFIG_PREFIX)/share/gnome-shell/extensions/$(EXTENSION)
 
 NM_CFLAGS:=$(shell pkg-config --cflags libnm)
 NM_LIBS:=$(shell pkg-config --libs libnm)
@@ -76,6 +79,9 @@ install: all
 	install -m755 $(LIBS_SO) $(DESTDIR)$(CONFIG_NM_LIBDIR)/
 	install -m644 nm-n3n-be-service.name $(DESTDIR)$(NM_VPNDIR)/
 	install -m644 nm-n3n-be-service.conf $(DESTDIR)$(DBUS_SYSTEMDIR)/
+	install -d $(DESTDIR)$(EXTENSIONDIR)
+	install -m644 shell-extension/$(EXTENSION)/metadata.json shell-extension/$(EXTENSION)/extension.js \
+		shell-extension/$(EXTENSION)/stylesheet.css $(DESTDIR)$(EXTENSIONDIR)/
 
 clean:
 	rm -f nm-n3n-be-service nm-n3n-be-service.test nm-n3n-be-auth-dialog *.so *.d nm-n3n-be-service.name tests-nm-conf

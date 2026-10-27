@@ -1,0 +1,22 @@
+/* the dot before a peer's name: pink for an exit that this computer's
+ * check went through, blue for one that only says it is one, none (but
+ * its room) for the others, as on the web page and in the tray app */
+.n3n-be-dot {
+  min-width: 1.4em;
+}
+
+.n3n-be-dot-exit {
+  color: #f06292;
+}
+
+.n3n-be-dot-says {
+  color: #58a6ff;
+}
+
+.n3n-be-dot-none {
+  color: transparent;
+}
+
+.n3n-be-legend {
+  font-size: 90%;
+}

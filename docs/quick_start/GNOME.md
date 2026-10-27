@@ -7,7 +7,9 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 n3n-be as a VPN of NetworkManager: set up in GNOME's Settings (Network,
 VPN) like any other VPN, switched on and off in the top bar's quick
-settings, the key in the system's or in your own keyring.  NetworkManager
+settings, the key in the system's or in your own keyring - and with the
+Shell extension, the peers there too, the exits to the internet among them
+marked, one to route all traffic through chosen there.  NetworkManager
 starts the edge when the VPN goes up and gives its device the address,
 the routes and the DNS server, as it does for every VPN.  The plugin works
 the same with nmcli and with nm-connection-editor on other desktops.
@@ -61,6 +63,35 @@ Switched on in the top bar's quick settings (the VPN button), or
 `nmcli connection up NAME`.  The edge's device is `n3n-` and the first 8
 hex digits of the connection's UUID.
 
+## The peers in the top bar
+
+The package brings a GNOME Shell extension, "n3n-be" - switched on in the
+Extensions app, or with `gnome-extensions enable
+n3n-be@honeybunnyqt.github.io` (on Wayland after logging out and in once
+it is installed).  While an n3n-be VPN is connected, the quick settings
+have a toggle "n3n-be", which says through which exit peer all traffic
+goes, or "directly"; its menu lists the peers, by the names they
+announced:
+
+- the exits to the internet first, each with a dot - pink where this
+  computer's check through it went through, blue where it only says it is
+  one (see [What an Edge Tells Its
+  Peers](../advanced/Announcements.md#checking-an-exit-yourself)); the
+  other peers keep the room for a dot, so that the names line up, and on
+  top a legend says what the dots mean.  Opening the menu checks the exits
+  that are due;
+- one of them, clicked, routes all traffic through it, "None: directly"
+  ends that; the toggle itself switches it off, and on again through the
+  exit before;
+- "Open the web page" opens the edge's.
+
+Choosing an exit asks the same as switching the VPN on: whoever polkit
+lets control the network (`org.freedesktop.NetworkManager.network-control`,
+every user at the computer, by default) and the connection lets use it
+(Details, "Make available to other users").  The extension asks the VPN
+service on the system bus (`org.n3n_be.Edge`), which keeps the edge's
+management password to itself.
+
 ## All traffic through an exit peer
 
 With "Route all traffic through an exit peer", the exit peer's address
@@ -76,8 +107,8 @@ The routing is the edge's own, not NetworkManager's: the edge's packets to
 its supernodes and to the peers it reaches directly have to stay out of
 the tunnel, which a default route through the VPN would not do.  So the
 edge always starts ready for it: an exit peer can also be chosen while it
-runs - on its web page, or with `set_gateway` - and NetworkManager's DNS
-server follows within a few seconds.
+runs - in the top bar (above), on its web page, or with `set_gateway` - and
+NetworkManager's DNS server follows within a second or two.
 
 ## On the command line
 
@@ -101,7 +132,10 @@ NetworkManager starts `nm-n3n-be-service`, one for each connection that
 goes up, which starts `n3n-be-edge` with the connection's options in
 `/run/n3n-be-nm/nm-UUID.conf` - for root only, as the key is in it - and
 tells NetworkManager the device and its address once the edge is
-registered.  The edge drops its privileges as ever.  Both log to
+registered; the extension asks it on D-Bus, interface `org.n3n_be.Edge`
+of its bus name `org.freedesktop.NetworkManager.n3n-be.Connection_N`
+(`Info`, `ProbeExits`, `SetGateway`).  The edge drops its privileges as
+ever.  Both log to
 NetworkManager's journal (`journalctl -u NetworkManager`); the edge's
 management API is there as for any edge, under the session `nm-UUID`:
 

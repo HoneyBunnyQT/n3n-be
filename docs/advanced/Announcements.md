@@ -81,7 +81,9 @@ An edge that lets its peers' traffic through to the internet - with
 `filter.allow_routing = true`, IP forwarding and NAT on its host, see
 [Routing](Routing.md) - announces itself as an exit, and its peers show it
 so: first in the tray app's "Route all traffic through", below the exit
-peer's field in the Android app, and on the web page, each with a dot
+peer's field in the Android app, in GNOME's top bar (the Shell extension,
+see [GNOME](../quick_start/GNOME.md#the-peers-in-the-top-bar)), and on the
+web page, each with a dot
 before its name - pink where the peer's own check went through it, blue
 where not (yet), see below.  The names of the other peers keep the room
 for the dot, so that they line up.
@@ -119,9 +121,10 @@ too: a **pink** dot.  No answer, or no check yet: a **blue** one.  The
 tooltip of the dot says which (on the web page and in the Android app; a
 Windows menu has no tooltips, so the tray says it on top of the list).
 
-The check goes only when someone looks - the tray's menu opens, the web
-page or the Android app's main screen shows, the management API's
-`probe_exits` - and then only to the exits that are due: never checked,
+The check goes only when someone looks - the tray's menu or the Shell
+extension's opens, the web page or the Android app's main screen shows,
+the management API's `probe_exits` - and then only to the exits that are
+due: never checked,
 failed 5 minutes ago or more, confirmed 30 minutes ago or more; at most 8
 at a time.  A new announcement with other exit flags starts over.  Nothing
 goes through the network every minute.

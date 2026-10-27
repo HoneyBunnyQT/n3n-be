@@ -20,6 +20,8 @@
 #
 #   tests/nm/netns.sh            (after ./configure --with-network-manager && make)
 #
+# N3N_NM_LOGS=DIR keeps the logs there, N3N_NM_HOLD see below.
+#
 # Skips (exit 77) without root, NetworkManager, dbus-daemon or the plugin.
 
 set -u
@@ -336,8 +338,9 @@ wait_for no_edge
 ! ip -n "$NS" rule | grep -q "lookup 0x6e33\|lookup 28211" && ! nm_resolv | grep -q "10.77.0.254"
 check "nothing left" $? "$(ip -n "$NS" rule | tr '\n' '|') $(nm_resolv | grep nameserver | tr '\n' ' ')"
 
-# --- the exit peer chosen while connected, as the web page and the Shell
-# extension do (set_gateway): NetworkManager's DNS server follows
+# --- the exit peer chosen while connected: by the service's D-Bus
+# interface org.n3n_be.Edge, as the Shell extension does, and on the web
+# page (set_gateway): NetworkManager's DNS server follows
 nmcli_ connection modify home vpn.data "$(nmcli_ -g vpn.data connection show home | sed -e 's/\\:/:/g' \
     -e 's/tuntap_route_all = true/tuntap_route_all = false/')"
 out=$(nmcli_ --wait 60 connection up home 2>&1)
@@ -349,7 +352,65 @@ sleep 2
 dns=$(nmcli_ -g IP4.DNS connection show home)
 [ -z "$dns" ] && ! ip -n "$NS" rule | grep -q "lookup 28211"
 check "no exit peer yet" $? "DNS: $dns"
-"$TOP/scripts/n3n-be-ctl" -s "$session" -k "$password" set_gateway 10.77.0.254 >/dev/null 2>&1
+
+# the service's bus name, Connection_N
+service=$(gdbus call --address "unix:path=$BUS" --dest org.freedesktop.DBus \
+    --object-path /org/freedesktop/DBus --method org.freedesktop.DBus.ListNames |
+    grep -o "org.freedesktop.NetworkManager.n3n-be[^']*" | head -1)
+# a user's view: no root, no password
+as_nobody() {
+    setpriv --reuid=65534 --regid=65534 --clear-groups \
+        gdbus call --address "unix:path=$BUS" --dest "$service" --object-path /org/n3n_be/Edge "$@"
+}
+chmod 711 "$WORK"
+# b announces itself as an exit once its own probe went through, a few
+# seconds after it started
+for _ in $(seq 60); do
+    info=$(as_nobody --method org.n3n_be.Edge.Info 2>&1)
+    case "$info" in
+        *'"exit":'[1-9]*) break ;;
+    esac
+    sleep 0.5
+done
+case "$info" in
+    *'"id":"home"'*'"route_all":0'*'"name":"b, the exit"'*'"exit":'[1-9]*) ok=0 ;;
+    *) ok=1 ;;
+esac
+check "Info, as a user" $ok "$(echo "$info" | grep -o "\"route_all\":[0-9]*\|\"edges\":.*" | cut -c1-400 | tr "\n" " ")"
+out=$(as_nobody --method org.n3n_be.Edge.ProbeExits 2>&1)
+case "$out" in
+    *'"started":1'*) ok=0 ;;
+    *) ok=1 ;;
+esac
+check "ProbeExits, as a user" $ok "$out"
+ok=1
+for _ in $(seq 20); do
+    if as_nobody --method org.n3n_be.Edge.Info 2>&1 | grep -q '"exit_check":"ok"'; then
+        ok=0
+        break
+    fi
+    sleep 0.5
+done
+check "b, an exit confirmed" $ok "$(as_nobody --method org.n3n_be.Edge.Info 2>&1 | grep -o '"exit_check":"[a-z]*"')"
+# N3N_NM_HOLD=COMMAND runs it here, connected, with b a confirmed exit -
+# with N3N_NM_BUS the D-Bus of this NetworkManager: to look at it, e.g. with
+# GNOME Shell and the extension
+if [ -n "${N3N_NM_HOLD:-}" ]; then
+    out=$(N3N_NM_BUS=unix:path=$BUS sh -c "$N3N_NM_HOLD" 2>&1)
+    check "$N3N_NM_HOLD" $? "
+$out"
+fi
+
+# polkit is none here: no user may choose
+out=$(as_nobody --method org.n3n_be.Edge.SetGateway 10.77.0.254 2>&1)
+case "$out" in
+    *Error*) ok=0 ;;
+    *) ok=1 ;;
+esac
+check "SetGateway, as a user without polkit's yes" $ok "$out"
+
+out=$(gdbus call --address "unix:path=$BUS" --dest "$service" --object-path /org/n3n_be/Edge \
+    --method org.n3n_be.Edge.SetGateway 10.77.0.254 2>&1)
 ok=1
 for _ in $(seq 20); do
     if [ "$(nmcli_ -g IP4.DNS connection show home)" = 10.77.0.254 ] && ip -n "$NS" rule | grep -q "lookup 28211"; then
@@ -358,7 +419,7 @@ for _ in $(seq 20); do
     fi
     sleep 0.5
 done
-check "chosen while connected" $ok "DNS: $(nmcli_ -g IP4.DNS connection show home), $(ip -n "$NS" rule | grep -c 28211) rule(s)"
+check "chosen while connected, on D-Bus" $ok "$out; DNS: $(nmcli_ -g IP4.DNS connection show home), $(ip -n "$NS" rule | grep -c 28211) rule(s)"
 "$TOP/scripts/n3n-be-ctl" -s "$session" -k "$password" set_gateway "" >/dev/null 2>&1
 ok=1
 for _ in $(seq 20); do
@@ -368,7 +429,7 @@ for _ in $(seq 20); do
     fi
     sleep 0.5
 done
-check "given up while connected" $ok "DNS: $(nmcli_ -g IP4.DNS connection show home)"
+check "given up while connected, on the management API" $ok "DNS: $(nmcli_ -g IP4.DNS connection show home)"
 nmcli_ connection down home >/dev/null 2>&1
 
 exit $failed

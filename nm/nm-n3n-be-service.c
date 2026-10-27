@@ -25,9 +25,20 @@
  * all names to it, with systemd-resolved, so that none go around the exit
  * peer - while all traffic goes through one, which this follows by asking
  * the edge every few seconds.
+ *
+ * For the user's side - the GNOME Shell extension's peers and their dots,
+ * the exit chosen there - it answers on D-Bus, interface
+ * org.n3n_be.Edge at /org/n3n_be/Edge of its bus name
+ * (org.freedesktop.NetworkManager.n3n-be.Connection_N): Info, the
+ * connection and the edge's get_info and get_edges; ProbeExits; and
+ * SetGateway, for whom polkit lets control the network
+ * (org.freedesktop.NetworkManager.network-control, as for switching the
+ * VPN on) and the connection lets use it.  The management password stays
+ * here.
  */
 
 #include <arpa/inet.h>          // for inet_pton
+#include <pwd.h>                // for getpwuid_r
 #include <errno.h>
 #include <glib-unix.h>          // for g_unix_signal_add
 #include <glib/gstdio.h>        // for g_unlink, g_mkdir
@@ -92,6 +103,8 @@ struct _N3nPlugin {
     guint prefix;
     gboolean route_all;         // all traffic goes through an exit peer
     gboolean stopping;          // asked to stop
+    NMConnection *connection;   // the one connected
+    guint registration;         // of org.n3n_be.Edge
 };
 
 G_DEFINE_TYPE(N3nPlugin, n3n_plugin, NM_TYPE_VPN_SERVICE_PLUGIN)
@@ -444,6 +457,8 @@ static gboolean real_connect (NMVpnServicePlugin *plugin, NMConnection *connecti
         forget_edge(self);
         return FALSE;
     }
+    g_clear_object(&self->connection);
+    self->connection = g_object_ref(connection);
     LOG(LOG_NOTICE, "started the edge (%d) for %s on %s", (int)self->pid,
         nm_connection_get_id(connection), self->device);
     self->child_watch = g_child_watch_add(self->pid, edge_exited, self);
@@ -504,6 +519,226 @@ static gboolean real_disconnect (NMVpnServicePlugin *plugin, GError **error) {
 }
 
 
+// --- org.n3n_be.Edge, see above
+
+static const char edge_xml[] =
+    "<node>"
+    " <interface name='org.n3n_be.Edge'>"
+    "  <method name='Info'><arg type='s' name='json' direction='out'/></method>"
+    "  <method name='ProbeExits'><arg type='s' name='json' direction='out'/></method>"
+    "  <method name='SetGateway'>"
+    "   <arg type='s' name='address' direction='in'/>"
+    "   <arg type='s' name='json' direction='out'/>"
+    "  </method>"
+    " </interface>"
+    "</node>";
+
+
+// A JSON string of a text, UTF-8 as it is
+static void json_string (GString *out, const char *text) {
+
+    g_string_append_c(out, '"');
+    for(const unsigned char *c = (const unsigned char *)text; c && *c; c++) {
+        if((*c == '"') || (*c == '\\')) {
+            g_string_append_printf(out, "\\%c", *c);
+        } else if(*c < 0x20) {
+            g_string_append_printf(out, "\\u%04x", *c);
+        } else {
+            g_string_append_c(out, *c);
+        }
+    }
+    g_string_append_c(out, '"');
+}
+
+
+// A JSON value as text again
+static void json_out (GString *out, const struct mc_json *v) {
+
+    const char *kind = mc_json_kind(v);
+
+    if(!strcmp(kind, "object") || !strcmp(kind, "array")) {
+        gboolean obj = (kind[0] == 'o');
+
+        g_string_append_c(out, obj ? '{' : '[');
+        for(int i = 0; i < mc_json_len(v); i++) {
+            const struct mc_json *m = mc_json_at(v, i);
+
+            if(i) {
+                g_string_append_c(out, ',');
+            }
+            if(obj) {
+                json_string(out, mc_json_key(m));
+                g_string_append_c(out, ':');
+            }
+            json_out(out, m);
+        }
+        g_string_append_c(out, obj ? '}' : ']');
+    } else if(!strcmp(kind, "string")) {
+        json_string(out, mc_json_str(v));
+    } else if(!strcmp(kind, "number")) {
+        char buf[G_ASCII_DTOSTR_BUF_SIZE];
+
+        g_string_append(out, g_ascii_dtostr(buf, sizeof(buf), mc_json_num(v, 0)));
+    } else if(!strcmp(kind, "bool")) {
+        g_string_append(out, mc_json_num(v, 0) ? "true" : "false");
+    } else {
+        g_string_append(out, "null");
+    }
+}
+
+
+// A method of the edge's management API, its result appended as JSON;
+// FALSE with error if there is none
+static gboolean edge_call (N3nPlugin *self, GString *out, const char *method, const char *params,
+                           gboolean with_password, GError **error) {
+
+    char err[200];
+    struct mc_json *r = mc_call(self->port, with_password ? self->password : NULL, method, params,
+                                err, sizeof(err), NULL);
+
+    if(!r) {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED, "%s: %s", method, err);
+        return FALSE;
+    }
+    json_out(out, r);
+    mc_json_free(r);
+    return TRUE;
+}
+
+
+// Whether the caller may choose the exit: root, or a user who may use the
+// connection and whom polkit lets control the network
+static gboolean may_steer (N3nPlugin *self, GDBusConnection *bus, const char *sender, GError **error) {
+
+    GVariant *r;
+    guint32 uid;
+    gboolean ok = FALSE;
+
+    r = g_dbus_connection_call_sync(bus, "org.freedesktop.DBus", "/org/freedesktop/DBus",
+                                    "org.freedesktop.DBus", "GetConnectionUnixUser",
+                                    g_variant_new("(s)", sender), G_VARIANT_TYPE("(u)"),
+                                    G_DBUS_CALL_FLAGS_NONE, 5000, NULL, error);
+    if(!r) {
+        return FALSE;
+    }
+    g_variant_get(r, "(u)", &uid);
+    g_variant_unref(r);
+    if(uid == 0) {
+        return TRUE;
+    }
+
+    // the connection: for all users, or for this one
+    NMSettingConnection *s_con = self->connection ? nm_connection_get_setting_connection(self->connection) : NULL;
+    struct passwd pw, *found = NULL;
+    char buf[1024];
+
+    if(getpwuid_r(uid, &pw, buf, sizeof(buf), &found) || !found || !s_con
+       || !nm_setting_connection_permissions_user_allowed(s_con, found->pw_name)) {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_ACCESS_DENIED, "not a connection of this user");
+        return FALSE;
+    }
+
+    // polkit, as NetworkManager asks it for switching the VPN on
+    GVariantBuilder subject, details;
+
+    g_variant_builder_init(&subject, G_VARIANT_TYPE_VARDICT);
+    g_variant_builder_add(&subject, "{sv}", "name", g_variant_new_string(sender));
+    g_variant_builder_init(&details, G_VARIANT_TYPE("a{ss}"));
+    r = g_dbus_connection_call_sync(bus, "org.freedesktop.PolicyKit1", "/org/freedesktop/PolicyKit1/Authority",
+                                    "org.freedesktop.PolicyKit1.Authority", "CheckAuthorization",
+                                    g_variant_new("((sa{sv})sa{ss}us)", "system-bus-name", &subject,
+                                                  "org.freedesktop.NetworkManager.network-control",
+                                                  &details, 0, ""),
+                                    G_VARIANT_TYPE("((bba{ss}))"), G_DBUS_CALL_FLAGS_NONE, 10000, NULL, error);
+    if(!r) {
+        return FALSE;
+    }
+    g_variant_get(r, "((bb@a{ss}))", &ok, NULL, NULL);
+    g_variant_unref(r);
+    if(!ok) {
+        g_set_error(error, G_DBUS_ERROR, G_DBUS_ERROR_ACCESS_DENIED,
+                    "polkit does not let this user control the network");
+    }
+    return ok;
+}
+
+
+static void edge_method (GDBusConnection *bus, const char *sender, const char *path, const char *iface,
+                         const char *method, GVariant *params, GDBusMethodInvocation *inv, gpointer data) {
+
+    N3nPlugin *self = data;
+    GString *out = g_string_new(NULL);
+    GError *error = NULL;
+    gboolean ok = FALSE;
+
+    if(!self->configured) {
+        g_set_error(&error, G_DBUS_ERROR, G_DBUS_ERROR_FAILED, "not connected");
+    } else if(!strcmp(method, "Info")) {
+        // the connection, where its web page is, and the edge's view
+        g_string_append(out, "{\"uuid\":");
+        json_string(out, nm_connection_get_uuid(self->connection));
+        g_string_append(out, ",\"id\":");
+        json_string(out, nm_connection_get_id(self->connection));
+        g_string_append_printf(out, ",\"web\":\"http://localhost:%d/\",\"info\":", self->port);
+        ok = edge_call(self, out, "get_info", NULL, FALSE, &error);
+        if(ok) {
+            g_string_append(out, ",\"edges\":");
+            ok = edge_call(self, out, "get_edges", NULL, FALSE, &error);
+            g_string_append_c(out, '}');
+        }
+    } else if(!strcmp(method, "ProbeExits")) {
+        ok = edge_call(self, out, "probe_exits", NULL, FALSE, &error);
+    } else if(!strcmp(method, "SetGateway")) {
+        const char *addr;
+        uint32_t a;
+
+        g_variant_get(params, "(&s)", &addr);
+        if(addr[0] && (inet_pton(AF_INET, addr, &a) != 1)) {
+            g_set_error(&error, G_DBUS_ERROR, G_DBUS_ERROR_INVALID_ARGS, "not an address: %s", addr);
+        } else if(may_steer(self, bus, sender, &error)) {
+            char *json = g_strdup_printf("[\"%s\"]", addr);
+
+            LOG(LOG_NOTICE, "all traffic %s%s, asked by %s", addr[0] ? "through " : "directly",
+                addr, sender);
+            ok = edge_call(self, out, "set_gateway", json, TRUE, &error);
+            g_free(json);
+            // NetworkManager's DNS server follows at once
+            poll_edge(self);
+        }
+    } else {
+        g_set_error(&error, G_DBUS_ERROR, G_DBUS_ERROR_UNKNOWN_METHOD, "%s", method);
+    }
+
+    if(ok) {
+        g_dbus_method_invocation_return_value(inv, g_variant_new("(s)", out->str));
+    } else {
+        g_dbus_method_invocation_return_gerror(inv, error);
+        g_error_free(error);
+    }
+    g_string_free(out, TRUE);
+}
+
+
+static void edge_register (N3nPlugin *self) {
+
+    static const GDBusInterfaceVTable vtable = { edge_method, NULL, NULL, { NULL } };
+    GDBusConnection *bus = nm_vpn_service_plugin_get_connection(NM_VPN_SERVICE_PLUGIN(self));
+    GDBusNodeInfo *node = g_dbus_node_info_new_for_xml(edge_xml, NULL);
+    GError *error = NULL;
+
+    if(bus && node) {
+        self->registration = g_dbus_connection_register_object(bus, "/org/n3n_be/Edge", node->interfaces[0],
+                                                               &vtable, self, NULL, &error);
+        if(!self->registration) {
+            LOG(LOG_WARNING, "no org.n3n_be.Edge: %s", error->message);
+            g_error_free(error);
+        }
+    }
+    g_clear_object(&bus);
+    g_clear_pointer(&node, g_dbus_node_info_unref);
+}
+
+
 static void n3n_plugin_init (N3nPlugin *self) {
 }
 
@@ -540,6 +775,16 @@ static void n3n_plugin_dispose (GObject *object) {
     }
     forget_edge(self);
     g_clear_pointer(&self->dns, g_free);
+    g_clear_object(&self->connection);
+    if(self->registration) {
+        GDBusConnection *bus = nm_vpn_service_plugin_get_connection(NM_VPN_SERVICE_PLUGIN(self));
+
+        if(bus) {
+            g_dbus_connection_unregister_object(bus, self->registration);
+            g_object_unref(bus);
+        }
+        self->registration = 0;
+    }
     G_OBJECT_CLASS(n3n_plugin_parent_class)->dispose(object);
 }
 
@@ -611,6 +856,7 @@ int main (int argc, char *argv[]) {
         LOG(LOG_ERR, "cannot start: %s", error->message);
         return EXIT_FAILURE;
     }
+    edge_register(plugin);
     loop = g_main_loop_new(NULL, FALSE);
     if(!persist) {
         g_signal_connect(plugin, "quit", G_CALLBACK(quit_on_plugin), loop);

@@ -1,0 +1,6 @@
+{
+  "uuid": "driver@n3n-be.test",
+  "name": "n3n-be's test driver",
+  "description": "For tests/nm/shell.sh: opens the quick settings and n3n-be's menu, and says what is in it.",
+  "shell-version": ["45", "46", "47", "48", "49"]
+}

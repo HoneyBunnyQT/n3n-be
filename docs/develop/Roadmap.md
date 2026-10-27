@@ -507,9 +507,13 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       (`tests/nm/editor.py`), NetworkManager in network namespaces with a
       D-Bus of its own (`tests/nm/netns.sh`: import, export, connect, ping,
       all traffic through an exit, DNS, an exit chosen while connected,
-      nothing left after).  Next: a GNOME Shell extension (the peers with
-      their dots in the quick settings, the exit chosen there); then a
-      settings page for KDE's Plasma, IPv6 handed to NetworkManager
+      nothing left after).  The GNOME Shell extension
+      (`nm/shell-extension/`): a quick settings toggle while connected, the
+      peers in its menu with the exits' dots and a legend, an exit chosen
+      there - through the service's D-Bus interface `org.n3n_be.Edge`,
+      polkit's network-control asked; tested in GNOME Shell itself on Xvfb
+      (`tests/nm/shell.sh`).  Next: a settings page for KDE's Plasma, IPv6
+      handed to NetworkManager
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first

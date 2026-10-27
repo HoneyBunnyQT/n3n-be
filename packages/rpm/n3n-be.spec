@@ -40,7 +40,9 @@ Requires: NetworkManager
 %description networkmanager
 n3n-be as a VPN of NetworkManager: set up in GNOME's Settings or with
 nmcli, switched on in the top bar, the key in the system's or the user's
-keyring.  See docs/quick_start/GNOME.md.
+keyring; and a GNOME Shell extension with the peers in the quick
+settings, the exits among them marked, one to route all traffic
+through chosen there.  See docs/quick_start/GNOME.md.
 %endif
 
 %prep
@@ -74,6 +76,7 @@ chmod u+w $RPM_BUILD_ROOT%{_sbindir}/*
 %{_libdir}/NetworkManager/libnm-gtk4-vpn-plugin-n3n-be-editor.so
 /usr/lib/NetworkManager/VPN/nm-n3n-be-service.name
 /usr/share/dbus-1/system.d/nm-n3n-be-service.conf
+/usr/share/gnome-shell/extensions/n3n-be@honeybunnyqt.github.io/
 %endif
 
 %clean

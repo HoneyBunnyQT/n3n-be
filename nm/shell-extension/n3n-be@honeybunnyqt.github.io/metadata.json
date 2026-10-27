@@ -1,0 +1,7 @@
+{
+  "uuid": "n3n-be@honeybunnyqt.github.io",
+  "name": "n3n-be",
+  "description": "The peers of an n3n-be VPN of NetworkManager in the quick settings: the exits to the internet with a dot - pink where this computer's check went through, blue where not (yet) - and all traffic through one of them, chosen there.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/HoneyBunnyQT/n3n-be"
+}
