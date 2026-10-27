@@ -77,9 +77,10 @@ def find(widget, kind, label=None):
 
 if GTK == "4.0":
     Gtk.init()
+# the plugin of this tree, whoever owns it (-1: not checked)
 plugin = NM.VpnEditorPlugin.load_from_file(
     os.path.abspath(sys.argv[2]) + "/libnm-vpn-plugin-n3n-be.so",
-    "org.freedesktop.NetworkManager.n3n-be", 0, lambda *a: True, None)
+    "org.freedesktop.NetworkManager.n3n-be", -1, lambda *a: True, None)
 conn = plugin.import_(sys.argv[3])
 editor = plugin.get_editor(conn)
 page = editor.get_widget()

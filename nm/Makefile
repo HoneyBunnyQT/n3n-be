@@ -5,8 +5,9 @@
 # n3n-be for NetworkManager (./configure --with-network-manager), see
 # n3n-nm.h: the VPN service, the plugin that imports, exports and loads the
 # settings page, the settings pages of GTK 4 and GTK 3, the dialog for the
-# key, and the GNOME Shell extension (shell-extension/).  Built against libnm, GLib and GTK, not against libn3n: the edge is
-# a program of its own, which the service starts.
+# key, and the GNOME Shell extension (shell-extension/).  Built against
+# libnm, GLib and GTK, not against libn3n: the edge is a program of its
+# own, which the service starts.
 #
 
 -include ../config.mak
