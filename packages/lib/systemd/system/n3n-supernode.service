@@ -8,6 +8,9 @@ Wants=network-online.target
 Type=simple
 User=n3n
 Group=n3n
+# ports below 1024 too - a TCP port 443 or 80 for edges behind firewalls
+# that let only the web through - and nothing else of root's
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 RuntimeDirectory=n3n
 ExecStart=/usr/sbin/n3n-supernode start
 Restart=on-abnormal
