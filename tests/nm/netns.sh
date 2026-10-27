@@ -201,8 +201,14 @@ systemd-resolved=false
 [keyfile]
 unmanaged-devices=none
 EOF
-sed -e "s|@LIBEXECDIR@/nm-n3n-be-service|$TOP/nm/nm-n3n-be-service.test|" \
-    -e "s|@LIBEXECDIR@|$TOP/nm|" -e "s|@PLUGINDIR@|$TOP/nm|" \
+# the plugin of this tree - copied, as libnm loads a plugin only if root
+# owns it, which a build as another user (a CI runner's) does not give
+PLUGIN=$WORK/nm
+mkdir -p "$PLUGIN"
+install -o root -g root -m755 "$TOP"/nm/*.so "$TOP/nm/nm-n3n-be-service.test" "$PLUGIN/"
+[ -x "$TOP/nm/nm-n3n-be-auth-dialog" ] && install -o root -g root -m755 "$TOP/nm/nm-n3n-be-auth-dialog" "$PLUGIN/"
+sed -e "s|@LIBEXECDIR@/nm-n3n-be-service|$PLUGIN/nm-n3n-be-service.test|" \
+    -e "s|@LIBEXECDIR@|$PLUGIN|" -e "s|@PLUGINDIR@|$PLUGIN|" \
     "$TOP/nm/nm-n3n-be-service.name.in" >"$ETC/NetworkManager/VPN/nm-n3n-be-service.name"
 cat >"$ETC/NetworkManager/system-connections/eth0.nmconnection" <<EOF
 [connection]
