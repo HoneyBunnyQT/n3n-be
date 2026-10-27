@@ -77,6 +77,16 @@ no_edge() {
     ! pgrep -f "n3n-be-edge start /run/n3n-be-nm/" >/dev/null
 }
 
+# shellcheck disable=SC2317 # called by wait_for
+nothing_left() {
+    no_edge && ! ip -n "$NS" link show "$dev" >/dev/null 2>&1 && [ -z "$(ls /run/n3n-be-nm/ 2>/dev/null)" ]
+}
+
+# shellcheck disable=SC2317 # called by wait_for
+no_routes() {
+    no_edge && ! ip -n "$NS" rule | grep -q "lookup 0x6e33\|lookup 28211" && ! nm_resolv | grep -q "10.77.0.254"
+}
+
 in_ns() {
     DBUS_SYSTEM_BUS_ADDRESS=unix:path=$BUS ip netns exec "$NS" "$@"
 }
@@ -302,8 +312,8 @@ check "the edge's file, root's only" $? "$conf $perm"
 
 out=$(nmcli_ connection down home 2>&1)
 check "disconnect" $? "$out"
-wait_for no_edge
-! ip -n "$NS" link show "$dev" >/dev/null 2>&1 && [ -z "$(ls /run/n3n-be-nm/ 2>/dev/null)" ]
+# the service removes the edge's file once it sees the edge gone
+wait_for nothing_left
 check "nothing left" $? "$(ip -n "$NS" -br link 2>&1 | tr '\n' ' ') $(ls /run/n3n-be-nm 2>&1)"
 
 # --- all traffic through b, its address as the DNS server for all names
@@ -340,8 +350,7 @@ check "ping b, all through it" $? "$(tail -n 2 "$WORK/ping.log" | head -1)"
 
 out=$(nmcli_ connection down home 2>&1)
 check "disconnect" $? "$out"
-wait_for no_edge
-! ip -n "$NS" rule | grep -q "lookup 0x6e33\|lookup 28211" && ! nm_resolv | grep -q "10.77.0.254"
+wait_for no_routes
 check "nothing left" $? "$(ip -n "$NS" rule | tr '\n' '|') $(nm_resolv | grep nameserver | tr '\n' ' ')"
 
 # --- the exit peer chosen while connected: by the service's D-Bus
