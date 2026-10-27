@@ -1041,6 +1041,15 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
             json_str(name, eee->conf.dev_desc, N2N_DESC_SIZE);
         }
         sb_reprintf(&conn->request, ",\"name\":\"%s\",\"exit\":%u", name, (unsigned)eee->client.exit);
+        // the device and the length of its address's prefix, for who sets
+        // up the device's network (NetworkManager, nm/nm-n3n-be-service.c)
+        sb_reprintf(&conn->request, ",\"ip4prefix\":%u", (unsigned)eee->conf.tap.tuntap_v4.net_bitlen);
+#ifndef _WIN32
+        char device[JSON_STR_SIZE(N2N_IFNAMSIZ)];
+
+        json_str(device, eee->tap.device.dev_name, N2N_IFNAMSIZ);
+        sb_reprintf(&conn->request, ",\"device\":\"%s\"", device);
+#endif
     }
     if(may_route_all(eee)) {
         sb_reprintf(&conn->request, ",");
