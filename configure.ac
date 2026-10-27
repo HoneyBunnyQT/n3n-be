@@ -150,6 +150,37 @@ AS_IF([test "x$enable_relay" = xno],
     [AC_DEFINE([N3N_NO_RELAY], [1], [Define to 1 to build the edge only, without the supernode.])],
 )
 
+# The plugin of NetworkManager (nm/): its VPN service and the import and
+# export of configuration files need libnm; the settings pages GTK 4 and
+# libnma-gtk4 (GNOME's Settings), GTK 3 and libnma (nm-connection-editor),
+# each built when it is there.  Off unless asked for.
+AC_ARG_WITH([network-manager],
+    [AS_HELP_STRING([--with-network-manager],
+        [build the NetworkManager plugin (needs libnm; GTK 4 and libnma-gtk4, GTK 3 and libnma for the settings pages)])],
+    [], [with_network_manager=no])
+CONFIG_NM=no
+CONFIG_NM_GTK4=no
+CONFIG_NM_GTK3=no
+CONFIG_NM_LIBDIR=""
+AS_IF([test "x$with_network_manager" != xno],
+    [AC_MSG_CHECKING([for libnm])
+     AS_IF([pkg-config --exists 'libnm >= 1.12'],
+        [AC_MSG_RESULT([yes])
+         CONFIG_NM=yes],
+        [AC_MSG_RESULT([no])
+         AC_MSG_ERROR([libnm (1.12 or later) not found, for --with-network-manager])])
+     AC_MSG_CHECKING([for GTK 4 and libnma-gtk4, for the settings page of GNOME's Settings])
+     AS_IF([pkg-config --exists gtk4 libnma-gtk4],
+        [CONFIG_NM_GTK4=yes])
+     AC_MSG_RESULT([$CONFIG_NM_GTK4])
+     AC_MSG_CHECKING([for GTK 3 and libnma, for the settings page of nm-connection-editor])
+     AS_IF([pkg-config --exists gtk+-3.0 libnma],
+        [CONFIG_NM_GTK3=yes])
+     AC_MSG_RESULT([$CONFIG_NM_GTK3])
+     AS_IF([test "x$CONFIG_NM_GTK4" = xno],
+        [AC_MSG_WARN([no GTK 4 or libnma-gtk4: no settings page in GNOME's Settings, nor the dialog for a key kept in the keyring])])],
+)
+
 AC_ARG_ENABLE([pthread],
     [AS_HELP_STRING([--enable-pthread], [support for pthread])],
     [], [enable_pthread=no])
@@ -182,6 +213,9 @@ AC_LINK_IFELSE([N3N_ATOMIC64_PROGRAM],
 AS_IF([test "x$prefix" = "xNONE" ],
     prefix=/usr/local
 )
+AS_IF([test "x$exec_prefix" = "xNONE" ],
+    exec_prefix=$prefix
+)
 
 # The systemd unit dir should be in a sane location (based on the prefix).
 # On modern systems, that should default to a dir underneath the prefix.
@@ -196,6 +230,12 @@ CONFIG_MANDIR=$(eval echo $(eval echo $mandir))
 CONFIG_PREFIX=$prefix
 CONFIG_RUNDIR=$rundir
 CONFIG_SYSTEMDDIR=$systemddir
+# where NetworkManager's VPN services are (/usr/libexec, on Arch /usr/lib),
+# and the plugin's libraries (LIBDIR/NetworkManager: NetworkManager finds
+# them by the path the plugin's .name file gives)
+CONFIG_LIBEXECDIR=$(eval echo $(eval echo $libexecdir))
+AS_IF([test "x$CONFIG_NM" = xyes],
+    [CONFIG_NM_LIBDIR=$(eval echo $(eval echo $libdir))/NetworkManager])
 
 configure_command=$0$ac_configure_args_raw
 
@@ -204,6 +244,11 @@ AC_SUBST(CONFIG_MANDIR)
 AC_SUBST(CONFIG_PREFIX)
 AC_SUBST(CONFIG_RUNDIR)
 AC_SUBST(CONFIG_SYSTEMDDIR)
+AC_SUBST(CONFIG_LIBEXECDIR)
+AC_SUBST(CONFIG_NM)
+AC_SUBST(CONFIG_NM_GTK4)
+AC_SUBST(CONFIG_NM_GTK3)
+AC_SUBST(CONFIG_NM_LIBDIR)
 
 AC_SUBST(configure_command)
 AC_SUBST(host)

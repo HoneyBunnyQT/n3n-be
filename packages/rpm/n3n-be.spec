@@ -14,10 +14,34 @@ Requires: libzstd
 # Make sure .build-id is not part of the package
 %define _build_id_links none
 
+# n3n-be-networkmanager, the plugin of NetworkManager (nm/): built with
+# "--with networkmanager", which packages/rpm/Makefile passes where libnm
+# is there
+%bcond_with networkmanager
+%if %{with networkmanager}
+BuildRequires: NetworkManager-libnm-devel
+BuildRequires: libnma-devel
+BuildRequires: libnma-gtk4-devel
+BuildRequires: gtk3-devel
+BuildRequires: gtk4-devel
+%endif
+
 %description
 n3n peer-to-peer VPN: n3n-be (Bunny Edition), a fork of n3n.  Its
 programs, configuration (/etc/n3n-be) and services have names of their
 own, so it installs next to n3n.
+
+%if %{with networkmanager}
+%package networkmanager
+Summary: n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli
+Requires: %{name} = %{version}-%{release}
+Requires: NetworkManager
+
+%description networkmanager
+n3n-be as a VPN of NetworkManager: set up in GNOME's Settings or with
+nmcli, switched on in the top bar, the key in the system's or the user's
+keyring.  See docs/quick_start/GNOME.md.
+%endif
 
 %prep
 
@@ -27,7 +51,7 @@ own, so it installs next to n3n.
 
 cd %TOPDIR
 ./autogen.sh
-%configure
+%configure %{?with_networkmanager:--with-network-manager}
 %make_build
 
 %install
@@ -40,6 +64,17 @@ chmod u+w $RPM_BUILD_ROOT%{_sbindir}/*
 #find $RPM_BUILD_ROOT -name ".git" | xargs /bin/rm -rf
 #find $RPM_BUILD_ROOT -name ".svn" | xargs /bin/rm -rf
 #find $RPM_BUILD_ROOT -name "*~"   | xargs /bin/rm -f
+
+%if %{with networkmanager}
+%files networkmanager
+%{_libexecdir}/nm-n3n-be-service
+%{_libexecdir}/nm-n3n-be-auth-dialog
+%{_libdir}/NetworkManager/libnm-vpn-plugin-n3n-be.so
+%{_libdir}/NetworkManager/libnm-vpn-plugin-n3n-be-editor.so
+%{_libdir}/NetworkManager/libnm-gtk4-vpn-plugin-n3n-be-editor.so
+/usr/lib/NetworkManager/VPN/nm-n3n-be-service.name
+/usr/share/dbus-1/system.d/nm-n3n-be-service.conf
+%endif
 
 %clean
 # Clean out our build directory

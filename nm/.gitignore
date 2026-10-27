@@ -1,0 +1,6 @@
+nm-n3n-be-service
+nm-n3n-be-auth-dialog
+nm-n3n-be-service.name
+tests-nm-conf
+*.so
+nm-n3n-be-service.test

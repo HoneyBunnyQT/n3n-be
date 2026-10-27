@@ -56,6 +56,49 @@ jobs:
           name: netns
           path: tests/netns/out
 
+  # The plugin of NetworkManager (nm/, docs/quick_start/GNOME.md): its
+  # unit test, its settings page in GTK 4 and 3, and NetworkManager itself,
+  # the runner's, with a D-Bus of its own in network namespaces
+  # (tests/nm/netns.sh)
+  networkmanager:
+    name: NetworkManager plugin
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Build
+        run: |
+          sudo apt-get update
+          # NetworkManager's package, not started on the runner: the test
+          # starts one of its own
+          printf '#!/bin/sh\nexit 101\n' | sudo tee /usr/sbin/policy-rc.d
+          sudo chmod +x /usr/sbin/policy-rc.d
+          sudo apt-get install -y network-manager dbus iproute2 xvfb \
+            libnm-dev libnma-dev libnma-gtk4-dev libgtk-3-dev libgtk-4-dev \
+            python3-gi gir1.2-nm-1.0 gir1.2-gtk-3.0 gir1.2-gtk-4.0
+          ./autogen.sh
+          ./configure --with-network-manager
+          make -j4
+
+      - name: Unit test
+        run: |
+          BINDIR=nm scripts/test_harness.sh tests/tests_nm.list
+
+      - name: The settings page
+        run: |
+          xvfb-run -a python3 tests/nm/editor.py 4.0 nm tests/nm/edge.conf
+          xvfb-run -a python3 tests/nm/editor.py 3.0 nm tests/nm/edge.conf
+
+      - name: In NetworkManager
+        run: |
+          sudo tests/nm/netns.sh
+
   # The scenarios tagged "cross": an edge and a supernode of this tree
   # built for another CPU, under qemu-user, next to the host's - big
   # endian (s390x, mips) and ARM with its own versions of the ciphers

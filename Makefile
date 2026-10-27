@@ -291,6 +291,7 @@ SUBDIR_CLEAN+=libs/connslot
 LINT_CCODE=\
 	apps/ \
 	include/ \
+	nm/ \
 	src/ \
 	tools/ \
 
@@ -325,7 +326,7 @@ BUILD_DEP_DOCS:=\
 COVERAGEDIR?=coverage
 
 .PHONY: all
-all: version $(MANS) tools apps
+all: version $(MANS) tools apps nm
 
 .PHONY: version
 # This allows breaking the build if the version.sh script discovers
@@ -343,6 +344,14 @@ SUBDIR_CLEAN+=tools
 apps: $(SUBDIR_LIBS)
 	$(MAKE) -C apps
 SUBDIR_CLEAN+=apps
+
+# the NetworkManager plugin, with ./configure --with-network-manager
+.PHONY: nm
+nm:
+ifeq ($(CONFIG_NM),yes)
+	$(MAKE) -C nm
+endif
+SUBDIR_CLEAN+=nm
 
 .PHONY: examples
 examples: $(SUBDIR_LIBS)
@@ -367,8 +376,11 @@ $(info CC is: $(CC) $(CFLAGS) $(CPPFLAGS) -c -o $$@ $$<)
 .PHONY: test test.units test.integration test.netns test.netns.full test.qr
 test: test.builtin test.units test.integration test.fuzz test.netns
 
-test.units: tools		# needs tools
+test.units: tools nm		# needs tools
 	scripts/test_harness.sh tests/tests_units.list
+ifeq ($(CONFIG_NM),yes)
+	BINDIR=nm scripts/test_harness.sh tests/tests_nm.list
+endif
 
 test.integration: apps	# needs apps
 	scripts/test_harness.sh tests/tests_integration.list
@@ -424,6 +436,7 @@ lint.python:
 		tests/netns/n3ntest/ \
 		tests/macos/utun.py \
 		tests/windows/dns.py \
+		tests/nm/editor.py \
 		scripts/gen_options_md.py \
 		scripts/gen_doc_images.py \
 
@@ -431,7 +444,7 @@ lint.ccode:
 	scripts/indent.sh -e '$(LINT_EXCLUDE)' $(LINT_CCODE)
 
 lint.shell:
-	shellcheck scripts/*.sh tests/netns/*.sh tests/windows/*.sh
+	shellcheck scripts/*.sh tests/netns/*.sh tests/windows/*.sh tests/nm/*.sh
 
 lint.yaml:
 	yamllint .
@@ -573,8 +586,14 @@ install: $(MANS)
 # TODO:
 # install wireshark dissector
 
+.PHONY: install.nm
+install.nm: nm
+ifeq ($(CONFIG_NM),yes)
+	$(MAKE) -C nm install
+endif
+
 .PHONY: install
-install: install.bin install.doc install.systemd
+install: install.bin install.doc install.systemd install.nm
 
 .PHONY: build-dep-docs
 build-dep-docs:

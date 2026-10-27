@@ -1,0 +1,14 @@
+# n3n-be for NetworkManager, see nm/n3n-nm.h
+[VPN Connection]
+name=n3n-be
+service=org.freedesktop.NetworkManager.n3n-be
+program=@LIBEXECDIR@/nm-n3n-be-service
+supports-multiple-connections=true
+
+[libnm]
+plugin=@PLUGINDIR@/libnm-vpn-plugin-n3n-be.so
+
+[GNOME]
+auth-dialog=@LIBEXECDIR@/nm-n3n-be-auth-dialog
+supports-external-ui-mode=true
+supports-hints=false

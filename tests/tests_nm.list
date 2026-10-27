@@ -1,0 +1,4 @@
+#
+# The tests of the NetworkManager plugin (nm/), with --with-network-manager
+
+tests-nm-conf

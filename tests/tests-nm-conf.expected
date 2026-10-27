@@ -1,0 +1,88 @@
+community_name            home
+community_key             s3cret key (secret)
+community_supernode       sn1.example.org:7654\n192.0.2.7:7654
+tuntap_address            10.0.0.5/24
+tuntap_gateway            10.0.0.1
+tuntap_route_all          true
+tuntap_dns                1.1.1.1
+connection_name           Wohnzimmer – der große Rechner
+filter_rule               10.0.0.0/24,10.0.0.0/24,TCP+,UDP-,ICMP+\n0.0.0.0/0,0.0.0.0/0,TCP-
+management_port           5644
+route_all true: 1, connection.name true: 0
+text:
+[community]
+name = home
+key = s3cret key
+supernode = sn1.example.org:7654
+supernode = 192.0.2.7:7654
+
+[tuntap]
+address = 10.0.0.5/24
+gateway = 10.0.0.1
+route_all = true
+dns = 1.1.1.1
+
+[connection]
+name = Wohnzimmer – der große Rechner
+
+[filter]
+rule = 10.0.0.0/24,10.0.0.0/24,TCP+,UDP-,ICMP+
+rule = 0.0.0.0/0,0.0.0.0/0,TCP-
+
+[management]
+port = 5644
+---
+changed:
+[community]
+name = home
+key = s3cret key
+supernode = sn1.example.org:7654
+supernode = 192.0.2.7:7654
+
+[tuntap]
+route_all = true
+dns = 9.9.9.9
+
+[connection]
+name = Wohnzimmer – der große Rechner
+
+[filter]
+rule = 10.0.0.0/24,10.0.0.0/24,TCP+,UDP-,ICMP+
+rule = 0.0.0.0/0,0.0.0.0/0,TCP-
+
+[management]
+port = 5645
+---
+id home.conf, type vpn, service org.freedesktop.NetworkManager.n3n-be, never-default 0
+data items 7, secrets 1, key as a secret: s3cret key, as data: no
+verified
+community_key-flags: 1
+from the connection, without secrets:
+[community]
+name = home
+supernode = sn1.example.org:7654
+supernode = 192.0.2.7:7654
+
+[connection]
+name = Wohnzimmer – der große Rechner
+
+[filter]
+rule = 10.0.0.0/24,10.0.0.0/24,TCP+,UDP-,ICMP+
+rule = 0.0.0.0/0,0.0.0.0/0,TCP-
+
+[management]
+port = 5645
+
+[tuntap]
+dns = 9.9.9.9
+route_all = true
+---
+with secrets: 8 options, 8 as they were, of 8
+without a community: no community: [community] name = ... is missing
+parse name = x                       line 1: an option outside of a section
+parse [community]\nname x            line 2: no "="
+parse [community]\nna-me = x         line 2: not an option: na-me
+parse [community home]\nname = x     line 1: not a section heading of an edge: [community home]
+parse [community] junk\nname = x     line 1: not a section heading of an edge: [community] junk
+parse # nothing\n\n                  no options in it
+parse [community]\nname = x          ok

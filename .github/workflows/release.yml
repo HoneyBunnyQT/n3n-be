@@ -2,7 +2,8 @@
 name: Release
 
 # The packages of a release, built from its tag - .deb for four
-# architectures, .rpm, the Arch package, the signed Android app, a zip of
+# architectures, .rpm and the Arch package (each with the plugin of
+# NetworkManager as a package of its own), the signed Android app, a zip of
 # the Windows programs with the docs as their help and their installer
 # (packages/windows/n3n-be.nsi), a tarball of the macOS
 # ones and the OpenWrt packages (openwrt.yml) - and,
@@ -109,7 +110,9 @@ jobs:
       - name: Install what the build needs
         run: |
           dnf install -y git rpm-build gcc make autoconf automake \
-            diffutils findutils which python3
+            diffutils findutils which python3 pkgconf \
+            NetworkManager-libnm-devel libnma-devel libnma-gtk4-devel \
+            gtk3-devel gtk4-devel
 
       - uses: actions/checkout@v7
         with:
@@ -125,7 +128,8 @@ jobs:
         run: |
           VERSION=$(scripts/version.sh | tr - _)
           rpmbuild --define "VERSION $VERSION" --define "TOPDIR $PWD" \
-            --define "_topdir $PWD/rpmbuild" -bb packages/rpm/n3n-be.spec
+            --define "_topdir $PWD/rpmbuild" --with networkmanager \
+            -bb packages/rpm/n3n-be.spec
           mkdir dist
           mv rpmbuild/RPMS/*/*.rpm dist/
           rpm -qpil dist/*.rpm
@@ -143,7 +147,8 @@ jobs:
     steps:
       - name: Install what the build needs
         run: |
-          pacman -Syu --noconfirm git autoconf automake python
+          pacman -Syu --noconfirm git autoconf automake python \
+            libnm libnma libnma-gtk4 gtk3 gtk4
 
       - uses: actions/checkout@v7
         with:

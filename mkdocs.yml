@@ -23,6 +23,7 @@ nav:
       - Installing: quick_start/Install.md
       - Your First Network: quick_start/Config.md
       - Windows: quick_start/Windows.md
+      - GNOME and NetworkManager: quick_start/GNOME.md
   - Configuration:
       - Overview: configure/index.md
       - Configuration Files: configure/ConfigurationFiles.md

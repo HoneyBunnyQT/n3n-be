@@ -492,6 +492,24 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       `interop-fec`, and every scenario of this tree checks
       that its edges announce themselves.  Open: IPv6 exits (the probe is
       IPv4), a probe through supernodes that do not answer it
+- [~] GNOME and NetworkManager (asked 2026-10-27): n3n-be as a VPN of
+      NetworkManager (`nm/`, docs/quick_start/GNOME.md) - its VPN service
+      starts the edge with the connection's options (a file for root only)
+      on a TUN device of its own and tells NetworkManager the device and
+      the address once registered (`get_info`: `device`, `ip4prefix`);
+      import and export of `edge.conf` (all options, kept as
+      `section_option`), a settings page for GNOME's Settings (GTK 4) and
+      nm-connection-editor (GTK 3), the key's dialog for GNOME Shell and
+      others; all traffic through an exit peer as the edge's own routing,
+      the DNS server through NetworkManager with "~.", following an exit
+      chosen while running.  Packages `n3n-be-networkmanager` for Arch
+      and Fedora.  Tests: `tests-nm-conf`, the settings page in both GTKs
+      (`tests/nm/editor.py`), NetworkManager in network namespaces with a
+      D-Bus of its own (`tests/nm/netns.sh`: import, export, connect, ping,
+      all traffic through an exit, DNS, an exit chosen while connected,
+      nothing left after).  Next: a GNOME Shell extension (the peers with
+      their dots in the quick settings, the exit chosen there); then a
+      settings page for KDE's Plasma, IPv6 handed to NetworkManager
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
@@ -1020,6 +1038,15 @@ release has it - as FEC was; there is no branch for it (see Decisions
 
 ## Decisions
 
+- 2026-10-27: In NetworkManager, all traffic through an exit peer stays
+  the edge's routing (`tuntap.route_all`, policy rules), not
+  NetworkManager's default route through the VPN: that keeps one gateway
+  out of the tunnel, but the edge's packets go to several supernodes and
+  to peers directly.  NetworkManager does the DNS ("~." while all traffic
+  goes through an exit).  The edge starts with `tuntap.route_all` always
+  on, so that an exit can be chosen while it runs.  The options of a
+  connection are named `section_option`, not `section.option`: Ubuntu's
+  netplan, which keeps NetworkManager's connections there, splits at dots.
 - 2026-10-01: The C code is formatted by uncrustify 0.77.1, built from source
   in CI.  0.78.1 (Ubuntu 24.04) gives the same result today.
 - 2026-10-01: The peer work happens on a branch `peer`, off `main`, not

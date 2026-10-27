@@ -17,8 +17,11 @@ RPM_SIGN_CMD=./rpm-sign.exp
 
 all: clean pkg
 
+# the plugin of NetworkManager too, where libnm is there to build it
+WITH_NM:=$(shell pkg-config --exists libnm 2>/dev/null && echo --with networkmanager)
+
 pkg:
-	rpmbuild --define='VERSION ${VERSION}' --define='TOPDIR ${N3N_HOME}' -bb ./n3n-be.spec
+	rpmbuild --define='VERSION ${VERSION}' --define='TOPDIR ${N3N_HOME}' $(WITH_NM) -bb ./n3n-be.spec
 	-@$(RPM_SIGN_CMD) $(RPM_PATH)
 	@echo ""
 	@echo "Package contents:"

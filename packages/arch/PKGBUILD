@@ -5,31 +5,46 @@
 #
 #   cd packages/arch && makepkg
 #
+# Two packages: n3n-be, and n3n-be-networkmanager, its plugin of
+# NetworkManager (nm/, docs/quick_start/GNOME.md).
+#
 # An AUR package would take the source of a release instead of the tree.
 
 _top=$(realpath "$startdir/../..")
 
-pkgname=n3n-be
+pkgbase=n3n-be
+pkgname=(n3n-be n3n-be-networkmanager)
 pkgver=$(cat "$_top/VERSION")
 pkgrel=1
 pkgdesc="Peer-to-peer layer 2 VPN: n3n-be (Bunny Edition), a fork of n3n"
 arch=(x86_64 aarch64)
 url="https://github.com/HoneyBunnyQT/n3n-be"
 license=('AGPL-3.0-only' 'GPL-3.0-only' 'GPL-2.0-only' 'GPL-2.0-or-later' 'LGPL-2.1-only')
-depends=(glibc python)
-makedepends=(autoconf automake)
-install=n3n-be.install
+makedepends=(autoconf automake libnm libnma libnma-gtk4 gtk3 gtk4)
 
 build() {
     cd "$_top"
     ./autogen.sh
-    ./configure --prefix=/usr
+    # NetworkManager's VPN services are in /usr/lib on Arch
+    ./configure --prefix=/usr --libexecdir=/usr/lib --with-network-manager
     make
 }
 
-package() {
+package_n3n-be() {
+    depends=(glibc python)
+    install=n3n-be.install
     cd "$_top"
     # Arch has no /usr/sbin of its own: it is a link to /usr/bin, so the
-    # units find /usr/sbin/n3n-be-edge all the same
-    make DESTDIR="$pkgdir" CONFIG_SBINDIR="$pkgdir/usr/bin" install
+    # units find /usr/sbin/n3n-be-edge all the same; the plugin of
+    # NetworkManager is the other package's
+    make DESTDIR="$pkgdir" CONFIG_SBINDIR="$pkgdir/usr/bin" CONFIG_NM=no install
+}
+
+package_n3n-be-networkmanager() {
+    pkgdesc="n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli, nm-connection-editor"
+    depends=(n3n-be libnm glib2)
+    optdepends=('libnma-gtk4: the settings page in GNOME Settings, the dialog for a key in the keyring'
+                'libnma: the settings page in nm-connection-editor')
+    cd "$_top"
+    make DESTDIR="$pkgdir" -C nm install
 }
