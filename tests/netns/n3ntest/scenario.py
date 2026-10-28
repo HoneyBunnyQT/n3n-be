@@ -163,8 +163,12 @@ class Site:
     def __init__(self, nat=(), lan=None, supernodes=("sn1", "sn2"),
                  conf=None, expect_nat=None, on_supernode=None,
                  block_udp=False, tcp_only=False, sn_family=4, no_ipv6=False,
-                 link_mtu=None, drop_fragments=False, version=None):
+                 link_mtu=None, drop_fragments=False, version=None,
+                 beside=None):
         self.on_supernode = on_supernode
+        # an edge of its own on that supernode's host: its namespace and
+        # address, no NAT - it reaches that supernode on its own address
+        self.beside = beside
         # another version of n3n for this edge, as tests/netns/versions.sh
         # built it (interop): its NAT class is not checked, older ones do
         # not tell it.  Or this tree for another CPU, under qemu-user
@@ -572,6 +576,17 @@ class Run:
                 "overlay": OVERLAY_NET.format(i + 1),
                 "mac": "02:00:00:99:00:{:02x}".format(i + 1),
                 "on_supernode": site.on_supernode,
+            }
+            return
+        if site.beside:
+            sn = self.supernodes[site.beside]
+            self.edges[sname] = {
+                "ns": sn["ns"],
+                "ip": sn["ip"],
+                "index": i,
+                "overlay": OVERLAY_NET.format(i + 1),
+                "mac": "02:00:00:99:00:{:02x}".format(i + 1),
+                "expect_nat": ".*",
             }
             return
         up_ns, up_if = self.inet, "x-" + sname

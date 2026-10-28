@@ -109,6 +109,10 @@ here, or the CI runners: `interop.yml`).  n2n (below) needs no IPv6.
 | interop-relayed | hard-range / hard-range, a and sn1 3.4.6 | relayed |
 | interop-header-enc | encrypted headers, a 3.4.6, b easy-changed | direct |
 | interop-userpw | user/password, a and the supernodes 3.4.6 | direct |
+| interop-beside | a 3.4.6 (easy-kept) / b an edge of its own on sn2's host (`Site(beside=)`), at both supernodes by their addresses | direct |
+| interop-beside-fed | as interop-beside, a knows only sn1 | direct, through the federation |
+| interop-beside-header | as interop-beside-fed, encrypted headers | direct |
+| interop-beside-userpw | as interop-beside-fed, user/password | direct |
 
 #### n2n 3.x
 

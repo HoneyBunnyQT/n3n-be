@@ -394,6 +394,32 @@ SCENARIOS = [
         "direct", auth="userpw", sn_versions={"sn1": OLD, "sn2": OLD},
         tags=["interop"]),
     Scenario(
+        "interop-beside",
+        "a of the last release, b of this tree on sn2's host, an edge of "
+        "its own there, with both supernodes at their addresses",
+        Site(["easy-kept"], version=OLD),
+        Site(beside="sn2"),
+        "direct", tags=["interop"]),
+    Scenario(
+        "interop-beside-fed",
+        "as interop-beside, a knowing sn1 only: what it and b know of "
+        "each other comes through the federation",
+        Site(["easy-kept"], supernodes=["sn1"], version=OLD),
+        Site(beside="sn2"),
+        "direct", tags=["interop"]),
+    Scenario(
+        "interop-beside-header",
+        "as interop-beside-fed, with encrypted headers",
+        Site(["easy-kept"], supernodes=["sn1"], version=OLD),
+        Site(beside="sn2"),
+        "direct", auth="header", tags=["interop"]),
+    Scenario(
+        "interop-beside-userpw",
+        "as interop-beside-fed, with user/password authentication",
+        Site(["easy-kept"], supernodes=["sn1"], version=OLD),
+        Site(beside="sn2"),
+        "direct", auth="userpw", tags=["interop"]),
+    Scenario(
         "interop-n2n-edge",
         "a is an edge of n2n 3.1.1, b and the supernodes are this tree: the "
         "edges go direct",
