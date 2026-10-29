@@ -41,6 +41,7 @@
 #include "role_client.h" // for p2p_max_loss
 #include "route_all.h"   // for route_all_set, route_all_exit
 #include "counter.h"     // for SHARED_LOAD
+#include "edge_utils.h"  // for peer_also_known
 #include "stats.h"       // for n3n_stats_sum
 #include "uthash.h"
 
@@ -897,6 +898,9 @@ static void jsonrpc_get_edges (char *id, struct n3n_runtime_data *eee, conn_t *c
 
     // dump nodes with forwarding through supernodes
     HASH_ITER(hh, eee->client.pending_peers, peer, tmpPeer) {
+        if(peer_also_known(eee, peer)) {
+            continue;
+        }
         if(index < offset) {
             index++;
             continue;

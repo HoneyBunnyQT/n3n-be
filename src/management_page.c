@@ -23,6 +23,7 @@
 #include <time.h>
 #include "announce.h"           // for n3n_announce_get
 #include "counter.h"            // for SHARED_LOAD
+#include "edge_utils.h"         // for peer_also_known
 #include "exit_probe.h"         // for edge_exit_check
 #include "fec.h"                // for n3n_fec_peer_info
 #include "management.h"         // for mgmt_password_is_default
@@ -89,6 +90,8 @@ static const char page_style[] =
     ".dot{display:inline-block;width:1.2em}.dot.ex{color:var(--pink)}.dot.un{color:var(--info)}"
     // a peer's name on one line, a long one cut short - all of it in its
     // title
+    // what the dots mean, below the table: one line for each
+    ".legend{font-size:.8rem;margin:.5rem 0 0}"
     ".nm{display:inline-block;max-width:24ch;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}"
     "form{display:flex;gap:.4rem;flex-wrap:wrap;margin:0}form.in{display:inline-flex;margin-left:.4rem}"
     "button{font:inherit;padding:.25rem .7rem;border-radius:.4rem;cursor:pointer;"
@@ -498,6 +501,9 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         }
     }
     HASH_ITER(hh, eee->client.pending_peers, peer, tmp) {
+        if(peer_also_known(eee, peer)) {
+            continue;
+        }
         if(rows++ < PAGE_ROWS_MAX) {
             dots |= peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
                              NULL, false, eee->client.nat_peers, eee->client.announce,
@@ -510,10 +516,10 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
     }
     sb_reprintf(b, "</table></div>\n");
     if(dots) {
-        sb_reprintf(b, "<p class=dim><span class=\"dot ex\">&#x25cf;</span>an exit to the internet, which this "
-                    "edge's check through it confirmed &nbsp; <span class=\"dot un\">&#x25cf;</span>announces itself "
-                    "as one, not confirmed by this edge (yet) - a check tells that traffic comes out through it, "
-                    "not whether it can be trusted with it</p>\n");
+        sb_reprintf(b, "<p class=\"dim legend\"><span class=\"dot ex\">&#x25cf;</span>an exit to the internet, "
+                    "which this edge's check through it confirmed<br><span class=\"dot un\">&#x25cf;</span>announces "
+                    "itself as one, not confirmed by this edge (yet)<br><span class=dot></span>a check tells that "
+                    "traffic comes out through it, not whether it can be trusted with it</p>\n");
     }
 
     if(!own_of_supernode) {

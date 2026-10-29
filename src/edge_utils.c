@@ -978,6 +978,16 @@ int peer_is_pending (struct n3n_runtime_data *eee, const n2n_mac_t mac) {
 }
 
 
+bool peer_also_known (const struct n3n_runtime_data *eee, const struct peer_info *pending) {
+
+    struct peer_info *scan;
+
+    HASH_FIND_PEER(eee->client.known_peers, pending->mac_addr, scan);
+
+    return scan != NULL;
+}
+
+
 /* The part of check_peer_registration_needed() that nearly every packet
  * takes: the peer is known by its MAC and was already seen within this
  * second, so only its time stamps are refreshed. Returns 0 if more is needed

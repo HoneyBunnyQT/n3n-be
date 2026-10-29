@@ -7,6 +7,7 @@
 #define _EDGE_UTILS_H_
 
 #include <n3n/pktbuf.h>     // for n3n_pktbuf
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>       // for time_t
 
@@ -105,6 +106,9 @@ void edge_sendto_sock (struct n3n_runtime_data *eee, const void * buf,
 // made at once, a packet thread hands them to the main thread
 void edge_event_post (struct n3n_runtime_data *eee, const struct edge_event *ev);
 int peer_is_pending (struct n3n_runtime_data *eee, const n2n_mac_t mac);
+// a pending peer that is a known one too: one it took for moved, looked up
+// again through the supernode - the same peer, listed once
+bool peer_also_known (const struct n3n_runtime_data *eee, const struct peer_info *pending);
 int peer_seen_fast (struct n3n_runtime_data *eee,
                     uint8_t from_supernode,
                     uint8_t via_multicast,
