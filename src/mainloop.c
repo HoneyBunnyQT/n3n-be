@@ -319,6 +319,26 @@ static void connlist_deinit () {
     connlist_size = 0;
 }
 
+// What a connection's request buffer may grow to - the reply of an http
+// one is made in it too: a whole get_edges, as the tray apps and the
+// NetworkManager service ask for it, without paging, with each peer's name,
+// FEC and exit, some hundreds of bytes each - 4000 bytes took five peers,
+// and more were refused (507).  As much as the management page may take.
+// That of a v3tcp connection holds one PDU, from an edge or a supernode: no
+// more than before, whatever the entry held before
+#define CONN_REQUEST_MAX        4000
+#define CONN_REQUEST_MAX_HTTP   (1 << 18)
+
+static void conn_request_max (struct conn *conn, enum conn_proto proto) {
+
+    size_t max = (proto == CONN_PROTO_HTTP) ? CONN_REQUEST_MAX_HTTP : CONN_REQUEST_MAX;
+
+    if(conn->request->capacity > max) {
+        sb_realloc(&conn->request, max);
+    }
+    conn->request->capacity_max = max;
+}
+
 // A free entry of connlist[], set up for use; the table grows if there is
 // none.  -1 if it cannot grow any more.
 static int connlist_alloc (enum conn_proto proto) {
@@ -327,12 +347,13 @@ static int connlist_alloc (enum conn_proto proto) {
     while(count) {
         if(!connlist[conn]) {
             connlist[conn] = calloc(1, sizeof(struct conn));
-            if(!connlist[conn] || (conn_init(connlist[conn], 4000, 1000) != 0)) {
+            if(!connlist[conn] || (conn_init(connlist[conn], CONN_REQUEST_MAX, 1000) != 0)) {
                 abort();
             }
         }
         if(connlist[conn]->proto == CONN_PROTO_UNK) {
             connlist[conn]->proto = proto;
+            conn_request_max(connlist[conn], proto);
             connlist_next_search = conn + 1;
             metrics.connlist_alloc++;
             return conn;
