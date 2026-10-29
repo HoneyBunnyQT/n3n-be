@@ -73,9 +73,8 @@ static const char page_style[] =
     "white-space:nowrap}th{color:var(--dim);font-weight:500}"
     "td.num,th.num{text-align:right}"
     // what changes from one refresh to the next keeps its width: digits of
-    // one width, the path, the loss and "last seen" at their widest; the
-    // description wraps, so that a table fits instead of scrolling
-    "td{font-variant-numeric:tabular-nums}td.w{white-space:normal}"
+    // one width, the path, the loss and "last seen" at their widest
+    "td{font-variant-numeric:tabular-nums}"
     ".p{min-width:13ch;text-align:center}.n{display:inline-block;min-width:5ch}"
     ".t{display:inline-block;min-width:10ch}"
     "code,.mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;"
@@ -88,6 +87,9 @@ static const char page_style[] =
     // edge's check through it went through, blue where not (yet) -, and
     // where it is none the room for one, so that the names line up
     ".dot{display:inline-block;width:1.2em}.dot.ex{color:var(--pink)}.dot.un{color:var(--info)}"
+    // a peer's name on one line, a long one cut short - all of it in its
+    // title
+    ".nm{display:inline-block;max-width:24ch;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}"
     "form{display:flex;gap:.4rem;flex-wrap:wrap;margin:0}form.in{display:inline-flex;margin-left:.4rem}"
     "button{font:inherit;padding:.25rem .7rem;border-radius:.4rem;cursor:pointer;"
     "border:1px solid var(--line);background:var(--card);color:var(--fg)}"
@@ -236,24 +238,15 @@ static bool peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
         community_name(b, community->community, community->header_encryption, unlocked);
         sb_reprintf(b, "</td>");
     }
-    sb_reprintf(b, "<td class=mono>%s</td><td class=mono>%s</td><td class=mono>%s",
-                (peer->dev_addr.net_addr == 0) ? "" : ip_subnet_to_str(ip_bit_str, &peer->dev_addr),
-                is_null_mac(peer->mac_addr) ? "" : macaddr_str(mac_buf, peer->mac_addr),
-                sock_to_cstr(sockbuf, &peer->sock));
-    // an edge at the supernode: its address of the other family, too
-    if(peer->other_seen && ((now - peer->other_seen) < REGISTRATION_TIMEOUT)) {
-        sb_reprintf(b, "<br>%s", sock_to_cstr(sockbuf, &peer->other_sock));
-    }
-    sb_reprintf(b, "</td>");
-    if(nat_peers) {
-        sb_reprintf(b, "<td>%s</td>", nat_hint_str(nat, sizeof(nat), np ? np->hint : 0));
-    }
+
+    // its name, by the path: what one looks for first, and seen without
+    // scrolling the table sideways
     struct n3n_announce_info info;
     bool announced = announce && n3n_announce_get(announce, peer->mac_addr, &info);
 
     bool exit = announced && info.exit;
 
-    sb_reprintf(b, "<td class=w>");
+    sb_reprintf(b, "<td>");
     if(exit) {
         int check = n3n_announce_check_state(announce, peer->mac_addr);
         const char *says = (info.exit & N3N_ANNOUNCE_EXIT_PROBED) ? "found by its own probe" : "as it is set there";
@@ -270,12 +263,27 @@ static bool peer_row (strbuf_t **b, const struct peer_info *peer, const char *mo
     } else if(announce) {
         sb_reprintf(b, "<span class=dot></span>");
     }
-    if(announced && info.name[0]) {
-        html_text(b, info.name, N3N_NAME_SIZE);
-    } else {
-        html_text(b, peer->dev_desc, N2N_DESC_SIZE);
+    const char *name = (announced && info.name[0]) ? info.name : (const char *)peer->dev_desc;
+    size_t name_size = (announced && info.name[0]) ? N3N_NAME_SIZE : N2N_DESC_SIZE;
+    sb_reprintf(b, "<span class=nm title=\"");
+    html_text(b, name, name_size);
+    sb_reprintf(b, "\">");
+    html_text(b, name, name_size);
+    sb_reprintf(b, "</span></td>");
+
+    sb_reprintf(b, "<td class=mono>%s</td><td class=mono>%s</td><td class=mono>%s",
+                (peer->dev_addr.net_addr == 0) ? "" : ip_subnet_to_str(ip_bit_str, &peer->dev_addr),
+                is_null_mac(peer->mac_addr) ? "" : macaddr_str(mac_buf, peer->mac_addr),
+                sock_to_cstr(sockbuf, &peer->sock));
+    // an edge at the supernode: its address of the other family, too
+    if(peer->other_seen && ((now - peer->other_seen) < REGISTRATION_TIMEOUT)) {
+        sb_reprintf(b, "<br>%s", sock_to_cstr(sockbuf, &peer->other_sock));
     }
-    sb_reprintf(b, "</td><td><span class=t>%s</span></td>%s</tr>\n", ago(when, sizeof(when), now, peer->last_seen),
+    sb_reprintf(b, "</td>");
+    if(nat_peers) {
+        sb_reprintf(b, "<td>%s</td>", nat_hint_str(nat, sizeof(nat), np ? np->hint : 0));
+    }
+    sb_reprintf(b, "<td><span class=t>%s</span></td>%s</tr>\n", ago(when, sizeof(when), now, peer->last_seen),
                 tail ? tail : "");
     return exit;
 }
@@ -474,8 +482,8 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         edge_exit_check(eee, now);
     }
     sb_reprintf(b, "<h3>Peers</h3><div class=scroll><table>"
-                "<tr><th>path</th><th class=num>lost</th>%s<th>address</th><th>MAC</th><th>socket</th>"
-                "<th>NAT</th><th>name</th><th>last seen</th>%s</tr>\n",
+                "<tr><th>path</th><th class=num>lost</th>%s<th>name</th><th>address</th><th>MAC</th>"
+                "<th>socket</th><th>NAT</th><th>last seen</th>%s</tr>\n",
                 fec ? "<th>FEC</th>" : "", exits ? "<th>exit peer</th>" : "");
     rows = 0;
     HASH_ITER(hh, eee->client.known_peers, peer, tmp) {
@@ -594,8 +602,8 @@ static void section_supernode (strbuf_t **b, struct n3n_runtime_data *sss, bool 
     sb_reprintf(b, "</table></div>\n");
 
     sb_reprintf(b, "<h3>Edges</h3><div class=scroll><table>"
-                "<tr><th>registered</th><th>community</th><th>address</th><th>MAC</th><th>socket</th>"
-                "<th>description</th><th>last seen</th></tr>\n");
+                "<tr><th>registered</th><th>community</th><th>description</th><th>address</th><th>MAC</th>"
+                "<th>socket</th><th>last seen</th></tr>\n");
     rows = 0;
     HASH_ITER(hh, sss->relay.communities, comm, tmp) {
         if(comm->is_federation) {

@@ -346,6 +346,13 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       it does not start, and says why and as whom ("cannot be read as
       uid ...: Permission denied"); a reload as before, but with that
       error
+- [x] The management page, the peers' names (2026-10-29): the wrapping
+      name column, the last but one, was squeezed to its narrowest by the
+      table's one-line columns - names broken over lines, the exit's dot
+      alone on one, the column out of sight with the table scrolled.  Now
+      the name (an edge's: the description) comes right after the path
+      and its cells, on one line, one longer than 24 characters cut short
+      with its whole in the title
 - [x] The management page, steadier (2026-10-24): the path badge of one
       width, the loss in a column of its own (`lost`: with FEC the
       peer's report of the way to it, else the probes'), a column `FEC`
