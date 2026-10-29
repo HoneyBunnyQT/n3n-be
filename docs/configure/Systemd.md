@@ -34,7 +34,15 @@ The units are of `Type=notify`: n3n tells systemd
 The supernode's unit runs it as the user `n3n-be`, with one of root's
 rights: ports below 1024 (`AmbientCapabilities=CAP_NET_BIND_SERVICE`), for
 a TCP port 443 or 80 that edges behind firewalls letting only the web
-through can reach.
+through can reach.  So it reads its files as `n3n-be`, too: a
+`supernode.community_file` in a home directory, which only its owner
+reads, is out of its reach - the supernode does not start then, and says
+so in the journal ("community file ... cannot be read as uid ...").  Keep
+it in `/etc/n3n-be`, readable for the group `n3n-be`:
+
+```sh
+sudo install -m 640 -g n3n-be community.list /etc/n3n-be/
+```
 
 `systemctl reload` sends SIGHUP (`ExecReload`): n3n reads its configuration
 again and applies what can change while running, see [Configuration

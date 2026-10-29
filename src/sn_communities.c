@@ -481,7 +481,15 @@ int load_allowed_sn_community (struct n3n_runtime_data *sss) {
     if(sss->conf.relay.community_file) {
         fd = fopen(sss->conf.relay.community_file, "r");
         if(fd == NULL) {
-            traceEvent(TRACE_WARNING, "File %s not found", sss->conf.relay.community_file);
+            // not there, or not for this user: the supernode's service
+            // runs as n3n-be, which reads no home directory, for one
+#ifdef _WIN32
+            traceEvent(TRACE_ERROR, "community file %s cannot be read: %s",
+                       sss->conf.relay.community_file, strerror(errno));
+#else
+            traceEvent(TRACE_ERROR, "community file %s cannot be read as uid %d: %s",
+                       sss->conf.relay.community_file, (int)getuid(), strerror(errno));
+#endif
             rc = -1;
         }
     }

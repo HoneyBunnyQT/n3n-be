@@ -512,8 +512,16 @@ int n3n_supernode_main (int argc, char * argv[]) {
                             &(sss_node.relay.federation->header_iv_ctx_dynamic));
 
     if(sss_node.conf.relay.community_file || sss_node.conf.communities
-       || sss_node.conf.relay.community_regex)
-        load_allowed_sn_community(&sss_node);
+       || sss_node.conf.relay.community_regex) {
+        // without the file it was given, it would take communities it was
+        // to refuse, and know nothing of the header keys and users of
+        // those it was to have: not so
+        if((load_allowed_sn_community(&sss_node) == -1) && sss_node.conf.relay.community_file) {
+            traceEvent(TRACE_ERROR, "not starting without the communities of %s",
+                       sss_node.conf.relay.community_file);
+            exit(1);
+        }
+    }
 
 #ifndef _WIN32
     if(sss_node.conf.background) {

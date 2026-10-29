@@ -625,7 +625,8 @@ static struct n3n_conf_option section_supernode[] = {
                 "community_regex are allowed as well; a section wins over "
                 "the same community in the file, which only gives the "
                 "network or users the section leaves out.  Only the file is read "
-                "again on a reload.",
+                "again on a reload.  A file that cannot be read - by the "
+                "user the supernode runs as - stops it from starting.",
     },
     {
         .name = "community_regex",

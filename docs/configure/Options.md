@@ -395,7 +395,7 @@ Default: `10.128.0.0/24`
 
 Community list filename.
 
-Optionally, the supernode can be configured with a list of allowed communities, defined ip address ranges for each one and User/Password based authentication details. See the documentation for the file format description. The communities of [community NAME] sections and community_regex are allowed as well; a section wins over the same community in the file, which only gives the network or users the section leaves out. Only the file is read again on a reload.
+Optionally, the supernode can be configured with a list of allowed communities, defined ip address ranges for each one and User/Password based authentication details. See the documentation for the file format description. The communities of [community NAME] sections and community_regex are allowed as well; a section wins over the same community in the file, which only gives the network or users the section leaves out. Only the file is read again on a reload. A file that cannot be read - by the user the supernode runs as - stops it from starting.
 
 ### supernode.community_regex
 
