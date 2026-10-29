@@ -346,6 +346,20 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       it does not start, and says why and as whom ("cannot be read as
       uid ...: Permission denied"); a reload as before, but with that
       error
+- [x] `get_edges` of more than some nine peers refused (found in use,
+      2026-10-29): a management connection's buffer, in which the reply
+      is made too, took 4000 bytes, and a peer's row - its name, FEC,
+      exit - some hundreds: 507 "overflow".  `n3n-be-ctl` pages, the
+      tray, the Android app and the NetworkManager service do not: their
+      lists of peers stayed empty, until a smaller reply fitted.  An http
+      connection's buffer may grow to 256 KiB now, as the page's; a
+      v3tcp one's stays at 4000 bytes
+- [x] A peer listed twice, at the edge's page and `get_edges` (found in
+      use, 2026-10-29): known, and pending with no socket yet - taken for
+      moved (the supernode told another public address of it), looked up
+      again.  Listed once, as the known one
+- [x] The tray's menu without the legend of the dots (its lines greyed,
+      and their dots with them); the page's legend smaller, a line each
 - [x] The management page, the peers' names (2026-10-29): the wrapping
       name column, the last but one, was squeezed to its narrowest by the
       table's one-line columns - names broken over lines, the exit's dot

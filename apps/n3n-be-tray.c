@@ -1356,18 +1356,6 @@ static void menu (int x, int y) {
         }
     }
 
-    // what the dots mean, where there are any - a menu has no tooltips
-    bool any_exit = false;
-    for(int i = 0; i < s->npeers; i++) {
-        any_exit |= s->peers[i].exit;
-    }
-    if(any_exit) {
-        AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"An exit to the internet, confirmed: traffic comes out through it");
-        item_bitmap(exits, dots[DOT_EXIT]);
-        AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"Says it is an exit, not confirmed (yet) by this computer");
-        item_bitmap(exits, dots[DOT_SAYS]);
-        AppendMenuW(exits, MF_SEPARATOR, 0, NULL);
-    }
     AppendMenuW(exits, MF_STRING | busy | (s->gateway[0] ? 0 : MF_CHECKED), CMD_DIRECT, L"None: &directly");
     item_bitmap(exits, dots[DOT_NONE]);
     if(s->npeers || s->gateway[0]) {

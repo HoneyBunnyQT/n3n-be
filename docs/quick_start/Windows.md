@@ -234,9 +234,8 @@ in, not as an administrator, as a client of the service's management port.
 - "Route all traffic through" lists the peers, by the names they
   announced - those that announced themselves as exits to the internet
   first, with a dot before them: pink where the check of this computer
-  went through the peer, blue where not (yet), as it says on top of the
-  list (opening the menu checks those due, what it found shows the next
-  time; see [What an Edge Tells Its
+  went through the peer, blue where not (yet) (opening the menu checks
+  those due, what it found shows the next time; see [What an Edge Tells Its
   Peers](../advanced/Announcements.md#checking-an-exit-yourself)).  One
   of them sends all traffic through it, "None: directly" ends that
   (`set_gateway`, with the password below).  It takes `tuntap.dns` as it
