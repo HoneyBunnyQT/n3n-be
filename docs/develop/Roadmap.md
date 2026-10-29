@@ -332,6 +332,20 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       role, the run directory by name (older versions `/run/n3n`);
       interop 12 of 12 (UML).  The metrics' names, the management
       password and the protocol stay
+- [x] Arch, the upgrade to the new names (found in use, 2026-10-29):
+      pacman makes the users of sysusers.d after its transaction, after
+      post_upgrade ran the migration - so `n3n-be` was not there yet, the
+      copied files stayed `n3n`'s, and the services started under the
+      new names had no user.  The migration makes the user first
+      (`systemd-sysusers n3n-be.conf`)
+- [x] A supernode whose `supernode.community_file` it cannot read - in a
+      home directory, now that it runs as `n3n-be` - ran on without it
+      (found in use, 2026-10-29): the communities' header keys and users
+      unknown, the edges of those communities not answered ("supernode
+      not responding"), with only a warning "File ... not found".  Now
+      it does not start, and says why and as whom ("cannot be read as
+      uid ...: Permission denied"); a reload as before, but with that
+      error
 - [x] The management page, steadier (2026-10-24): the path badge of one
       width, the loss in a column of its own (`lost`: with FEC the
       peer's report of the way to it, else the probes'), a column `FEC`

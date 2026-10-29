@@ -31,6 +31,14 @@ UNITS="$ETC/systemd/system /run/systemd/system /usr/lib/systemd/system /lib/syst
 
 [ -e "$DONE" ] && exit 0
 
+# the user n3n-be first, which the files and the supernode's service go to:
+# pacman makes the users of sysusers.d only once its transaction is over,
+# after the package's post_upgrade() ran this
+if ! id n3n-be >/dev/null 2>&1 && command -v systemd-sysusers >/dev/null 2>&1 \
+   && [ -z "${N3N_BE_MIGRATE_ETC:-}" ]; then
+    systemd-sysusers n3n-be.conf || true
+fi
+
 systemd_running() {
     [ -d /run/systemd/system ] && [ -z "${DPKG_ROOT:-}" ]
 }
