@@ -93,6 +93,12 @@ netleo
 .PP
 More details on creating the allowed communities file are found in the
 Communities.md and Authentication.md documentation included with this package.
+.PP
+The packaged systemd unit runs the supernode as \fBn3n-be\fR in a sandbox,
+where the home directories are empty: keep the file in /etc/n3n-be,
+readable for the group n3n-be.  docs/configure/Systemd.md shows how to
+have it in a home directory anyway, and how to keep it encrypted on disk
+as a systemd credential.
 .SH COMMUNITIES IN THE CONFIGURATION
 The communities can also be given in the configuration file, a section for
 each, or along with the community file; a section wins over the same

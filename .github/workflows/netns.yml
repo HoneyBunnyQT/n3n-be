@@ -56,6 +56,35 @@ jobs:
           name: netns
           path: tests/netns/out
 
+  # The packages' systemd units (packages/lib/systemd/system) with their
+  # sandbox, under the runner's systemd: a supernode and two edges start,
+  # run as n3n-be with the rights the units give, reload, route all traffic
+  # with resolvectl for the DNS, and stop (tests/systemd/units.sh)
+  systemd:
+    name: systemd units
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Fix Checkout
+        run: |
+          git fetch --force --tags
+
+      - name: Build
+        run: |
+          sudo apt-get update
+          ./autogen.sh
+          ./configure
+          make build-dep
+          ./configure
+          make -j4 apps
+
+      - name: The units
+        run: |
+          sudo tests/systemd/units.sh
+
   # The plugin of NetworkManager (nm/, docs/quick_start/GNOME.md): its
   # unit test, its settings page in GTK 4 and 3, and NetworkManager itself,
   # the runner's, with a D-Bus of its own in network namespaces

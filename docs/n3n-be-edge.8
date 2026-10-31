@@ -358,8 +358,11 @@ Under systemd with \fBType=notify\fR (as the packaged units are), the edge
 tells systemd when it is up, its status for \fBsystemctl status\fR and that
 its main loop still runs (\fBWatchdogSec\fR of 30 seconds or more).
 Without \fBNOTIFY_SOCKET\fR in its environment it does none of this, so it
-runs the same under any other service manager.  See
-docs/configure/Systemd.md.
+runs the same under any other service manager.  The packaged units keep
+it in a sandbox: the system read-only, no home directories, no devices
+but /dev/net/tun, only the rights CAP_NET_ADMIN, CAP_NET_BIND_SERVICE,
+CAP_SETUID, CAP_SETGID and CAP_CHOWN, the system calls of an ordinary
+service.  See docs/configure/Systemd.md.
 
 On Windows, \fBn3n-be-edge service install\fR [\fIsessionname\fR] installs and
 starts the edge as a service (\fBn3n-be-edge\fR, or

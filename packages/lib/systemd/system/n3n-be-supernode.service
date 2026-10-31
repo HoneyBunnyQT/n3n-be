@@ -15,7 +15,33 @@ Group=n3n-be
 # ports below 1024 too - a TCP port 443 or 80 for edges behind firewalls
 # that let only the web through - and nothing else of root's
 AmbientCapabilities=CAP_NET_BIND_SERVICE
-RuntimeDirectory=n3n-be
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+PrivateDevices=yes
+# its session directory, for the management socket: /run/n3n-be/supernode
+RuntimeDirectory=n3n-be/supernode
+# The sandbox around it, see docs/configure/Systemd.md ("The sandbox"):
+# what it does not need, it cannot do either - if it were taken over
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# its own sandbox too (Landlock), which systemd's filter lets through
+SystemCallFilter=@system-service landlock_create_ruleset landlock_add_rule landlock_restrict_self
+SystemCallErrorNumber=EPERM
 ExecStart=/usr/sbin/n3n-be-supernode start
 # reads the configuration again: what can change while running changes,
 # see docs/configure/ConfigurationFiles.md

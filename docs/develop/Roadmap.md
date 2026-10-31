@@ -570,9 +570,20 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       licences in the packages, the mapping renewed and taken back at the
       end, the mapped port then told to the supernode and peers as the
       edge's, and a router that maps but does not forward
-- [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
-      privileges (Landlock, seccomp; dropping all capabilities but
-      CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
+- [~] Fewer privileges (asked 2026-10-31; decided: no seccomp filter of
+      our own - libcs and architectures differ too much, systemd's does
+      it for the units).  Done: the supplementary groups dropped with the
+      privileges (`fixes` too, a bug: root's group 0 stayed); the
+      supernode stops if it cannot drop them; the systemd units'
+      sandbox (2026-10-31: `ProtectSystem=strict`, `ProtectHome`, the
+      capabilities' bounding set, `@system-service`, ...; exposure 9.4 /
+      9.1 down to 2.8 / 1.7), tested under the runner's systemd
+      (`tests/systemd/units.sh`, also the community file as an encrypted
+      credential).  Next: Windows dropping the token's privileges after
+      the start; Landlock in both daemons.  To decide: CAP_NET_ADMIN given
+      up where `tuntap.route_all` is not used (a restart to switch it on)
+- [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
+      `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`
       and `tools/n3n-qr` are there).  (Learned supernodes on disk wait
       for v4, see Decisions 2026-10-04; epoll, batched I/O, no alloc per
@@ -1095,6 +1106,12 @@ release has it - as FEC was; there is no branch for it (see Decisions
       `tun.c` as on Android and macOS, instead of OpenVPN's TAP driver;
       its licence for shipping the DLL with a GPL-3.0 program to check
       first.  What needs layer 2 (bridging, non-IP protocols) stays TAP
+- [ ] Privilege separation (asked 2026-10-31): the peer as two processes,
+      as OpenSSH is - a small one that keeps the rights (the device, its
+      addresses and routes, `tuntap.route_all`, DNS) and does only what a
+      few requests over a socketpair ask, and the one that reads the
+      network with no rights at all (no CAP_NET_ADMIN, nothing of
+      Windows' SYSTEM).  Part of the peer's design, not of v3's edge
 
 ## Decisions
 
@@ -1334,8 +1351,8 @@ Open, in rough order:
   checks out to `src` and builds `$GITHUB_WORKSPACE/n3n`, sets
   `PKG_VERSION` where the package takes `BUILD_VERSION`, and compiles
   without `USE_SOURCE_DIR`.
-- IPv6 inside the tunnel: on a phone, then other systems; fewer
-  privileges (Landlock, seccomp).
+- IPv6 inside the tunnel: on a phone, then other systems.
+- Fewer privileges (Next): Windows' token, Landlock.
 - All traffic through an exit peer: tried on Windows, the switching
   from the management page too (Next).
 - Releases: the channels - decisions to take.

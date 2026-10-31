@@ -80,5 +80,10 @@ Each daemon has a management interface (see the
 
 The daemons drop their privileges once the device and the sockets are
 set up: to the user `n3n-be` (or `nobody`) by default, see `daemon.userid`
-and `daemon.groupid`.  The configuration file has to be readable for
-that user, or a reload finds none.
+and `daemon.groupid`, with that group only - none of root's.  The
+configuration file has to be readable for that user, or a reload finds
+none.  On Linux the edge keeps one of root's rights, `CAP_NET_ADMIN`, for
+`tuntap.route_all` and to take back its routes at the end.
+
+The packages' systemd units take away the rest - files, devices, system
+calls, kernel settings -, see [Running as a Service](Systemd.md#the-sandbox).
