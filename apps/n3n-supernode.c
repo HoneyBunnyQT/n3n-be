@@ -312,9 +312,10 @@ static void n3n_sn_config (int argc, char **argv, char *defname, struct n3n_runt
             break;
     }
 
-    // If no session name has been found, use the default
+    // If no session name has been found, use the default - a copy, as
+    // one from the command line is: sn_term() frees it
     if(!cmd.sessionname) {
-        cmd.sessionname = defname;
+        cmd.sessionname = strdup(defname);
     }
 
     // Now that we might need it, setup some default config

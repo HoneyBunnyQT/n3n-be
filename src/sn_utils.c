@@ -975,11 +975,12 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
 
     memset(sss, 0, sizeof(struct n3n_runtime_data));
 
-    // Record the session name we used
+    // Record the session name we used - sn_term() frees it: one of the
+    // caller's from the heap, or a copy of the placeholder
     if(sessionname) {
         conf->sessionname = sessionname;
     } else {
-        conf->sessionname = "NULL";
+        conf->sessionname = strdup("NULL");
     }
 
     conf->is_supernode = true;
