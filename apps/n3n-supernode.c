@@ -719,6 +719,7 @@ int n3n_supernode_main (int argc, char * argv[]) {
         if((setgid(sss_node.conf.groupid) != 0)
            || (setuid(sss_node.conf.userid) != 0)) {
             traceEvent(TRACE_ERROR, "unable to drop privileges [%u/%s]", errno, strerror(errno));
+            exit(1);
         }
     }
 
