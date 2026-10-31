@@ -89,6 +89,7 @@ MAN8DIR=$(CONFIG_MANDIR)/man8
 CONFIG_DOCDIR?=$(PREFIX)/share/doc/n3n-be
 CONFIG_SYSTEMDDIR?=$(PREFIX)/lib/systemd/system
 CONFIG_SYSUSERSDIR?=$(PREFIX)/lib/sysusers.d
+CONFIG_POLKITDIR?=$(PREFIX)/share/polkit-1/rules.d
 
 CFLAGS+=-DCONFIG_RUNDIR='"$(CONFIG_RUNDIR)"'
 
@@ -572,6 +573,9 @@ install.systemd:
 	$(INSTALL_DOC) packages/lib/systemd/system/n3n-be-supernode.service $(CONFIG_SYSTEMDDIR)
 	$(INSTALL) -d $(CONFIG_SYSUSERSDIR)
 	$(INSTALL_DOC) packages/lib/sysusers.d/n3n-be.conf $(CONFIG_SYSUSERSDIR)
+	# the edge, as n3n-be, may set its device's DNS server (tuntap.dns)
+	$(INSTALL) -d $(CONFIG_POLKITDIR)
+	$(INSTALL_DOC) packages/lib/polkit-1/rules.d/50-n3n-be.rules $(CONFIG_POLKITDIR)
 	# what the packages run on an upgrade from an n3n-be of n3n's names
 	$(INSTALL) -d $(PREFIX)/lib/n3n-be
 	$(INSTALL_PROG) packages/lib/n3n-be-migrate $(PREFIX)/lib/n3n-be/migrate

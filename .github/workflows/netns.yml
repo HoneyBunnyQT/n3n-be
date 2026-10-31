@@ -75,6 +75,9 @@ jobs:
       - name: Build
         run: |
           sudo apt-get update
+          # polkit, which systemd-resolved asks whether the edge may set
+          # its device's DNS server (the packages' rule for n3n-be)
+          sudo apt-get install -y polkitd
           ./autogen.sh
           ./configure
           make build-dep

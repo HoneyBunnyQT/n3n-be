@@ -19,7 +19,8 @@
 #   supernode starts again from it alone
 # - all traffic of a through b, with tuntap.dns at b's address: the rule of
 #   the edge's, and resolvectl - which the edge runs, in its sandbox - has
-#   b's address as the DNS server of a's device; then back.  While all
+#   b's address as the DNS server of a's device, as polkit lets n3n-be by
+#   the packages' rule; then back.  While all
 #   traffic goes through b, the host has no way out: a few seconds.
 # - each stops, and its session directory goes
 #
@@ -63,6 +64,8 @@ systemd-detect-virt -cq && skip "in a container"
 [ -x "$TOP/apps/n3n-be" ] || skip "no apps/n3n-be, make first"
 
 CTL="python3 $TOP/scripts/n3n-be-ctl"
+# the polkit rule the packages bring, for tuntap.dns (resolvectl as n3n-be)
+POLKIT=/etc/polkit-1/rules.d/50-n3n-be-unittest.rules
 SN=n3n-be-supernode.service
 EA=n3n-be-edge@n3n-be-unittest-a.service
 EB=n3n-be-edge@n3n-be-unittest-b.service
@@ -79,6 +82,7 @@ cleanup() {
     rmdir "$ETC" 2>/dev/null
     rm -f "$BIN/n3n-be-edge" "$BIN/n3n-be-supernode"
     rmdir "$BIN"
+    rm -f "$POLKIT"
     if [ -n "$made_user" ]; then
         userdel n3n-be
     fi
@@ -135,6 +139,10 @@ done
 # root's, readable for the group n3n-be: as the docs say
 chown root:n3n-be "$ETC"/supernode.conf "$ETC"/n3n-be-unittest*
 chmod 640 "$ETC"/supernode.conf "$ETC"/n3n-be-unittest*
+
+if [ -d "$(dirname "$POLKIT")" ]; then
+    cp "$TOP/packages/lib/polkit-1/rules.d/50-n3n-be.rules" "$POLKIT"
+fi
 
 systemctl start "$SN" "$EA" "$EB"
 
@@ -239,7 +247,7 @@ fi
 
 # all traffic through b, DNS at b's address: the edge's rule, and what
 # resolvectl - started by the edge, in its sandbox - told systemd-resolved
-if systemctl is-active -q systemd-resolved; then
+if systemctl is-active -q systemd-resolved && [ -e "$POLKIT" ]; then
     out=$($CTL -s n3n-be-unittest-a -k "$PASSWORD" --raw set_gateway 10.98.6.2 10.98.6.2 2>&1)
     sleep 2
     rule=$(ip rule show | grep -c "not from all fwmark")
@@ -254,7 +262,7 @@ if systemctl is-active -q systemd-resolved; then
     ! echo "$dns" | grep -q 10.98.6.2
     check "route_all: back" $? "$(echo "$dns" | tr -d '\n')"
 else
-    echo "skip route_all: no systemd-resolved"
+    echo "skip route_all: no systemd-resolved, or no polkit"
 fi
 
 systemctl stop "$EA" "$EB" "$SN"

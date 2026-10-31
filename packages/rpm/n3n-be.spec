@@ -93,6 +93,7 @@ rm -fr $RPM_BUILD_ROOT
 /usr/lib/systemd/system/n3n-be-edge@.service
 /usr/lib/systemd/system/n3n-be-supernode.service
 /usr/lib/sysusers.d/n3n-be.conf
+/usr/share/polkit-1/rules.d/50-n3n-be.rules
 %{_sbindir}/n3n-be
 %{_sbindir}/n3n-be-edge
 %{_sbindir}/n3n-be-supernode

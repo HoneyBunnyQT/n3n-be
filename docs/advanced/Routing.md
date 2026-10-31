@@ -150,7 +150,12 @@ supernode and peer:
     way back to them looks as if it went into the tunnel; the edge warns
     of it, and `2` (loose) lets it in.  `tuntap.dns` goes to
     systemd-resolved (`resolvectl`), for all names; without it, the DNS
-    servers stay as they are.
+    servers stay as they are.  systemd-resolved asks polkit whether the
+    edge, which runs as `n3n-be` by then, may (from systemd 254 on its
+    CAP_NET_ADMIN no longer counts): the packages bring a rule for it,
+    `/usr/share/polkit-1/rules.d/50-n3n-be.rules`; an edge that runs as
+    another user needs one of its own, or else the journal says
+    "Interactive authentication required".
 - **Windows**, as WireGuard for Windows does it: the edge's sockets are
   bound to the interface of the best default route (`IP_UNICAST_IF`),
   and `0.0.0.0/1` and `128.0.0.0/1` go through oscar on the TAP adapter -
