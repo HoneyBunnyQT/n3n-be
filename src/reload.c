@@ -77,6 +77,23 @@ static const char *const live_options[] = {
 // The dump of a configuration, as a string to free
 static char *conf_dump (const void *conf) {
 
+#ifndef _WIN32
+    // in memory: a file in /tmp is what the daemon's sandbox (sandbox.c)
+    // does not let it make any more
+    char *buf = NULL;
+    size_t size = 0;
+    FILE *f = open_memstream(&buf, &size);
+
+    if(!f) {
+        return NULL;
+    }
+    n3n_config_dump((void *)conf, f, 1);
+    if(fclose(f) != 0) {
+        free(buf);
+        return NULL;
+    }
+    return buf;
+#else
     FILE *f = tmpfile();
     char *buf;
     long len;
@@ -94,6 +111,7 @@ static char *conf_dump (const void *conf) {
     }
     fclose(f);
     return buf;
+#endif
 }
 
 
