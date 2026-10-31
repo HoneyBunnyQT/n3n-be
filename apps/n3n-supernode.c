@@ -57,6 +57,7 @@
 #else
 #include <arpa/inet.h>         // for inet_addr
 #include <netinet/in.h>        // for ntohl, INADDR_ANY, INADDR_NONE, in_addr_t
+#include <grp.h>               // for setgroups
 #include <pwd.h>               // for getpwnam, passwd
 #include <sys/socket.h>        // for listen, AF_INET
 #endif
@@ -706,6 +707,15 @@ int n3n_supernode_main (int argc, char * argv[]) {
                    (signed int)sss_node.conf.userid, (signed int)sss_node.conf.groupid);
 
         /* Finished with the need for root privileges. Drop to unprivileged user. */
+        // root's supplementary groups too, which setgid() leaves: group 0
+        // and whatever the shell that started it had (adm, sudo, ...) -
+        // only the new group stays; where setgroups() is denied (a user
+        // namespace), only if there are none
+        gid_t gid = sss_node.conf.groupid;
+        if((geteuid() == 0) && (setgroups(1, &gid) != 0) && (getgroups(0, NULL) > 0)) {
+            traceEvent(TRACE_ERROR, "unable to drop the supplementary groups [%u/%s]", errno, strerror(errno));
+            exit(1);
+        }
         if((setgid(sss_node.conf.groupid) != 0)
            || (setuid(sss_node.conf.userid) != 0)) {
             traceEvent(TRACE_ERROR, "unable to drop privileges [%u/%s]", errno, strerror(errno));

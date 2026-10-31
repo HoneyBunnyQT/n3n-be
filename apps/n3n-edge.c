@@ -76,6 +76,7 @@
 #include "../src/win32/wintun.h"  // for wintun_wake_fd
 #else
 #include <netinet/in.h>              // for INADDR_ANY, INADDR_NONE, ntohl
+#include <grp.h>                     // for setgroups
 #include <pwd.h>                     // for getpwnam, passwd
 #include <sys/select.h>              // for select, FD_ISSET, FD_SET, FD_ZERO
 #include <sys/socket.h>              // for AF_INET
@@ -1340,6 +1341,15 @@ int n3n_edge_main (int argc, char* argv[]) {
                    (signed int)conf.userid, (signed int)conf.groupid);
 
         /* Finished with the need for root privileges. Drop to unprivileged user. */
+        // root's supplementary groups too, which setgid() leaves: group 0
+        // and whatever the shell that started it had (adm, sudo, ...) -
+        // only the new group stays; where setgroups() is denied (a user
+        // namespace), only if there are none
+        gid_t gid = conf.groupid;
+        if((geteuid() == 0) && (setgroups(1, &gid) != 0) && (getgroups(0, NULL) > 0)) {
+            traceEvent(TRACE_ERROR, "unable to drop the supplementary groups [%u/%s]", errno, strerror(errno));
+            exit(1);
+        }
         if((setgid(conf.groupid) != 0)
            || (setuid(conf.userid) != 0)) {
             traceEvent(TRACE_ERROR, "unable to drop privileges [%u/%s]", errno, strerror(errno));
