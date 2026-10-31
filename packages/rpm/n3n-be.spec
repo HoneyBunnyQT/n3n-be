@@ -103,6 +103,7 @@ rm -fr $RPM_BUILD_ROOT
 /usr/share/doc/n3n-be/SECURITY.md
 /usr/share/doc/n3n-be/Scripts.md
 /usr/share/doc/n3n-be/Tools.md
+/usr/share/doc/n3n-be/UseCases.md
 /usr/share/doc/n3n-be/community.list.sample
 /usr/share/doc/n3n-be/edge.conf.sample
 /usr/share/doc/n3n-be/supernode.conf.sample
