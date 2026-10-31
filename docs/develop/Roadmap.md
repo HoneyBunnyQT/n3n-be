@@ -555,6 +555,21 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       more in what they do.  Said so in docs/quick_start/GNOME.md and when
       the package `n3n-be-networkmanager` is installed (Arch's .install,
       rpm's %post), until it is well tried
+- [ ] Consider UPnP / NAT-PMP (and PCP, their successor) in the edge
+      itself (asked 2026-10-31): one more tool for getting through a NAT,
+      next to the pool of sockets (the birthday paradox) and the TTL of
+      its REGISTERs (`connection.punch_ttl`, n2n's `register_ttl`) - see
+      docs/advanced/NatTraversal.md.  A router that maps the edge's port
+      on request makes a hard NAT an easy one, and two hard edges, which
+      go through the supernode now, could get through directly if one of
+      them has such a router; with PCP, an IPv6 pinhole too.  There is
+      code: `tools/n3n-portfwd` (miniupnpc, libnatpmp; `--enable-miniupnp`,
+      `--enable-natpmp`), which speaks the old management protocol and
+      does not work with the daemons any more.  To weigh: opt-in only
+      (many disable UPnP on their routers on purpose), the libraries'
+      licences in the packages, the mapping renewed and taken back at the
+      end, the mapped port then told to the supernode and peers as the
+      edge's, and a router that maps but does not forward
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
