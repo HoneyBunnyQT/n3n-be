@@ -159,7 +159,7 @@ for e in a:1:2:b b:2:1:a; do
     IFS=: read -r from host to want <<<"$e"
     index="index_$want"
     out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/broadcast.ps1")" \
-        -From 10.99.7.$host -To 239.255.255.250 -Join 10.99.7.$to -Port $PORT -Want "${!index}" 2>&1 | tr -d '\r')
+        -From "10.99.7.$host" -To 239.255.255.250 -Join "10.99.7.$to" -Port $PORT -Want "${!index}" 2>&1 | tr -d '\r')
     [ -n "${!index}" ] && echo "$out" | grep -q "on interface ${!index}\$"
     check "$from to $want, multicast" $? "$(echo "$out" | tail -1) ($want is interface ${!index:-none})"
 done
