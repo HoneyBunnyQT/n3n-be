@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+// SPDX-FileCopyrightText: Copyright Honey Bunny QT
+//
+// The edge, which runs as the user n3n-be once it has started, sets the
+// DNS server of its device while all traffic goes through an exit peer
+// (tuntap.dns, with resolvectl): systemd-resolved asks polkit for that,
+// and from systemd 254 on lets only root through without - its
+// CAP_NET_ADMIN no longer counts.  This lets n3n-be do these four on any
+// link, and nothing else.  See docs/advanced/Routing.md.
+polkit.addRule(function(action, subject) {
+    if (subject.user == "n3n-be" &&
+        (action.id == "org.freedesktop.resolve1.set-dns-servers" ||
+         action.id == "org.freedesktop.resolve1.set-domains" ||
+         action.id == "org.freedesktop.resolve1.set-default-route" ||
+         action.id == "org.freedesktop.resolve1.revert")) {
+        return polkit.Result.YES;
+    }
+});

@@ -4,3 +4,5 @@
 
 # not a dependency file of the build (*.d), the directory of sysusers.d(5)
 !/lib/sysusers.d/
+# nor polkit's directory of rules
+!/lib/polkit-1/rules.d/
