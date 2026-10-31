@@ -85,6 +85,24 @@ configuration file has to be readable for that user, or a reload finds
 none.  On Linux the edge keeps one of root's rights, `CAP_NET_ADMIN`, for
 `tuntap.route_all` and to take back its routes at the end.
 
+On Linux, the daemons then also lock themselves to the files they still
+need (`daemon.sandbox`, on by default; Linux 5.13 and newer, Landlock):
+they read the system's files (`/etc`, `/usr`, the libraries, `/proc`),
+their configuration and the community file, open `/dev/net/tun`, and the
+edge may run programs of the system's (`resolvectl`, for `tuntap.dns`).
+They can create, write, rename or remove files nowhere (but take away
+their management socket at the end), nor read the home directories,
+`/tmp`, `/var`, `/srv` or `/mnt` - also what the user they run as could
+read there; and, where the kernel can (6.12), they send no signals to
+processes outside and reach no abstract Unix sockets outside.  The
+network is not restricted.  It works under any service manager and from
+a shell, wherever the kernel has Landlock; an older kernel gives what it
+has, and none is no error.  The log says what it got, and so does
+`get_info` (`"sandbox": "landlock ABI 6"`, `"not in this kernel"`,
+`"off"`).  A configuration elsewhere than in `/etc`, and the community
+file, are found by their directories, which are readable then - also
+when an editor saves them anew.
+
 The packages' systemd units take away the rest - files, devices, system
 calls, kernel settings -, see [Running as a Service](Systemd.md#the-sandbox).
 

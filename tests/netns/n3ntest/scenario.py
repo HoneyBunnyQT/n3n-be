@@ -1066,14 +1066,20 @@ class Run:
             cli = cli_options(sections, dotted=True) \
                 if self.sc.community_cli else []
             wrap = list(self.st.wrap)
-            if self.sc.route_all in ("switch", "reload") and \
-                    sname != self.sc.gateway:
+            fake_resolvectl = self.sc.route_all in ("switch", "reload") and \
+                sname != self.sc.gateway
+            if fake_resolvectl:
                 wrap = self._fake_resolvectl() + wrap
             d = (N2nEdge if is_n2n(site.version) else Edge)(
                 self.lab, "edge-" + sname, e["ns"], self._session(sname),
                 self.st.binary("edge", site.version), sections,
                 wrap=wrap, overlay_ip=e["overlay"], mac=e["mac"],
                 cli=cli)
+            if fake_resolvectl:
+                # the fake in /tmp, which writes its log there: neither of
+                # which the edge's sandbox lets it do (only programs of the
+                # system's, as the real resolvectl is, see src/sandbox.c)
+                d.no_sandbox = True
             d.start()
             self._log_left_out("edge " + sname, d)
             e["daemon"] = d

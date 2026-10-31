@@ -40,6 +40,7 @@ sudo tests/netns/run.py easy-hard -v 3 --punch-ports 16 --register-interval 20
 sudo tests/netns/run.py --wrap 'valgrind --error-exitcode=99' easy-easy
 sudo tests/netns/run.py --cleanup   # namespaces left by a killed run
 sudo tests/netns/run.py --retry 1   # a failed scenario once more
+sudo tests/netns/run.py --no-sandbox --keep-root   # for coverage (*.gcda)
 sudo tests/netns/bench.py           # how fast, see testing.md
 ```
 
@@ -50,6 +51,13 @@ all of them a few minutes (the outage ones run 90 seconds without
 supernodes).  The scenarios tagged `limits` show what n3n cannot do (yet):
 they fail, and a run without names leaves them out (`run.py @limits` runs
 them).
+
+The daemons run in their own sandbox (`daemon.sandbox`, Landlock), as
+they would anywhere, so that the scenarios show what it lets through.
+Left out: by `--no-sandbox` (the coverage run, whose daemons write their
+counts into the tree at their end), and for the edges with the fake
+`resolvectl` in `/tmp` (`route-all-switch`, `route-all-reload`), which
+the sandbox would not run.
 
 Each scenario ends with one of:
 

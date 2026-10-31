@@ -293,6 +293,7 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
     n3n_metrics_set_session(conf->sessionname);
 
     conf->is_supernode = true;
+    conf->sandbox = true;
     conf->relay.spoofing_protection = true;
 
     // for an edge of its own, see supernode.tap

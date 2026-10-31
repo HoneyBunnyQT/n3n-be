@@ -1,0 +1,17 @@
+edge: the configuration: read
+edge: /etc/passwd: read
+edge: a file outside: denied
+edge: a new file outside: denied
+edge: a new file by the configuration: denied
+edge: writing to the configuration: denied
+edge: a program from /usr: ran
+edge: a thread started before, the file outside: read, after joining: denied
+supernode: the configuration: read
+supernode: the community file: read
+supernode: /etc/passwd: read
+supernode: a file outside: denied
+supernode: a new file outside: denied
+supernode: a new file by the configuration: denied
+supernode: writing to the configuration: denied
+supernode: a program from /usr: denied
+supernode: a thread started before, the file outside: read, after joining: denied

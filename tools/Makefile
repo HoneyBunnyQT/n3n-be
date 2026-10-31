@@ -40,6 +40,7 @@ TESTS+=tests-tf
 TESTS+=tests-fec
 TESTS+=tests-mgmt-client
 TESTS+=tests-announce
+TESTS+=tests-sandbox
 
 .PHONY: all clean install
 all: $(TOOLS) $(TESTS)
@@ -53,6 +54,12 @@ $(TOOLS) $(TOOLS_OPTIONAL) $(TESTS): ../src/libn3n.a
 %: %.c
 	@echo "  CC      $@"
 	@$(CC) $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
+# a thread started before the sandbox (src/sandbox.c); the C library has
+# pthread in it on newer systems, the older need it named
+ifneq ($(filter linux%,$(CONFIG_HOST_OS)),)
+tests-sandbox: LDLIBS+=-lpthread
+endif
 
 # the core for sealing codes with a PIN (src/qr_seal.c), and its libraries
 n3n-qr: n3n-qr.c

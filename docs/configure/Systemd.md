@@ -79,7 +79,10 @@ units have systemd take away the rest:
   EPERM), of this machine's architecture; no memory both writable and
   executable; sockets of IPv4, IPv6, Unix and netlink only.
 
-`systemd-analyze security n3n-be-edge@NAME` shows what is left.  An older
+Inside it, the daemons lock themselves to the files they need with
+Landlock (`daemon.sandbox`, see [Security](Security.md#privileges)), which
+works without systemd too.  `systemd-analyze security n3n-be-edge@NAME`
+shows what is left.  An older
 systemd ignores what it does not know yet, with a line in the journal.
 To loosen something for one machine, a drop-in (`systemctl edit
 n3n-be-edge@NAME`) does it without changing the packaged unit, see below.

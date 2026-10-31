@@ -363,6 +363,13 @@ it in a sandbox: the system read-only, no home directories, no devices
 but /dev/net/tun, only the rights CAP_NET_ADMIN, CAP_NET_BIND_SERVICE,
 CAP_SETUID, CAP_SETGID and CAP_CHOWN, the system calls of an ordinary
 service.  See docs/configure/Systemd.md.
+.PP
+Under any service manager, the edge on Linux locks itself to the files it
+still needs once it has started (\fBdaemon.sandbox\fR, Landlock, Linux 5.13
+and newer): it reads the system's files, its configuration and /proc,
+opens /dev/net/tun and runs programs of the system's (resolvectl), and
+creates or writes files nowhere.  \fBget_info\fR says what it got.  See
+docs/configure/Security.md.
 
 On Windows, \fBn3n-be-edge service install\fR [\fIsessionname\fR] installs and
 starts the edge as a service (\fBn3n-be-edge\fR, or

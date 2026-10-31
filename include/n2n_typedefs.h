@@ -569,6 +569,7 @@ typedef struct n2n_edge_conf {
     uint32_t userid;
     uint32_t groupid;
     bool background;
+    bool sandbox;                   // daemon.sandbox, see src/sandbox.c
     bool is_edge;
     bool is_supernode;
     char *sessionname;              // the name of this session

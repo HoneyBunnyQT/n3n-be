@@ -12,7 +12,8 @@
 # - each starts, the edges register, a has its device with its address
 # - each runs as n3n-be with its group only, NoNewPrivs and the seccomp
 #   filter, with only the rights its unit gives (the edge CAP_NET_ADMIN,
-#   the supernode CAP_NET_BIND_SERVICE); /home empty for it, /usr read-only
+#   the supernode CAP_NET_BIND_SERVICE); /home empty for it, /usr read-only;
+#   and in its own sandbox too (Landlock, get_info)
 # - a reload (SIGHUP) leaves each running
 # - the community file as an encrypted credential (systemd-creds): the
 #   supernode starts again from it alone
@@ -150,6 +151,16 @@ for u in "$SN" "$EA" "$EB"; do
 done
 registered a && registered b
 check "registered" $? "both edges, through the supernode in its sandbox"
+# their own sandbox too, inside systemd's (daemon.sandbox, src/sandbox.c)
+for s in n3n-be-unittest-a supernode; do
+    sb=$($CTL -s "$s" --raw get_info 2>/dev/null |
+        python3 -c 'import json, sys; print(json.load(sys.stdin).get("sandbox", ""))' 2>/dev/null)
+    case "$sb" in
+        landlock*) r=0 ;;
+        *) r=1 ;;
+    esac
+    check "landlock" "$r" "$s: ${sb:-none}"
+done
 addr=$(ip -4 -o addr show dev n3nuta 2>/dev/null | awk '{print $4}')
 [ "$addr" = 10.98.6.1/24 ]
 check "device" $? "n3nuta ${addr:-none}"

@@ -51,6 +51,7 @@
 #include "../src/peer_info.h"         // for peer_info
 #include "../src/reload.h"            // for n3n_reload_setup, n3n_reload_request
 #include "../src/resolve.h"           // for resolve_hostnames_str_to_peer_info
+#include "../src/sandbox.h"           // for n3n_sandbox_enter
 
 #ifdef _WIN32
 #include "../src/win32/defs.h"  // FIXME: untangle the include path
@@ -730,6 +731,19 @@ int n3n_supernode_main (int argc, char * argv[]) {
             TRACE_WARNING,
             "running as root is discouraged, check out the userid/groupid options"
         );
+    }
+
+    if(sss_node.conf.sandbox) {
+        // only what it still needs from here on, see src/sandbox.c: its
+        // configuration and community file - before sn_init() starts the
+        // threads, which take it over
+        struct n3n_sandbox_paths sandbox = {
+            .conffile = reload_session,
+            .community_file = sss_node.conf.relay.community_file,
+            .sessiondir = sss_node.conf.sessiondir,
+            .tun = sss_node.conf.relay.tap,
+        };
+        n3n_sandbox_enter(&sandbox);
     }
 #else
     // what the start needed and the rest does not, see src/win32/privileges.c

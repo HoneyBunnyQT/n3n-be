@@ -20,6 +20,7 @@
 
 #include "config.h"          // for HAVE_LIBPTHREAD
 #include "resolve.h"
+#include "sandbox.h"         // for n3n_sandbox_join
 #include "n2n.h"             // for sock_equal, parse_address_spec
 #include "n2n_define.h"
 #include "n2n_typedefs.h"
@@ -301,6 +302,7 @@ N2N_THREAD_RETURN_DATATYPE resolve_thread (N2N_THREAD_PARAMETER_DATATYPE p) {
     time_t rep_time = N2N_RESOLVE_INTERVAL / 10;
     time_t now;
 
+    n3n_sandbox_thread_started();
     pthread_mutex_lock(&param->access);
 
     while(!param->stop) {
@@ -317,6 +319,9 @@ N2N_THREAD_RETURN_DATATYPE resolve_thread (N2N_THREAD_PARAMETER_DATATYPE p) {
         if(param->stop) {
             break;
         }
+        // the daemon's sandbox, entered after this thread started: before
+        // it resolves anything (see resolve_sandbox())
+        n3n_sandbox_join();
 
         // what's the time?
         now = time(NULL);
@@ -432,6 +437,19 @@ void resolve_forked (n3n_resolve_parameter_t *param) {
 }
 
 
+// The daemon has entered its sandbox (sandbox.c): the resolver, started
+// before, takes it too, now rather than at its next round
+void resolve_sandbox (n3n_resolve_parameter_t *param) {
+
+    if(!param) {
+        return;
+    }
+    pthread_mutex_lock(&param->access);
+    pthread_cond_signal(&param->wake);
+    pthread_mutex_unlock(&param->access);
+}
+
+
 void resolve_cancel_thread (n3n_resolve_parameter_t *param) {
     struct n3n_resolve_ip_sock *entry, *tmp_entry;
 
@@ -524,6 +542,9 @@ int resolve_create_thread (n3n_resolve_parameter_t **param, struct peer_info *sn
 }
 
 void resolve_forked (n3n_resolve_parameter_t *param) {
+}
+
+void resolve_sandbox (n3n_resolve_parameter_t *param) {
 }
 
 void resolve_cancel_thread (n3n_resolve_parameter_t *param) {

@@ -48,6 +48,8 @@ struct n3n_resolve_parameter {
 int resolve_create_thread (n3n_resolve_parameter_t **param, struct peer_info *sn_list);
 bool resolve_check (n3n_resolve_parameter_t *param, bool resolution_request, time_t now);
 void resolve_forked (n3n_resolve_parameter_t *param);
+// the daemon has entered its sandbox: the resolver takes it now
+void resolve_sandbox (n3n_resolve_parameter_t *param);
 void resolve_cancel_thread (n3n_resolve_parameter_t *param);
 
 // Internal resolver function, will turn static once supernode.c doesnt use it

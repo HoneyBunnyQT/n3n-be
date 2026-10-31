@@ -220,6 +220,9 @@ class Daemon:
     kind = None
     # run.py --keep-root: daemon.userid and groupid 0
     keep_root = False
+    # run.py --no-sandbox, or a scenario that needs it off: daemon.sandbox
+    # false (left out for a version without the option, see write_conf)
+    no_sandbox = False
 
     def __init__(self, lab, name, ns, session, binary, sections, wrap=(),
                  cli=()):
@@ -243,6 +246,10 @@ class Daemon:
                       if o not in ("userid", "groupid")]
             self.sections["daemon"] = daemon + [("userid", 0),
                                                 ("groupid", 0)]
+        if self.no_sandbox:
+            daemon = [(o, v) for o, v in self.sections.get("daemon", [])
+                      if o != "sandbox"]
+            self.sections["daemon"] = daemon + [("sandbox", "false")]
         self.left_out = write_conf(self.conf, self.sections,
                                    known_options(self.binary))
         argv = self.wrap + [self.binary] + self.cli + ["start", self.conf]

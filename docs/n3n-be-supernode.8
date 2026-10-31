@@ -99,6 +99,11 @@ where the home directories are empty: keep the file in /etc/n3n-be,
 readable for the group n3n-be.  docs/configure/Systemd.md shows how to
 have it in a home directory anyway, and how to keep it encrypted on disk
 as a systemd credential.
+.PP
+On Linux the supernode also locks itself to the files it still needs
+once it has started (\fBdaemon.sandbox\fR, Landlock, Linux 5.13 and newer):
+it reads the system's files, its configuration and the directory of the
+community file, and creates, writes or runs nothing.
 .SH COMMUNITIES IN THE CONFIGURATION
 The communities can also be given in the configuration file, a section for
 each, or along with the community file; a section wins over the same

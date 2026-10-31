@@ -40,6 +40,7 @@
 #include "reload.h"      // for n3n_reload
 #include "role_client.h" // for p2p_max_loss
 #include "route_all.h"   // for route_all_set, route_all_exit
+#include "sandbox.h"     // for n3n_sandbox_state
 #include "counter.h"     // for SHARED_LOAD
 #include "edge_utils.h"  // for peer_also_known
 #include "stats.h"       // for n3n_stats_sum
@@ -1020,7 +1021,8 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
                 "\"nat4\":\"%s\","
                 "\"nat6\":\"%s\","
                 "\"transport\":\"%s\","
-                "\"registered\":%i",
+                "\"registered\":%i,"
+                "\"sandbox\":\"%s\"",
                 VERSION,
                 BUILDDATE,
                 eee->conf.is_edge,
@@ -1033,7 +1035,9 @@ static void jsonrpc_get_info (char *id, struct n3n_runtime_data *eee, conn_t *co
                 !eee->conf.is_edge ? "" : eee->client.tcp ? "tcp" : "udp",
                 // as the page and systemd see it: the periodic re-registration
                 // does not count as gone
-                eee->conf.is_edge ? edge_is_registered(eee, time(NULL)) : 0
+                eee->conf.is_edge ? edge_is_registered(eee, time(NULL)) : 0,
+                // what it got of its own sandbox, see sandbox.c
+                n3n_sandbox_state()
     );
     if(eee->conf.is_edge) {
         // what it announces of itself, see announce.h

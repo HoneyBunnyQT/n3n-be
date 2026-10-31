@@ -215,6 +215,10 @@ def main():
                     help="the daemons keep root (daemon.userid=0): for "
                     "LeakSanitizer, which cannot check a daemon that "
                     "dropped its privileges")
+    ap.add_argument("--no-sandbox", action="store_true",
+                    help="the daemons without their own sandbox "
+                    "(daemon.sandbox=false): for coverage, whose data a "
+                    "sandboxed daemon cannot write at its end")
     ap.add_argument("--topdir", default=topdir,
                     help="where apps/n3n-be-edge is (default: this tree)")
     ap.add_argument("--workdir",
@@ -268,6 +272,7 @@ def main():
         spray_seed=args.spray_seed,
     )
     Daemon.keep_root = args.keep_root
+    Daemon.no_sandbox = args.no_sandbox
 
     missing = missing_prerequisites(settings)
     if missing:

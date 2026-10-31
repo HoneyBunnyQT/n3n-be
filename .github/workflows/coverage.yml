@@ -52,12 +52,13 @@ jobs:
 
       - name: netns scenarios
         run: |
-          # the daemons keep root: one that dropped its privileges could
-          # not write its counts (*.gcda) into the tree at its exit.
-          # What fails here is for netns.yml to tell; this run is for
-          # the counts
+          # the daemons keep root and leave out their own sandbox: one
+          # that dropped its privileges, or locked itself to the files it
+          # needs (daemon.sandbox), could not write its counts (*.gcda)
+          # into the tree at its exit.  What fails here is for netns.yml
+          # to tell; this run is for the counts
           sudo python3 tests/netns/run.py --skip-missing -j 4 --keep-root \
-            --retry 1 || true
+            --no-sandbox --retry 1 || true
           sudo chown -R "$(id -u):$(id -g)" .
 
       - name: Report

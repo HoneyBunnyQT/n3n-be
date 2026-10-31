@@ -297,6 +297,14 @@ Runs the daemon in the background (ignored on windows)
 
 Default: `false`
 
+### daemon.sandbox
+
+Lock itself to the files it needs.
+
+Once it has started, the daemon can open only what it still needs (Linux 5.13 and newer, Landlock): read the system's files, its configuration and community file, and the tun device; for an edge also run programs (resolvectl). It can write and create files nowhere, nor read home directories, /tmp or /var. get_info says what it got. Changes at a restart. false leaves it out (ignored on windows)
+
+Default: `true`
+
 ## [filter]
 
 VPN internal traffic filtering

@@ -583,8 +583,19 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       start, all but SeChangeNotify (and SeLoadDriver with Wintun),
       checked in `tests/windows/wintun.sh` (`privileges.ps1`) while all
       traffic through an exit, the DNS rule and the adapters' removal
-      still work.  Next: Landlock in both daemons.  To decide: CAP_NET_ADMIN given
-      up where `tuntap.route_all` is not used (a restart to switch it on)
+      still work; Landlock in both daemons (`daemon.sandbox`, on by
+      default, `src/sandbox.c`): the files they still need only, read;
+      nothing created or written; programs from the system's
+      directories for the edge only (resolvectl); no signals or abstract
+      sockets out of it (ABI 6); the resolver thread, started before,
+      joins it; `get_info` says what it got; `tests-sandbox` (skips
+      without Landlock), all netns scenarios with it (a reload's dump
+      in memory now, not in /tmp), and inside the systemd units.
+      Found on the way: the supernode's crash at every stop without a
+      session name, as its systemd unit starts it (on `fixes` too), and
+      the edges' `systemctl reload` failing in the sandboxed unit (kill
+      without CAP_KILL).  To decide: CAP_NET_ADMIN given up where
+      `tuntap.route_all` is not used (a restart to switch it on)
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`

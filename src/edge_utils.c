@@ -2052,6 +2052,7 @@ void edge_init_conf_defaults (n2n_edge_conf_t *conf, char *sessionname) {
     n3n_metrics_set_session(conf->sessionname);
 
     conf->is_edge = true;
+    conf->sandbox = true;
 
     conf->bind_address = NULL;
 #ifdef _WIN32

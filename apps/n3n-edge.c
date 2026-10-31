@@ -66,6 +66,7 @@
 #include "../src/reload.h"           // for n3n_reload_setup, n3n_reload_request
 #include "../src/resolve.h"          // for resolve_check, resolve_forked
 #include "../src/route_all.h"        // for route_all_init, route_all_down
+#include "../src/sandbox.h"          // for n3n_sandbox_enter
 
 #ifdef HAVE_LIBCRYPTO
 #include <openssl/crypto.h>          // for OpenSSL_version
@@ -1370,6 +1371,19 @@ int n3n_edge_main (int argc, char* argv[]) {
             TRACE_WARNING,
             "running as root is discouraged, check out the userid/groupid options"
         );
+
+    if(eee->conf.sandbox) {
+        // only what it still needs from here on, see src/sandbox.c: its
+        // device again, its configuration, resolvectl for tuntap.dns
+        struct n3n_sandbox_paths sandbox = {
+            .conffile = reload_session,
+            .sessiondir = eee->conf.sessiondir,
+            .tun = true,
+            .exec = true,
+        };
+        n3n_sandbox_enter(&sandbox);
+        resolve_sandbox(eee->resolve_parameter);
+    }
 #endif /* _WIN32 */
 
     traceEvent(TRACE_NORMAL, "edge started");

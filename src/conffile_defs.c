@@ -495,6 +495,19 @@ static struct n3n_conf_option section_daemon[] = {
         .desc = "Daemonize the process",
         .help = "Runs the daemon in the background (ignored on windows)",
     },
+    {
+        .name = "sandbox",
+        .type = n3n_conf_bool,
+        .offset = offsetof(n2n_edge_conf_t, sandbox),
+        .desc = "Lock itself to the files it needs",
+        .help = "Once it has started, the daemon can open only what it still "
+                "needs (Linux 5.13 and newer, Landlock): read the system's "
+                "files, its configuration and community file, and the tun "
+                "device; for an edge also run programs (resolvectl).  It can "
+                "write and create files nowhere, nor read home directories, "
+                "/tmp or /var.  get_info says what it got.  Changes at a "
+                "restart.  false leaves it out (ignored on windows)",
+    },
     {.name = NULL},
 };
 
