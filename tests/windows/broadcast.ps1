@@ -7,13 +7,20 @@
 # in again through the other edge's adapter, with that adapter's interface
 # index (copies by another way do not count).  Exit code 0 if it came.
 #
+# With -Join, to a multicast group instead, as SSDP (DLNA, UPnP) does it
+# and as VLC's UPnP client does with the adapter it is given: the receiver
+# a member of the group on the other adapter's address (-Join), the sender
+# with that of its own adapter as the multicast interface.
+#
 #   broadcast.ps1 -From 10.99.7.1 -To 10.99.7.255 -Port 47123 -Want IFINDEX
+#   broadcast.ps1 -From 10.99.7.1 -To 239.255.255.250 -Join 10.99.7.2 ...
 
 param(
     [Parameter(Mandatory)][string]$From,
     [Parameter(Mandatory)][string]$To,
     [Parameter(Mandatory)][int]$Port,
-    [Parameter(Mandatory)][int]$Want
+    [Parameter(Mandatory)][int]$Want,
+    [string]$Join
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,10 +32,22 @@ $rx.SetSocketOption([System.Net.Sockets.SocketOptionLevel]::IP,
     [System.Net.Sockets.SocketOptionName]::PacketInformation, $true)
 $rx.Bind((New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Any, $Port)))
 $rx.ReceiveTimeout = 500
+if ($Join) {
+    $rx.SetSocketOption([System.Net.Sockets.SocketOptionLevel]::IP,
+        [System.Net.Sockets.SocketOptionName]::AddMembership,
+        (New-Object System.Net.Sockets.MulticastOption(
+            [System.Net.IPAddress]::Parse($To), [System.Net.IPAddress]::Parse($Join))))
+}
 
 $tx = New-Object System.Net.Sockets.UdpClient(
     (New-Object System.Net.IPEndPoint([System.Net.IPAddress]::Parse($From), 0)))
 $tx.EnableBroadcast = $true
+if ($Join) {
+    $tx.Client.SetSocketOption([System.Net.Sockets.SocketOptionLevel]::IP,
+        [System.Net.Sockets.SocketOptionName]::MulticastInterface,
+        [System.Net.IPAddress]::Parse($From).GetAddressBytes())
+    $tx.MulticastLoopback = $false
+}
 $buf = New-Object byte[] 2048
 
 for ($i = 0; $i -lt 20; $i++) {

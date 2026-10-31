@@ -11,7 +11,9 @@
 # as there is no TAP adapter -, each with an adapter of its own - address
 # and MTU as configured -, and a UDP broadcast from one edge's address that
 # comes in through the other edge's adapter, both ways: so each edge takes
-# packets off its adapter and puts packets onto it.  Then all traffic of
+# packets off its adapter and puts packets onto it; the same for multicast
+# to SSDP's group (DLNA, UPnP), with filter.allow_multicast on both edges,
+# a member of it on the other edge's adapter.  Then all traffic of
 # edge a through b, with tuntap.dns at b's address (src/route_all.c): Windows'
 # DNS client has the rule for all names to it (NRPT), and asks it - a DNS
 # server of this test there (dns.py); a rule left behind before is gone at
@@ -95,6 +97,8 @@ supernode = 127.0.0.1:7656
 type = $type
 address = 10.99.7.$host/24
 address_mode = static
+[filter]
+allow_multicast = true
 [management]
 port = $mport
 EOF
@@ -148,6 +152,17 @@ out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HE
     -From 10.99.7.2 -To 10.99.7.255 -Port $PORT -Want "$index_a" 2>&1 | tr -d '\r')
 [ -n "$index_a" ] && echo "$out" | grep -q "on interface $index_a\$"
 check "b to a" $? "$(echo "$out" | tail -1) (a is interface ${index_a:-none})"
+
+# SSDP's group, as VLC's UPnP client and minidlna use it: out through one
+# adapter, in through the other, where a member of it listens
+for e in a:1:2:b b:2:1:a; do
+    IFS=: read -r from host to want <<<"$e"
+    index="index_$want"
+    out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/broadcast.ps1")" \
+        -From 10.99.7.$host -To 239.255.255.250 -Join 10.99.7.$to -Port $PORT -Want "${!index}" 2>&1 | tr -d '\r')
+    [ -n "${!index}" ] && echo "$out" | grep -q "on interface ${!index}\$"
+    check "$from to $want, multicast" $? "$(echo "$out" | tail -1) ($want is interface ${!index:-none})"
+done
 
 # all traffic through b, DNS to b's address: what dns.py answers there
 python -I "$HERE/dns.py" 10.99.7.2 10.1.2.3 30 >"$WORK/dns.log" 2>&1 &
