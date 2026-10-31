@@ -43,7 +43,14 @@ for i in $TESTS; do
     fi
 
     echo "$TEST >$LISTDIR/$i.out"
-    if ! "$TEST" >"$LISTDIR/$i.out"; then
+    "$TEST" >"$LISTDIR/$i.out"
+    rc=$?
+    if [ "$rc" = 77 ]; then
+        # what it needs is not there (tests-sandbox without Landlock)
+        cat "$LISTDIR/$i.out"
+        continue
+    fi
+    if [ "$rc" != 0 ]; then
         # what it said, which the log of a CI run would not show otherwise
         cat "$LISTDIR/$i.out"
         echo "$TEST failed"
