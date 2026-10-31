@@ -258,11 +258,19 @@ to be right, with a TAP adapter as with Wintun.
   `Set-NetConnectionProfile -InterfaceAlias n3n-be-edge -NetworkCategory Private`),
   or allow VLC on public networks in "Allow an app through Windows
   Firewall".  Windows remembers the choice for the adapter.
-- The server serves the edge's interface: minidlna, without
-  `network_interface` in `/etc/minidlna.conf`, serves all, also an
-  interface that comes later; with it, add the edge's (`n3n0`, say).  It
-  answers only addresses of its interfaces' subnets, so the Windows edge's
-  address has to be in the community's subnet.
+- The server serves the edge's interface: name it in minidlna's
+  `network_interface` in `/etc/minidlna.conf`, next to the LAN's, and
+  restart minidlna:
+
+  ```ini
+  network_interface=edge,eth0
+  ```
+
+  (the edge's interface is `tuntap.name`).  Without the line, minidlna
+  should serve all interfaces, also one that comes up later - in practice
+  (tried 2026-10-31) it did not find the edge's.  It answers only
+  addresses of its interfaces' subnets, so the Windows edge's address has
+  to be in the community's subnet.
 
 Without SSDP at all, VLC browses a server it is given: Media, Open
 Network Stream, `upnp://ADDRESS:8200/ctl/ContentDir?ObjectID=0` - with

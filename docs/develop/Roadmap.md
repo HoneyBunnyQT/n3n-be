@@ -1339,21 +1339,24 @@ Open, in rough order:
 - All traffic through an exit peer: tried on Windows, the switching
   from the management page too (Next).
 - Releases: the channels - decisions to take.
-- DLNA/SSDP between edges (VLC on Windows, minidlna on Linux): found
-  out and documented (2026-10-31, quick_start/Windows.md, "Media servers
-  in the community").  Not n3n's: VLC 3's UPnP client on Windows starts
+- DLNA/SSDP between edges (VLC on Windows, minidlna on Linux): found out
+  and documented (2026-10-31, quick_start/Windows.md, "Media servers in
+  the community").  Not n3n's: VLC 3's UPnP client on Windows starts
   libupnp on one adapter only, the first with a default gateway (its
   `getPreferedAdapter()`), so never the edge's - its `--miface` (the
   "Multicast output interface") names the adapter; besides
   `filter.allow_multicast` on both edges, Windows' public profile on the
-  adapter, and minidlna answering only its interfaces' subnets.  Without
-  SSDP, `upnp://ADDRESS:8200/ctl/ContentDir?ObjectID=0`.  Tested: SSDP's
-  group through Wintun both ways (`tests/windows/wintun.sh`) on CI's
-  runners; VLC itself to try by hand.  The option is tested on Linux too
-  (netns `multicast`, `multicast-half`, `multicast-tun`): SSDP's group
-  passes where both edges allow it, broadcast always.  Since 2026-10-17
-  (decided: as a switch does) the option covers every multicast MAC, also
-  those of protocols without IP (NetBEUI, AppleTalk, PROFINET's DCP -
+  adapter, and minidlna answering only its interfaces' subnets (and,
+  tried, finding the edge's interface only when named).  Without
+  SSDP, `upnp://ADDRESS:8200/ctl/ContentDir?ObjectID=0`.  Tested:
+  SSDP's group through Wintun both ways (`tests/windows/wintun.sh`) on
+  CI's runners; VLC itself by hand (2026-10-31): works with `--miface` and
+  minidlna's `network_interface` naming the edge's interface
+  too.  The option is tested on Linux too (netns `multicast`,
+  `multicast-half`, `multicast-tun`): SSDP's group passes where both edges
+  allow it, broadcast always.  Since 2026-10-17 (decided: as a
+  switch does) the option covers every multicast MAC, also those of
+  protocols without IP (NetBEUI, AppleTalk, PROFINET's DCP -
   n42n/n3n#119), on edge and supernode; the IEEE 802.1 link-local ones
   (spanning tree, LACP, 802.1X, LLDP, pause) never pass, dropped and
   counted by the edge.  Maybe later: an option of the edge for the
