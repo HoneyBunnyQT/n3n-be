@@ -1339,17 +1339,25 @@ Open, in rough order:
 - All traffic through an exit peer: tried on Windows, the switching
   from the management page too (Next).
 - Releases: the channels - decisions to take.
-- To try, then document: DLNA/SSDP between edges (VLC on Windows, minidlna
-  on Linux) - SSDP is IPv4 multicast, which `filter.allow_multicast`
-  (default false) drops on both edges; on Windows also the interface
-  metric and the firewall profile of the TAP adapter.  The option itself
-  is tested (netns `multicast`, `multicast-half`, `multicast-tun`):
-  SSDP's group passes where both edges allow it, broadcast always.  Since
-  2026-10-17 (decided: as a switch does) the option covers every
-  multicast MAC, also those of protocols without IP (NetBEUI, AppleTalk,
-  PROFINET's DCP - n42n/n3n#119), on edge and supernode; the IEEE 802.1
-  link-local ones (spanning tree, LACP, 802.1X, LLDP, pause) never pass,
-  dropped and counted by the edge.
+- DLNA/SSDP between edges (VLC on Windows, minidlna on Linux): found
+  out and documented (2026-10-31, quick_start/Windows.md, "Media servers
+  in the community").  Not n3n's: VLC 3's UPnP client on Windows starts
+  libupnp on one adapter only, the first with a default gateway (its
+  `getPreferedAdapter()`), so never the edge's - its `--miface` (the
+  "Multicast output interface") names the adapter; besides
+  `filter.allow_multicast` on both edges, Windows' public profile on the
+  adapter, and minidlna answering only its interfaces' subnets.  Without
+  SSDP, `upnp://ADDRESS:8200/ctl/ContentDir?ObjectID=0`.  Tested: SSDP's
+  group through Wintun both ways (`tests/windows/wintun.sh`) on CI's
+  runners; VLC itself to try by hand.  The option is tested on Linux too
+  (netns `multicast`, `multicast-half`, `multicast-tun`): SSDP's group
+  passes where both edges allow it, broadcast always.  Since 2026-10-17
+  (decided: as a switch does) the option covers every multicast MAC, also
+  those of protocols without IP (NetBEUI, AppleTalk, PROFINET's DCP -
+  n42n/n3n#119), on edge and supernode; the IEEE 802.1 link-local ones
+  (spanning tree, LACP, 802.1X, LLDP, pause) never pass, dropped and
+  counted by the edge.  Maybe later: an option of the edge for the
+  adapter's network category (private), so that nobody has to set it.
 - On real hardware: the Android app on a phone, the edge on a Mac (only
   CI's macOS runners so far) with a Linux edge across the internet, the
   ARM benchmarks.

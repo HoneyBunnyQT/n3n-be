@@ -218,6 +218,57 @@ but whether n3n-be's own licence (the GNU AGPL and GPL) allows the two in
 the same zip is not settled; fetched by each computer from its home, the
 question does not come up.
 
+## Media servers in the community (DLNA, VLC)
+
+A DLNA server on another edge - minidlna on Linux, say - is found by
+SSDP: IPv4 multicast to 239.255.255.250, port 1900.  Its web page on port
+8200 opening in a browser does not mean that it is found; four things have
+to be right, with a TAP adapter as with Wintun.
+
+- Multicast through the community: `filter.allow_multicast = true` on
+  both edges, the Windows one and the server's (see
+  [TapConfiguration](../configure/TapConfiguration.md)); without it only
+  broadcast passes.
+
+  ```ini
+  [filter]
+  allow_multicast = true
+  ```
+
+- VLC listens on one adapter only, and not on the edge's unless told so.
+  On Windows its UPnP client takes the first adapter that has a default
+  gateway, an IPv6 stack and is a member of SSDP's group - the LAN
+  adapter, as the edge's has no default gateway.  Tell VLC the edge's
+  adapter by name, as `Get-NetAdapter` shows it (`n3n-be-edge` for
+  Wintun, see above): Tools, Preferences, "Show settings: All", Stream
+  output, Access output, "Multicast output interface", then restart VLC;
+  or once, on its command line:
+
+  ```
+  "C:\Program Files\VideoLAN\VLC\vlc.exe" --miface=n3n-be-edge
+  ```
+
+  Tools, Messages (verbosity 2) then says `Initializing libupnp on
+  'n3n-be-edge' interface`.  The servers on the LAN are not found as long
+  as it is set: VLC has one adapter for UPnP at a time.
+- Windows' firewall: the edge's adapter has a network without a gateway,
+  which Windows takes for a public one, where VLC usually may not receive.
+  Make it private (Settings, Network & Internet, the adapter's network,
+  "Private network", or as administrator
+  `Set-NetConnectionProfile -InterfaceAlias n3n-be-edge -NetworkCategory Private`),
+  or allow VLC on public networks in "Allow an app through Windows
+  Firewall".  Windows remembers the choice for the adapter.
+- The server serves the edge's interface: minidlna, without
+  `network_interface` in `/etc/minidlna.conf`, serves all, also an
+  interface that comes later; with it, add the edge's (`n3n0`, say).  It
+  answers only addresses of its interfaces' subnets, so the Windows edge's
+  address has to be in the community's subnet.
+
+Without SSDP at all, VLC browses a server it is given: Media, Open
+Network Stream, `upnp://ADDRESS:8200/ctl/ContentDir?ObjectID=0` - with
+the server edge's address, and minidlna's port and path (another server's
+are in its description, the `controlURL` of its ContentDirectory).
+
 ## The tray app
 
 `n3n-be-tray.exe` shows the edge in the notification area and does the
