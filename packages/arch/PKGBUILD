@@ -41,8 +41,9 @@ package_n3n-be() {
 }
 
 package_n3n-be-networkmanager() {
-    pkgdesc="n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli, nm-connection-editor"
+    pkgdesc="n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli, nm-connection-editor (experimental)"
     depends=(n3n-be libnm glib2)
+    install=n3n-be-networkmanager.install
     optdepends=('libnma-gtk4: the settings page in GNOME Settings, the dialog for a key in the keyring'
                 'libnma: the settings page in nm-connection-editor'
                 'gnome-shell: the extension with the peers and the exits in the quick settings')

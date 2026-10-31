@@ -1,0 +1,17 @@
+# the plugin of NetworkManager and the GNOME Shell extension: experimental
+note() {
+    cat <<'EON'
+n3n-be-networkmanager is experimental: the VPN in GNOME's Settings and
+nmcli, and the GNOME Shell extension, still need work, see
+https://github.com/HoneyBunnyQT/n3n-be/blob/main/docs/quick_start/GNOME.md
+The edge's own services (n3n-be-edge@NAME) are the well-tried way.
+EON
+}
+
+post_install() {
+    note
+}
+
+post_upgrade() {
+    note
+}

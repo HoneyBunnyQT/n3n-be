@@ -5,6 +5,11 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # GNOME and NetworkManager
 
+> **Experimental.** The plugin and the GNOME Shell extension are a first,
+> basic version: they still need work, also in what they do.  The edge's
+> own services (`n3n-be-edge@NAME`, see [Systemd](../configure/Systemd.md))
+> are the well-tried way.
+
 n3n-be as a VPN of NetworkManager: set up in GNOME's Settings (Network,
 VPN) like any other VPN, switched on and off in the top bar's quick
 settings, the key in the system's or in your own keyring - and with the

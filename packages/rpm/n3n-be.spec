@@ -33,7 +33,7 @@ own, so it installs next to n3n.
 
 %if %{with networkmanager}
 %package networkmanager
-Summary: n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli
+Summary: n3n-be as a VPN of NetworkManager: GNOME's Settings, nmcli (experimental)
 Requires: %{name} = %{version}-%{release}
 Requires: NetworkManager
 
@@ -43,6 +43,9 @@ nmcli, switched on in the top bar, the key in the system's or the user's
 keyring; and a GNOME Shell extension with the peers in the quick
 settings, the exits among them marked, one to route all traffic
 through chosen there.  See docs/quick_start/GNOME.md.
+
+Experimental: it still needs work, also in what it does.  The edge's own
+services (n3n-be-edge@NAME) are the well-tried way.
 %endif
 
 %prep
@@ -148,6 +151,13 @@ if [ -f /bin/systemctl ]; then
       # NOTE: do not enable any services during first installation
   fi
 fi
+
+%if %{with networkmanager}
+%post networkmanager
+echo "n3n-be-networkmanager is experimental: the VPN in GNOME's Settings and nmcli, and the"
+echo "GNOME Shell extension, still need work, see docs/quick_start/GNOME.md.  The edge's own"
+echo "services (n3n-be-edge@NAME) are the well-tried way."
+%endif
 
 %preun
 if [ -f /bin/systemctl ]; then

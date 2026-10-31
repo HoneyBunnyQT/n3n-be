@@ -42,7 +42,8 @@ Android.  Its names are its own, so that it installs next to n3n.
 - [Your First Network](quick_start/Config.md): a supernode and two edges,
   in a few minutes
 - [Windows](quick_start/Windows.md), [GNOME and
-  NetworkManager](quick_start/GNOME.md): the edge on the desktop
+  NetworkManager](quick_start/GNOME.md) (experimental): the edge on the
+  desktop
 
 ## What n3n-be adds
 
@@ -63,7 +64,7 @@ checks that against upstream n3n every week.  On top of it:
 - **More places:** TUN mode for macOS and Android, an
   [Android app](https://github.com/HoneyBunnyQT/n3n-be/tree/main/android),
   a tray app and installer for Windows, a VPN of NetworkManager for
-  [GNOME](quick_start/GNOME.md),
+  [GNOME](quick_start/GNOME.md) (experimental),
   multicast for protocols without IP (PROFINET, NetBEUI)
 
 Every change is tested hard: each push runs dozens of NAT scenarios in

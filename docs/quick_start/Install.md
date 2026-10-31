@@ -49,7 +49,7 @@ sudo pacman -U n3n-be-3.4.8-1-x86_64.pkg.tar.zst
 
 On Fedora and Arch, `n3n-be-networkmanager` next to it makes n3n-be a VPN
 of NetworkManager - set up in GNOME's Settings, switched on in the top bar:
-see [GNOME and NetworkManager](GNOME.md).
+see [GNOME and NetworkManager](GNOME.md) (experimental).
 
 The Linux packages put the configuration in `/etc/n3n-be/` and bring
 systemd units, which are not enabled until you configure them: see

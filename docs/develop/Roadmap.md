@@ -549,6 +549,12 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       polkit's network-control asked; tested in GNOME Shell itself on Xvfb
       (`tests/nm/shell.sh`).  Next: a settings page for KDE's Plasma, IPv6
       handed to NetworkManager
+- [ ] Further develop the basic GNOME panel support (2026-10-31): the
+      plugin and the Shell extension are experimental - the first tests in
+      use did not go well, which is still to be looked at; and they need
+      more in what they do.  Said so in docs/quick_start/GNOME.md and when
+      the package `n3n-be-networkmanager` is installed (Arch's .install,
+      rpm's %post), until it is well tried
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS); fewer
       privileges (Landlock, seccomp; dropping all capabilities but
       CAP_NET_ADMIN is there); `n3n-edge tools init`, writing a first
