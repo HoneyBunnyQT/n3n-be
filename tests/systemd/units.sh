@@ -113,8 +113,10 @@ community_file = $ETC/n3n-be-unittest.communities
 password = $PASSWORD
 EOF
 echo n3n-be-unittest >"$ETC/n3n-be-unittest.communities"
-for e in a:1 b:2; do
-    IFS=: read -r name host <<<"$e"
+# a may route all traffic through b while it runs: on Linux only if it
+# starts with tuntap.route_all, without a gateway it waits for one
+for e in a:1:true b:2:false; do
+    IFS=: read -r name host route_all <<<"$e"
     cat >"$ETC/n3n-be-unittest-$name.conf" <<EOF
 [community]
 name = n3n-be-unittest
@@ -124,6 +126,7 @@ supernode = 127.0.0.1:$PORT
 name = n3nut$name
 address = 10.98.6.$host/24
 address_mode = static
+route_all = $route_all
 [management]
 password = $PASSWORD
 EOF

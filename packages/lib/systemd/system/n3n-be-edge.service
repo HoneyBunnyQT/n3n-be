@@ -44,8 +44,10 @@ SystemCallErrorNumber=EPERM
 ExecStartPre=
 ExecStart=/usr/sbin/n3n-be-edge start
 # reads the configuration again: what can change while running changes,
-# see docs/configure/ConfigurationFiles.md
-ExecReload=/bin/kill -HUP $MAINPID
+# see docs/configure/ConfigurationFiles.md.  "+": outside the sandbox, as
+# the edge runs as n3n-be by then, which root without CAP_KILL (not in the
+# bounding set) may not signal
+ExecReload=+/bin/kill -HUP $MAINPID
 Restart=on-abnormal
 RestartSec=5
 
