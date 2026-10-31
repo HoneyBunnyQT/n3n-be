@@ -302,7 +302,6 @@ N2N_THREAD_RETURN_DATATYPE resolve_thread (N2N_THREAD_PARAMETER_DATATYPE p) {
     time_t rep_time = N2N_RESOLVE_INTERVAL / 10;
     time_t now;
 
-    n3n_sandbox_thread_started();
     pthread_mutex_lock(&param->access);
 
     while(!param->stop) {

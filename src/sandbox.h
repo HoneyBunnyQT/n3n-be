@@ -25,11 +25,9 @@ struct n3n_sandbox_paths {
 // if it failed.  Says in the log what it did.
 int n3n_sandbox_enter (const struct n3n_sandbox_paths *p);
 
-// A thread that may call n3n_sandbox_join() calls this first, at its start
-void n3n_sandbox_thread_started (void);
-
-// For a thread started before n3n_sandbox_enter(): takes the same, once;
-// does nothing in a thread started after it, and where there is none
+// For a thread that may have started before n3n_sandbox_enter(): takes the
+// same, once (in one started after it, a second layer of the same); does
+// nothing while there is none
 void n3n_sandbox_join (void);
 
 // What there is, for get_info: "landlock ABI 6", "off", "not in this

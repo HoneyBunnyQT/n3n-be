@@ -125,7 +125,6 @@ static const char *thread_before, *thread_after;
 static void *early_thread (void *arg) {
 
     (void)arg;
-    n3n_sandbox_thread_started();
     pthread_mutex_lock(&lock);
     while(step == 0) {
         pthread_cond_wait(&cond, &lock);

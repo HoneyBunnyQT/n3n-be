@@ -17,8 +17,10 @@
  *
  * Landlock limits the thread that enters it, and what that thread starts
  * after: the threads started before (the resolver's) take the same rules
- * themselves, n3n_sandbox_join() - once, and not those started inside,
- * which have them (each time again would stack them, 16 at most).  Programs the edge runs keep them.
+ * themselves, n3n_sandbox_join(), once.  A thread cannot tell whether it
+ * started before or inside; one started inside takes the same rules once
+ * more, a second layer of the same - never more, as each new thread starts
+ * from the main thread's one.  Programs the edge runs keep them.
  * Signals to processes outside it and abstract Unix sockets outside it
  * are kept away too where the kernel can (ABI 6).  Network access is not
  * restricted: the daemons talk to whoever the configuration says.
@@ -100,7 +102,8 @@ struct ll_path_beneath_attr {
 
 #define R       (LL_FS_READ_FILE | LL_FS_READ_DIR)
 
-// the ruleset, for the threads that join later; -1 while there is none
+// the ruleset, for the threads that join later; -1 while there is none.
+// Atomic: a thread may start (and look) while another enters
 static int ruleset = -1;
 static N3N_THREAD_LOCAL bool joined;
 
@@ -163,12 +166,12 @@ static void allow_link_targets (int fd, uint64_t handled) {
 }
 
 
-static int restrict_self (void) {
+static int restrict_self (int fd) {
 
     if(prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
         return -1;
     }
-    return (int)syscall(SYS_landlock_restrict_self, ruleset, 0);
+    return (int)syscall(SYS_landlock_restrict_self, fd, 0);
 }
 
 
@@ -259,15 +262,15 @@ int n3n_sandbox_enter (const struct n3n_sandbox_paths *p) {
         }
     }
 
-    ruleset = fd;
-    if(restrict_self() != 0) {
+    if(restrict_self(fd) != 0) {
         snprintf(state, sizeof(state), "failed");
         traceEvent(TRACE_WARNING, "sandbox: Landlock did not take it (%s): none", strerror(errno));
         close(fd);
-        ruleset = -1;
         return -1;
     }
     joined = true;
+    // for the threads started before, once this one has it
+    __atomic_store_n(&ruleset, fd, __ATOMIC_RELEASE);
     snprintf(state, sizeof(state), "landlock ABI %ld", abi);
     traceEvent(TRACE_NORMAL, "sandbox: Landlock (ABI %ld): the files it needs only%s", abi,
                (abi >= 6) ? ", no signals out of it" : "");
@@ -275,20 +278,15 @@ int n3n_sandbox_enter (const struct n3n_sandbox_paths *p) {
 }
 
 
-void n3n_sandbox_thread_started (void) {
-
-    // a thread started inside has it already
-    joined = (ruleset >= 0);
-}
-
-
 void n3n_sandbox_join (void) {
 
-    if(joined || (ruleset < 0)) {
+    int fd = __atomic_load_n(&ruleset, __ATOMIC_ACQUIRE);
+
+    if(joined || (fd < 0)) {
         return;
     }
     joined = true;
-    if(restrict_self() != 0) {
+    if(restrict_self(fd) != 0) {
         traceEvent(TRACE_WARNING, "sandbox: a thread could not take it (%s)", strerror(errno));
     }
 }
@@ -300,10 +298,6 @@ int n3n_sandbox_enter (const struct n3n_sandbox_paths *p) {
     (void)p;
     snprintf(state, sizeof(state), "not on this system");
     return 0;
-}
-
-
-void n3n_sandbox_thread_started (void) {
 }
 
 
