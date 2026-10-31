@@ -579,8 +579,11 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       capabilities' bounding set, `@system-service`, ...; exposure 9.4 /
       9.1 down to 2.8 / 1.7), tested under the runner's systemd
       (`tests/systemd/units.sh`, also the community file as an encrypted
-      credential).  Next: Windows dropping the token's privileges after
-      the start; Landlock in both daemons.  To decide: CAP_NET_ADMIN given
+      credential); on Windows the token's privileges removed after the
+      start, all but SeChangeNotify (and SeLoadDriver with Wintun),
+      checked in `tests/windows/wintun.sh` (`privileges.ps1`) while all
+      traffic through an exit, the DNS rule and the adapters' removal
+      still work.  Next: Landlock in both daemons.  To decide: CAP_NET_ADMIN given
       up where `tuntap.route_all` is not used (a restart to switch it on)
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
@@ -1352,7 +1355,7 @@ Open, in rough order:
   `PKG_VERSION` where the package takes `BUILD_VERSION`, and compiles
   without `USE_SOURCE_DIR`.
 - IPv6 inside the tunnel: on a phone, then other systems.
-- Fewer privileges (Next): Windows' token, Landlock.
+- Fewer privileges (Next): Landlock.
 - All traffic through an exit peer: tried on Windows, the switching
   from the management page too (Next).
 - Releases: the channels - decisions to take.

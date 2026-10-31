@@ -73,6 +73,7 @@
 
 #ifdef _WIN32
 #include "../src/win32/defs.h"  // FIXME: untangle the include path
+#include "../src/win32/privileges.h"  // for win32_drop_privileges
 #include "../src/win32/wintun.h"  // for wintun_wake_fd
 #else
 #include <netinet/in.h>              // for INADDR_ANY, INADDR_NONE, ntohl
@@ -1296,6 +1297,12 @@ int n3n_edge_main (int argc, char* argv[]) {
     eee->client.last_sweep = now - SWEEP_TIME + 2 * BOOTSTRAP_TIMEOUT;
     eee->client.sn_wait = 1;
     eee->client.last_register_req = 0;
+
+#ifdef _WIN32
+    // what the start needed and the rest does not - with a Wintun adapter,
+    // what makes it anew and removes it; see src/win32/privileges.c
+    win32_drop_privileges(eee->tap.device.wintun != NULL);
+#endif
 
 #ifndef _WIN32
     if(conf.background) {

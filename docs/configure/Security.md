@@ -87,3 +87,15 @@ none.  On Linux the edge keeps one of root's rights, `CAP_NET_ADMIN`, for
 
 The packages' systemd units take away the rest - files, devices, system
 calls, kernel settings -, see [Running as a Service](Systemd.md#the-sandbox).
+
+On Windows, where the edge runs as an administrator or as LocalSystem
+(the service), it removes the privileges of its token once its adapter
+is up, for good: debugging other processes, reading and writing files
+past their permissions (backup, restore), taking ownership, acting as
+part of the system, impersonating, and the rest.  It keeps only the one
+every user has (to pass through directories), and, with a Wintun
+adapter, loading drivers, to make the adapter anew and remove it at the
+end; the supernode keeps only the first.  The log says how many it
+dropped.  It is still SYSTEM or an administrator by its groups, with what
+the permissions of files and keys give those: this takes away the
+shortcuts, not all of it.

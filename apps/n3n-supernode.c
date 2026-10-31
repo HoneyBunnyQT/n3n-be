@@ -54,6 +54,7 @@
 
 #ifdef _WIN32
 #include "../src/win32/defs.h"  // FIXME: untangle the include path
+#include "../src/win32/privileges.h"  // for win32_drop_privileges
 #else
 #include <arpa/inet.h>         // for inet_addr
 #include <netinet/in.h>        // for ntohl, INADDR_ANY, INADDR_NONE, in_addr_t
@@ -729,6 +730,9 @@ int n3n_supernode_main (int argc, char * argv[]) {
             "running as root is discouraged, check out the userid/groupid options"
         );
     }
+#else
+    // what the start needed and the rest does not, see src/win32/privileges.c
+    win32_drop_privileges(false);
 #endif
 
     sn_init(&sss_node);

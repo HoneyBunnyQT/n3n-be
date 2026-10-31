@@ -142,6 +142,23 @@ for e in a:1 b:2; do
     check "adapter n3n-be-wt$name" $? "MTU ${mtu:-none}"
 done
 
+# the token's privileges once each has started, src/win32/privileges.c:
+# the edges with a Wintun adapter keep loading drivers, the supernode not
+for e in "edge start wta:a" "edge start wtb:b" "supernode start wtsn:sn"; do
+    IFS=: read -r match name <<<"$e"
+    if [ "$name" = sn ]; then
+        allowed="SeChangeNotifyPrivilege"
+    else
+        allowed="SeChangeNotifyPrivilege SeLoadDriverPrivilege"
+    fi
+    out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/privileges.ps1")" \
+        -Match "$match" 2>&1 | tr -d '\r')
+    privs=$(echo "$out" | sed -n 's/^[0-9]*: //p')
+    extra=$(for p in $privs; do case " $allowed " in *" $p "*) ;; *) echo "$p" ;; esac; done | xargs)
+    [ -n "$privs" ] && [ -z "$extra" ] && grep -q "dropped [0-9]* of the token's" "$WORK/$name.log"
+    check "privileges of $name" $? "${out:-none} $(grep -o "dropped .*" "$WORK/$name.log" | head -1)${extra:+ - not dropped: $extra}"
+done
+
 index_a=$(psh "(Get-NetAdapter -Name n3n-be-wta -ErrorAction SilentlyContinue).ifIndex")
 index_b=$(psh "(Get-NetAdapter -Name n3n-be-wtb -ErrorAction SilentlyContinue).ifIndex")
 out=$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$(cygpath -w "$HERE/broadcast.ps1")" \
