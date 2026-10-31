@@ -266,7 +266,7 @@ class MainActivity : Activity() {
 
     /** The peers that announce themselves as exits, below the exit peer's
      * field: a tap puts one's address there, a long press says what its dot
-     * means; under them, what the dots mean */
+     * means */
     private fun showExits(list: List<Status.Exit>) {
         if (list == exitsShown) {
             return
@@ -294,15 +294,6 @@ class MainActivity : Activity() {
                 }
             }
             exits.addView(entry)
-        }
-        if (list.isNotEmpty()) {
-            for (confirmed in listOf(true, false)) {
-                val legend = TextView(this)
-                legend.text = dotted(confirmed, getString(if (confirmed) R.string.exit_confirmed else R.string.exit_says))
-                legend.setTextColor(getColor(R.color.text_dim))
-                legend.textSize = 12f
-                exits.addView(legend)
-            }
         }
         exits.visibility = if (list.isEmpty()) View.GONE else View.VISIBLE
     }

@@ -289,12 +289,14 @@
                     android:textColorHint="@color/text_dim" />
 
                 <!-- the peers that announce themselves as exits to the
-                     internet: a tap takes one, see MainActivity.showExits() -->
+                     internet: a tap takes one, see MainActivity.showExits();
+                     half a line more below them, before the DNS server -->
                 <LinearLayout
                     android:id="@+id/exits"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
+                    android:paddingBottom="10dp"
                     android:visibility="gone">
 
                     <TextView
