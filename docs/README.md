@@ -73,6 +73,9 @@ tests with releases of n3n and n2n (see [Testing](develop/testing.md)).
 
 ## Documentation
 
+- [What It Is Good For](UseCases.md): what people do with it - their
+  computers wherever they are, home from outside, media servers, games,
+  machines at other sites
 - [Configuration](configure/index.md): edges, supernodes, communities,
   security, and [every option](configure/Options.md)
 - [Advanced Topics](advanced/index.md): NAT traversal, routing, bridging,

@@ -1339,11 +1339,12 @@ Open, in rough order:
 - All traffic through an exit peer: tried on Windows, the switching
   from the management page too (Next).
 - Releases: the channels - decisions to take.
-- DLNA/SSDP between edges (VLC on Windows, minidlna on Linux): found out
-  and documented (2026-10-31, quick_start/Windows.md, "Media servers in
-  the community").  Not n3n's: VLC 3's UPnP client on Windows starts
-  libupnp on one adapter only, the first with a default gateway (its
-  `getPreferedAdapter()`), so never the edge's - its `--miface` (the
+- DLNA/SSDP between edges (VLC on Windows and Linux, minidlna on Linux):
+  found out and documented (2026-10-31, UseCases.md, a page of what
+  n3n-be is good for, new for it).  Not n3n's: VLC 3's UPnP client starts
+  libupnp on one interface only - on Windows the first with a default
+  gateway (its `getPreferedAdapter()`), on Linux the first that is up -,
+  so not the edge's - its `--miface` (the
   "Multicast output interface") names the adapter; besides
   `filter.allow_multicast` on both edges, Windows' public profile on the
   adapter, and minidlna answering only its interfaces' subnets (and,
