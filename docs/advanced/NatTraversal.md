@@ -94,7 +94,7 @@ shows the hint of a peer it does not reach directly yet as `nat` in
 | this edge | its peer | result |
 |-----------|----------|--------|
 | easy | easy | direct |
-| easy or unknown | hard, range up to 4096 ports | direct after some rounds of guessing, see below; a few with `punch_sockets` on the hard side |
+| easy or unknown | hard, range up to 4096 ports | direct after some rounds of guessing, a minute or two (see below) |
 | hard, range up to 4096 ports | easy or unknown | the same, the peer guesses |
 | any | hard, wider range | through the supernode |
 | hard | hard | through the supernode, now and then direct by luck (see below) |
@@ -107,93 +107,149 @@ peers, say, and another towards a second supernode.  Which supernode the
 edge is registered at can change, and with it whether the peers get
 through.
 
-Behind a hard NAT, the peer's REGISTERs to the edge's public port leave from
-a public port of their own, one the edge has not sent to, so the edge's NAT
-drops them.  But the peer tells the range of its ports, so in each round of
-registrations - every `connection.register_interval`, 20 seconds by default -
-the edge sends REGISTERs to a few more ports of that range, in a random
-order.  Meanwhile the peer keeps sending a REGISTER to the edge's public
-port every round, which keeps its own public port for the edge the same.
-Once one of the edge's REGISTERs meets that port, the peer's NAT lets it
-in, the peer answers, and the two are connected directly.
+### Why a hard NAT is hard
 
-`connection.punch_ports` sets how many ports the edge tries per round, 16
-by default; 0 turns it off.  At 16 ports every 20 seconds, the edge is
-through a range of 1024 ports in 21 minutes, and meets the peer's port after
-half of that on average; until then the traffic goes through the supernode
-as before.  The rounds only happen while the two edges try to reach each
-other.  Kept this slow, they add little to the REGISTERs sent anyway and do
-not look like a burst of probes.
+A NAT is a door keeper with many doors - its public ports - and two
+rules: a door opens only when someone inside sends out through it, and
+then only for the one place sent to.  An easy NAT keeps one door per
+edge, whoever it sends to: the door the supernode saw is the one peers
+knock on, and once the edge sent to a peer there, it opens for that peer.
+A hard NAT takes a **new door for every destination**: the door the
+supernode saw is the supernode's alone, and the one the edge will use
+towards a peer nobody knows - not the peer, not the supernode, not the
+edge itself.
+
+So with an easy edge E and a peer H behind a hard NAT, the punching of
+[above](#nat-traversal) falls short halfway.  H sends a REGISTER straight
+to E's door, which E's NAT does not let in: it comes from a door of H's
+that E never sent to.  But it did open that door of H's - for E, and only
+for E.  E would have to send to it, and does not know which it is.  It
+knows the range, though: the hint in H's REGISTERs through the supernode
+says between which ports the supernodes saw H.  So E **guesses**.
+
+### Guessing
+
+Each round of registrations - every `connection.register_interval`, 20
+seconds by default - E sends REGISTERs to `connection.punch_ports` more
+ports of the range, 16 by default, in a random order that tries none
+twice.  Meanwhile H sends a REGISTER to E's door every round, which keeps
+its own door for E open, and the same.  When one of E's guesses hits it,
+H's NAT lets it in, H answers, E's NAT lets the answer in - E just sent
+to where it comes from - and the two are connected directly.
+
+With one door to find among 1024, that takes long: half the range on
+average, 512 guesses, 32 rounds - **11 minutes**, and 19 before it is
+nine times out of ten.  The traffic goes through the supernode meanwhile,
+so nothing waits for it; but direct it is late.
+
+### More doors: the birthday paradox
+
+In a room of 23 people, the chance that two of them share a birthday is
+just over a half - while the chance that one of the others has *your*
+birthday is under 6 %.  The difference: you look for one particular day;
+the room looks for any match, among 253 pairs.  Matches are found much
+sooner where any of many will do.
+
+The same works for doors.  H opens `connection.punch_sockets` more
+sockets towards a peer that guesses, 32 by default, and sends a REGISTER
+from each of them every round as well.  Its NAT gives each socket a door
+of its own, in the same range, each open for E - and E's guesses now hit
+**any of 33 doors** instead of one.  Each guess hits with a chance of
+33 in 1024; the chances of missing multiply, so 16 guesses miss all of
+them only 59 times in 100: one round gets through 41 times in 100, two
+rounds 64.  Until it gets through, at 16 guesses every 20 seconds:
+
+| range in the hint | one door: half the time / 9 in 10 | 33 doors: half the time / 9 in 10 |
+|---|---|---|
+| 1024 ports | 11 min / 19 min | 40 s / under 2 min |
+| 2048 ports | 21 min / 39 min | 1 min / 3 min |
+| 4096 ports | 43 min / 77 min | 2 min / 6 min |
+
+A rule of thumb: what counts is **doors times guesses**, against the
+range.  Where it comes to seven tenths of the range, the odds are even;
+at 33 doors and 16 guesses, 528 a round, that is about one round for a
+range of 1024.
+
+The pool stays the same from round to round, so E's walk through the
+range meets each of its doors once.  The socket E gets through to carries
+everything to and from E from then on - its NAT lets E in on that door
+only - and the rest of the pool is closed.  A pool is closed too when its
+peer has not been tried for two rounds, and a socket that got through
+when nothing came from the peer for two minutes.  0 turns the pool off.
 
 The range is the one the supernodes happened to see, rounded out.  A NAT
-that hands out ports from a wider block may pick one outside it; the edge
-then keeps going round without meeting it.
+that hands out doors from a wider block may pick one outside it; E then
+keeps going round without meeting it.  E keeps the door H answered from:
+when the traffic goes one way only, the sending edge drops the peer every
+half `register_interval` and registers again, as with any peer, and a
+REGISTER to the door it kept brings the direct connection back at once,
+as long as H's NAT keeps the door.
 
-The edge keeps the port the peer answered from.  When the traffic goes one
-way only, the sending edge drops the peer every half `register_interval`
-and registers again, as with any peer; a REGISTER to the port it kept brings
-the direct connection back at once, as long as the peer's NAT keeps the port.
-
-Ranges wider than 4096 ports - a NAT that picks a random port from the
-whole range for every destination - are not tried: guessing the one port
-out of tens of thousands this way would hardly ever succeed.
-
-Both edges need this version: the hard one to send its hint and keep its
-port, the easy one to guess.
-
-### More ports for the peer to meet
-
-With one public port to meet, the guessing takes long.  So the edge behind
-the hard NAT opens `connection.punch_sockets` more sockets towards a peer
-that guesses, 32 by default, and sends a REGISTER from each of them every
-round as well.  Its NAT gives each socket a public port of its own, in the
-same range, and the peer can meet any of them.  On average, until the first
-guess meets one, at 16 ports every 20 seconds:
-
-| range in the hint | `punch_sockets=0` | `punch_sockets=32` |
-|-------------------|-------------------|--------------------|
-| 1024 ports        | 32 rounds, 11 minutes | 2 rounds, under a minute |
-| 2048 ports        | 64 rounds, 21 minutes | 4 rounds, about a minute |
-| 4096 ports        | 128 rounds, 43 minutes | 8 rounds, under 3 minutes |
-
-The pool stays the same from round to round, so the peer's walk through
-the range meets each of its ports once.  The socket the peer gets through to
-carries everything to and from that peer from then on - its NAT lets the
-peer in on that one port only - and the rest of the pool is closed.  A pool
-is closed too when its peer has not been tried for two rounds, and a socket
-that got through when nothing came from the peer for two minutes.  All pools
-together hold at most 64 sockets: a NAT that gives every customer a block of
-ports is not to be emptied by one edge.  0 turns this off.
-
-A peer whose class is not known - an older edge, which sends no hint, or
-one that has not heard from its supernodes yet, as in the first seconds -
-may be easy, so it gets a pool too.  When that peer is behind a hard NAT
-as well, one of the pool's ports now and then meets the one its NAT opened
-towards us, and the two get through directly after all.
-
-Only the edge behind the hard NAT needs this version; the peer guesses as
-before.  It shows in the log:
+It shows in the log of the edge behind the hard NAT:
 
 ```
 02:00:00:00:0A:01 [192.0.2.1:40846] got through the NAT to socket 6 of 32 (local port 39609)
 ```
 
-#### A TTL for the extra REGISTERs
+Both edges need this version: H to send its hint, keep its door and open
+the pool, E to guess.
 
-The REGISTERs from these sockets are only there to make the NAT open a port.
-They need not reach the peer, whose NAT drops them anyway.  With
-`connection.punch_ttl`, they leave with a TTL just big enough to get through
-the edge's own NATs, and the peer's network never sees a burst of packets
-from many ports.  The value is the number of routers up to and including the
-last NAT, plus one: 2 behind a home router, 3 behind a home router directly
-behind a carrier NAT.  A traceroute towards the supernode shows the routers;
-the last NAT is usually the last one with a private (10/8, 172.16/12,
-192.168/16) or shared (100.64/10) address.
+### Why not more
 
-Too small, and the outer NAT never sees the REGISTERs: it opens no ports,
-the peer never gets through, and the traffic stays with the supernode, as
-without this.  0, the default, leaves the system's TTL.  The socket that
-gets through gets that back before it answers.
+Some programs open hundreds of doors and send hundreds of guesses at once
+- 256 and 256 find a door in a whole range of 65536 ports 63 times in
+100.  n3n-be stays small and slow on purpose:
+
+- **Doors are not free.**  A carrier NAT often gives each customer a
+  block of a few hundred to a few thousand ports, for all of the
+  customer's devices.  All pools together hold at most 64 sockets.
+- **Guesses look like a scan.**  Hundreds of packets to as many ports at
+  once is what a port scan looks like, to the peer's router and to anyone
+  watching its network.  16 every 20 seconds add little to the REGISTERs
+  sent anyway.
+- **Nothing waits.**  The traffic goes through the supernode until the
+  direct way is found; a minute or two later is no loss.
+
+A NAT that picks its doors at random from the whole range, wider than
+4096 ports, is not tried at all: at this pace, 33 doors and 16 guesses
+find one in 65536 less than once in 100 rounds.
+
+### Two hard NATs
+
+With both edges behind hard NATs, each side's door is open only for the
+door of the other it sent from - and neither door is known.  A guess has
+to hit a **pair**: the right door on one side, sent from the right door on
+the other, among range times range of them.  Even the birthday paradox
+needs hundreds of doors on both sides for that, with all the costs above.
+So two hard edges go through the supernode.
+
+Now and then they get through all the same.  A peer whose class is not
+known - an older edge, which sends no hint, or one that has not heard from
+its supernodes yet, as in the first seconds - may be easy, so it gets a
+pool too.  Where it is behind a hard NAT as well, one of the pool's doors
+now and then meets the one its NAT opened towards us.
+
+What makes any NAT easy is a door that stays: a port forwarded on the
+router to the edge's fixed port (`connection.bind`, see
+[Sockets](#sockets)), or a NAT that keeps the port.  The edge does not ask
+the router itself (UPnP, NAT-PMP).
+
+### A TTL for the pool's REGISTERs
+
+The REGISTERs from the pool are only there to make H's NAT open doors.
+They need not reach E, whose NAT drops them anyway.  With
+`connection.punch_ttl`, they leave with a TTL just big enough to get
+through the edge's own NATs, and the peer's network never sees a burst of
+packets from many ports.  The value is the number of routers up to and
+including the last NAT, plus one: 2 behind a home router, 3 behind a home
+router directly behind a carrier NAT.  A traceroute towards the supernode
+shows the routers; the last NAT is usually the last one with a private
+(10/8, 172.16/12, 192.168/16) or shared (100.64/10) address.
+
+Too small, and the outer NAT never sees the REGISTERs: it opens no doors,
+E never gets through, and the traffic stays with the supernode, as
+without the pool.  0, the default, leaves the system's TTL.  The socket
+that gets through gets that back before it answers.
 
 ## A direct path that loses packets
 
