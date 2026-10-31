@@ -594,7 +594,9 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       Found on the way: the supernode's crash at every stop without a
       session name, as its systemd unit starts it (on `fixes` too), and
       the edges' `systemctl reload` failing in the sandboxed unit (kill
-      without CAP_KILL).  To decide: CAP_NET_ADMIN given up where
+      without CAP_KILL), and `tuntap.dns` failing on systemd 254 and
+      newer once the edge runs as n3n-be (resolved asks polkit, not for
+      CAP_NET_ADMIN any more: a polkit rule in the packages now).  To decide: CAP_NET_ADMIN given up where
       `tuntap.route_all` is not used (a restart to switch it on)
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
