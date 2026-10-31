@@ -39,7 +39,11 @@ check() {
 sed -e "s/#.*//" -e "/^ *$/d" tests/tests_units.list >"$OUT/list"
 while read -r i; do
     "$@" "tools/$i" >"$OUT/$i" 2>/dev/null </dev/null
-    if [ "$i" = "tests-wire" ]; then
+    if [ $? = 77 ]; then
+        # what it needs is not there: tests-sandbox, as qemu-user has no
+        # Landlock
+        echo "SKIP $i: $(head -1 "$OUT/$i")"
+    elif [ "$i" = "tests-wire" ]; then
         sed -i '/^pattern_/,$d' "$OUT/$i"
         sed '/^pattern_/,$d' "tests/$i.expected" >"$OUT/$i.expected"
         check "$i" "$OUT/$i.expected"

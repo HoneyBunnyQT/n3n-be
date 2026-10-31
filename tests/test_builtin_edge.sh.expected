@@ -35,6 +35,7 @@ threads=0
 userid=0
 groupid=0
 background=false
+sandbox=false
 
 [filter]
 allow_multicast=false
