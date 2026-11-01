@@ -417,7 +417,10 @@ See the docs/internals/ManagementAPI.md for details.
 
 .SH EXIT STATUS
 When edge is run as a daemon, any exit is an error.  In other cases, the exit
-status will be 0 for no issues found.
+status will be 0 for no issues found.  75 says that the edge lost its device
+and could not open it again, as it has given up the rights for that: its
+service manager may start it anew (the packaged systemd units do,
+\fBRestartForceExitStatus=75\fR).
 .SH AUTHORS
 .TP
 Hamish Coleman

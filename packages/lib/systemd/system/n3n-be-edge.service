@@ -49,6 +49,9 @@ ExecStart=/usr/sbin/n3n-be-edge start
 # bounding set) may not signal
 ExecReload=+/bin/kill -HUP $MAINPID
 Restart=on-abnormal
+# 75: the edge lost its device and could not open it again, without the
+# rights of its start - which starting it anew gives it back
+RestartForceExitStatus=75
 RestartSec=5
 
 [Install]

@@ -22,6 +22,7 @@
 #   b's address as the DNS server of a's device, as polkit lets n3n-be by
 #   the packages' rule; then back.  While all
 #   traffic goes through b, the host has no way out: a few seconds.
+# - b's device taken away: b stops (75), systemd starts it anew
 # - each stops, and its session directory goes
 #
 #   sudo tests/systemd/units.sh       (after make)
@@ -264,6 +265,20 @@ if systemctl is-active -q systemd-resolved && [ -e "$POLKIT" ]; then
 else
     echo "skip route_all: no systemd-resolved, or no polkit"
 fi
+
+# b's device taken away: b cannot open it again, without the rights of its
+# start, stops with 75, and systemd starts it anew (RestartForceExitStatus)
+restarts=$(systemctl show -p NRestarts --value "$EB")
+ip link del n3nutb
+for _ in $(seq 30); do
+    [ "$(systemctl show -p NRestarts --value "$EB")" != "$restarts" ] && \
+        ip link show n3nutb >/dev/null 2>&1 && systemctl is-active -q "$EB" && break
+    sleep 1
+done
+[ "$(systemctl show -p NRestarts --value "$EB")" != "$restarts" ] && \
+    ip link show n3nutb >/dev/null 2>&1 && systemctl is-active -q "$EB"
+check "device lost" $? "$EB restarted $(systemctl show -p NRestarts --value "$EB") time(s), \
+n3nutb $(ip link show n3nutb >/dev/null 2>&1 && echo back || echo missing)"
 
 systemctl stop "$EA" "$EB" "$SN"
 for d in n3n-be-unittest-a n3n-be-unittest-b supernode; do

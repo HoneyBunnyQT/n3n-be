@@ -1616,7 +1616,7 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
 
     supernode_disconnect(eee);
 
-    return 0;
+    return eee->exit_code;
 }
 
 /* ************************************** */
@@ -2161,7 +2161,15 @@ void edge_tap_reopen (struct n3n_runtime_data *eee) {
     // with it in edge_tap_open()
     route_all_down(eee);
     tuntap_close(&(eee->tap.device));
-    edge_tap_open(eee);
+    if(edge_tap_open(eee) < 0) {
+        // without the rights of its start, which it has given up: an edge
+        // without its device is no edge, the service manager is to start it
+        // anew (exit code N3N_EXIT_RESTART)
+        traceEvent(TRACE_ERROR, "the device could not be opened again: stopping, to be started anew");
+        eee->exit_code = N3N_EXIT_RESTART;
+        *eee->keep_running = false;
+        return;
+    }
 #ifndef _WIN32
     mainloop_register_fd(eee->tap.device.fd, fd_info_proto_tuntap);
 #else

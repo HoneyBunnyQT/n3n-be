@@ -845,6 +845,7 @@ struct n3n_runtime_data {
     struct edge_threads *threads;       /* NULL unless PACKETs are handled by several threads, see edge_threads.h */
 
     bool                             *keep_running;                      /**< Pointer to edge loop stop/go flag */
+    int exit_code;                      /* what run_edge_loop() returns: 0, or N3N_EXIT_RESTART */
     time_t start_time;                                                   /**< For calculating uptime */
 
     slots_t *mgmt_slots;

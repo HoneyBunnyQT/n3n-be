@@ -153,6 +153,11 @@ enum n3n_event_topic {
 // what the program calls itself - its files keep upstream's names, as a
 // drop-in replacement for n3n - and where it comes from
 #define N3N_PROGRAM                "n3n-be"
+
+/* The exit code of an edge that lost its device and could not open it again
+ * (EX_TEMPFAIL): its service manager may start it anew, which opens it with
+ * the rights of the start (RestartForceExitStatus= in the systemd units) */
+#define N3N_EXIT_RESTART           75
 #define N3N_PROGRAM_URL            "https://github.com/HoneyBunnyQT/n3n-be"
 #define N2N_DEFAULT_TTL            2  /* can be forwarded twice at most */
 #define N2N_COMMUNITY_SIZE         20

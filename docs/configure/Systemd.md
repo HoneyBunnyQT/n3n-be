@@ -44,6 +44,12 @@ it in `/etc/n3n-be`, readable for the group `n3n-be`:
 sudo install -m 640 -g n3n-be community.list /etc/n3n-be/
 ```
 
+If the edge loses its device - it is taken away, a driver fails - it opens
+it again; without the rights for that, which it gave up after the start, it
+stops with exit code 75, and the units start it anew
+(`RestartForceExitStatus=75`), with the rights of a start.  Any other exit
+of its own, a configuration it cannot use say, is not repeated.
+
 `systemctl reload` sends SIGHUP (`ExecReload`): n3n reads its configuration
 again and applies what can change while running, see [Configuration
 Files](ConfigurationFiles.md#reloading); it tells systemd so (`RELOADING=1`,
