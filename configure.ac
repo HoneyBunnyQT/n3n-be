@@ -181,9 +181,14 @@ AS_IF([test "x$with_network_manager" != xno],
         [AC_MSG_WARN([no GTK 4 or libnma-gtk4: no settings page in GNOME's Settings, nor the dialog for a key kept in the keyring])])],
 )
 
+# pthread is there on every system n3n-be is built for: on by default,
+# --disable-pthread leaves it out - the resolver then blocks the main loop,
+# and the packets have no threads.  Not yet on Windows, whose build has
+# pthread functions of its own (src/win32/n2n_win32.h) that MinGW's
+# winpthreads would clash with: off there unless asked for
 AC_ARG_ENABLE([pthread],
-    [AS_HELP_STRING([--enable-pthread], [support for pthread])],
-    [], [enable_pthread=no])
+    [AS_HELP_STRING([--disable-pthread], [without pthread: no resolver thread, no packet threads])],
+    [], [AS_CASE([$host_os], [mingw*], [enable_pthread=no], [enable_pthread=yes])])
 AS_IF([test "x$enable_pthread" != xno],
     [AC_CHECK_LIB([pthread], [pthread_mutex_trylock],,
         [AC_MSG_ERROR([pthread library not found])]

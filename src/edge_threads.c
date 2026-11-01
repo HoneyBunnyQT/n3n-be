@@ -954,7 +954,7 @@ int edge_threads_start (struct n3n_runtime_data *eee, int threads,
                         const struct edge_thread_ops *ops) {
 
     if(threads > 1) {
-        traceEvent(TRACE_WARNING, "built without pthreads (./configure --enable-pthread), using one thread");
+        traceEvent(TRACE_WARNING, "built without pthreads (./configure --disable-pthread), using one thread");
     }
     return 1;
 }

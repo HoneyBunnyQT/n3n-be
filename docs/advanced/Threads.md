@@ -20,7 +20,7 @@ link, one thread is plenty.
 ## Requirements
 
 - Linux
-- a build with `./configure --enable-pthread`
+- a build with pthread, the default (not `./configure --disable-pthread`)
 - for an edge: UDP to the supernode (not `connection.connect_tcp`)
 
 If any of these is missing, a warning is printed and one thread is used.

@@ -627,6 +627,17 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       (the edge with no rights, the helper with CAP_NET_ADMIN as
       n3n-be).  Later: the device opened anew by it (its fd handed
       back), instead of exit 75
+- [~] pthread always (asked 2026-11-01).  Step 1, done 2026-11-01: on by
+      default (`--disable-pthread`), as every system built for has it -
+      the packages, which never asked for it, now have the resolver
+      thread and `daemon.threads`; Windows stays without it, as its own
+      pthread functions (src/win32/n2n_win32.h, "rotted") clash with
+      MinGW's winpthreads.  Step 2: Windows on winpthreads, its shim
+      gone; then the paths without pthread removed (34 `#ifdef
+      HAVE_LIBPTHREAD` in six files), and with them `--disable-pthread`,
+      which would have nothing left to build: configure stops without
+      pthread.  One thread is then `daemon.threads = 1`, the default; the
+      resolver is always a thread
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`

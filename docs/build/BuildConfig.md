@@ -71,11 +71,18 @@ the parts of this software that would link against openssl have not issued
 any exceptions for this use case.  This depends on the exact versions in
 use of all the libraries concerned.
 
-### `--enable-pthread`
+### `--disable-pthread`
 
-Enable threading using the pthread library.  This is needed for edges and
-supernodes to handle packets on several threads - see
-[Threads](../advanced/Threads.md).
+Threads with the pthread library are on by default (since 2026-11-01;
+`--enable-pthread` before): the resolver looks the supernodes' names up on
+a thread of its own, and edges and supernodes can handle packets on
+several threads (`daemon.threads`, see [Threads](../advanced/Threads.md)).
+`--disable-pthread` leaves them out: the names are looked up on the main
+loop, which waits meanwhile, and packets have the main thread only.  Every
+system n3n-be is built for has pthread (glibc, musl, the BSDs, macOS), so
+this is for an odd toolchain only.  Windows builds stay without it for
+now: the Windows code has pthread functions of its own, which MinGW's
+winpthreads would clash with (`--enable-pthread` there does not build).
 
 ### `--disable-relay`
 
