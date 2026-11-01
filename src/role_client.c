@@ -41,7 +41,6 @@
 #include "punch.h"
 #include "role_client.h"
 #include "role_tap.h"
-#include "resolve.h"
 #include "sn_selection.h"
 #include "sock.h"
 #include "edge_threads.h"
@@ -1895,22 +1894,15 @@ void update_supernode_reg (struct n3n_runtime_data * eee, time_t now) {
         --(eee->client.sup_attempts);
     }
 
-    // the supernode of this process has no name to resolve, see local_link.h
-    if(eee->client.curr_sn->tcp_hostname) {
-        maybe_supernode2sock(&(eee->client.curr_sn->tcp_sock), eee->client.curr_sn->tcp_hostname);
-    }
-    if(eee->conf.client.local_link
-       || (maybe_supernode2sock(&(eee->client.curr_sn->sock), peer_info_get_hostname(eee->client.curr_sn)) == 0)) {
-        traceEvent(
-            TRACE_INFO,
-            "registering with supernode [%s][number of supernodes %d][attempts left %u]",
-            peer_info_get_hostname(eee->client.curr_sn),
-            HASH_COUNT(eee->client.supernodes),
-            (unsigned int)eee->client.sup_attempts
-        );
+    traceEvent(
+        TRACE_INFO,
+        "registering with supernode [%s][number of supernodes %d][attempts left %u]",
+        peer_info_get_hostname(eee->client.curr_sn),
+        HASH_COUNT(eee->client.supernodes),
+        (unsigned int)eee->client.sup_attempts
+    );
 
-        send_register_super(eee);
-    }
+    send_register_super(eee);
 
     register_with_local_peers(eee);
 

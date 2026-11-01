@@ -9,19 +9,13 @@
 #include "win32/defs.h"     // winsock2.h before windows.h
 #endif
 
-#include "config.h"         // for HAVE_LIBPTHREAD
-
 #include <n2n_define.h>     // for ETH_FRAMESIZE
 #include <n3n/random.h>     // for n3n_rand
 #include <stdbool.h>        // for bool
 #include <stdlib.h>         // for calloc, malloc, free
 #include <string.h>         // for memcpy, memset
 
-#ifdef HAVE_LIBPTHREAD
-#include <pthread.h>
-#elif defined(_WIN32)
-#include <windows.h>        // for CRITICAL_SECTION
-#endif
+#include <pthread.h>        // for pthread_mutex_t, pthread_mutex_lock
 
 #include "fec.h"
 #include "gf256.h"
@@ -189,11 +183,7 @@ struct fec_peer {
 };
 
 struct n3n_fec {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_t lock;
-#elif defined(_WIN32)
-    CRITICAL_SECTION lock;
-#endif
     struct fec_peer *peers;
     uint64_t purged_us;
     int open_groups;
@@ -391,20 +381,12 @@ int n3n_fec_m_burst (int k, int percent, int burst4) {
 
 
 static void fec_lock (struct n3n_fec *fec) {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_lock(&fec->lock);
-#elif defined(_WIN32)
-    EnterCriticalSection(&fec->lock);
-#endif
 }
 
 
 static void fec_unlock (struct n3n_fec *fec) {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_unlock(&fec->lock);
-#elif defined(_WIN32)
-    LeaveCriticalSection(&fec->lock);
-#endif
 }
 
 
@@ -416,11 +398,7 @@ struct n3n_fec *n3n_fec_new (void) {
         return NULL;
     }
     fec_tables();
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_init(&fec->lock, NULL);
-#elif defined(_WIN32)
-    InitializeCriticalSection(&fec->lock);
-#endif
     return fec;
 }
 
@@ -451,11 +429,7 @@ void n3n_fec_free (struct n3n_fec *fec) {
         HASH_DEL(fec->peers, p);
         peer_free(p);
     }
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_destroy(&fec->lock);
-#elif defined(_WIN32)
-    DeleteCriticalSection(&fec->lock);
-#endif
     free(fec);
 }
 

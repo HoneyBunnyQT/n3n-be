@@ -6,7 +6,6 @@
  * Android build, which runs no configure (see CMakeLists.txt)
  */
 
-#define HAVE_LIBPTHREAD 1
 #define N3N_NO_RELAY 1
 
 #define PACKAGE_BUGREPORT ""

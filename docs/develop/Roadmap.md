@@ -635,14 +635,14 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       "rotted"), which clashed with them, are gone; winpthreads is
       linked in statically (no DLL of the toolchain to bring along), the
       resolver is a thread there too, packet threads stay Linux's.
-      Then the paths without pthread removed (34 `#ifdef
-      HAVE_LIBPTHREAD` in six files), and with them `--disable-pthread`,
-      which would have nothing left to build: configure stops without
-      pthread.  One thread is then `daemon.threads = 1`, the default; the
-      resolver is always a thread.  Nothing is lost on the way: Android's
-      build has pthread already (android/app/src/main/cpp/config.h,
-      Bionic has it in its libc), and winpthreads comes with every MinGW
-      toolchain, CI's too; packet threads stay Linux's either way.
+      Then, done 2026-11-01 too, the paths without pthread removed (the
+      `#ifdef HAVE_LIBPTHREAD` in seven files; `maybe_supernode2sock()`,
+      which resolved on the main loop without the thread, with them),
+      and `--disable-pthread`: configure stops without pthread.  One
+      thread is `daemon.threads = 1`, the default; the resolver is always
+      a thread.  Nothing was lost on the way: Android's build had pthread
+      already (Bionic has it in its libc), and winpthreads comes with
+      every MinGW toolchain, CI's too; packet threads stay Linux's.
       Step 3, once that has proven stable: `daemon.threads = 0` (half
       the physical cores) as the default, instead of 1
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
@@ -1638,7 +1638,7 @@ after.
 Build and test:
 
 ```sh
-./autogen.sh && ./configure --enable-pthread && make -j"$(nproc)"
+./autogen.sh && ./configure && make -j"$(nproc)"
 make test.builtin test.units test.integration    # quick
 sudo make test.netns                             # NAT scenarios, needs root
 sudo tests/netns/run.py -q                       # all of them

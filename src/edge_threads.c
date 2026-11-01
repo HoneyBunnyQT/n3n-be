@@ -9,8 +9,6 @@
 #define _GNU_SOURCE          // for sched_getaffinity
 #endif
 
-#include "config.h"          // for HAVE_LIBPTHREAD
-
 #include <n3n/logging.h>     // for traceEvent
 #include <stdio.h>           // for snprintf, fopen, fscanf
 #include <stdlib.h>          // for calloc, free
@@ -110,7 +108,7 @@ int edge_threads_possible (const n2n_edge_conf_t *conf) {
     if(threads <= 1) {
         return 1;
     }
-#if !defined(HAVE_LIBPTHREAD) || !defined(__linux__)
+#ifndef __linux__
     // other systems do not spread one port's traffic over several sockets
     return 1;
 #endif
@@ -147,7 +145,8 @@ int edge_threads_wanted (const n2n_edge_conf_t *conf) {
 }
 
 
-#if defined(HAVE_LIBPTHREAD) && !defined(_WIN32)
+// Windows has no packet threads: stubs below
+#ifndef _WIN32
 
 #include <errno.h>           // for errno, EAGAIN
 #include <fcntl.h>           // for fcntl, O_NONBLOCK
@@ -164,10 +163,8 @@ int edge_threads_wanted (const n2n_edge_conf_t *conf) {
 #include "sock.h"            // for udp_drain
 
 
-#ifndef _WIN32
 // Another wonderful gift from the world of POSIX compliance is not worth much
 #define closesocket(a) close(a)
-#endif
 
 // how many packets a worker takes from its socket, and how many frames from
 // its tap queue, per batch - the same cap as the main loop's drain
@@ -929,7 +926,7 @@ int edge_threads_wake_fd (struct n3n_runtime_data *eee) {
 }
 
 
-#else // HAVE_LIBPTHREAD && !_WIN32 -------------------------------------------
+#else // _WIN32 ----------------------------------------------------------------
 
 
 void edge_threads_main_release (struct n3n_runtime_data *eee) {
@@ -954,7 +951,7 @@ int edge_threads_start (struct n3n_runtime_data *eee, int threads,
                         const struct edge_thread_ops *ops) {
 
     if(threads > 1) {
-        traceEvent(TRACE_WARNING, "built without pthreads (./configure --disable-pthread), using one thread");
+        traceEvent(TRACE_WARNING, "threads are only supported on Linux, using one");
     }
     return 1;
 }
@@ -989,4 +986,4 @@ int edge_threads_wake_fd (struct n3n_runtime_data *eee) {
 }
 
 
-#endif // HAVE_LIBPTHREAD && !_WIN32
+#endif // _WIN32

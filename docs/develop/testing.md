@@ -28,13 +28,14 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 `make test` runs the first five and the quick NAT tests (which skip
 themselves without root).  A change that touches the protocol, NAT
 traversal, the threads or the supernode should also pass
-`make test.netns.full`, with and without `./configure --enable-pthread`.
+`make test.netns.full`, whose `-threads` scenarios run the same with
+several threads.
 
 ### With the sanitizers
 
 ```
 F="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -O1"
-./configure --enable-pthread CFLAGS="$F" LDFLAGS="$F" && make -j4
+./configure CFLAGS="$F" LDFLAGS="$F" && make -j4
 mkdir -p /tmp/san
 export ASAN_OPTIONS=log_path=/tmp/san/asan UBSAN_OPTIONS=log_path=/tmp/san/ubsan
 make test.units test.builtin test.integration
@@ -59,7 +60,7 @@ the alignment check for it.
 ### Coverage
 
 ```
-./configure --enable-pthread CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
+./configure CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
     LDFLAGS="--coverage"
 make -j4 all fuzz
 make test.units test.builtin test.fuzz test.integration

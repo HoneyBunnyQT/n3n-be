@@ -468,9 +468,9 @@ static struct n3n_conf_option section_daemon[] = {
                 "decrypt, and a supernode relay, packets on several cores "
                 "at once.  0 picks half the physical cores, rounded up.  "
                 "Received traffic from one peer stays on one thread, and "
-                "so does each flow read from the tap device.  Needs Linux, "
-                "a build with pthread (the default) and, for an edge, UDP to "
-                "the supernode; otherwise one thread is used.",
+                "so does each flow read from the tap device.  Needs Linux "
+                "and, for an edge, UDP to the supernode; otherwise one "
+                "thread is used.",
     },
     {
         .name = "userid",
@@ -760,9 +760,8 @@ static struct n3n_conf_option section_test[] = {
         .help = "Defaulting to 1.  With more, every benchmark test runs in "
                 "that many threads at the same time, each with its own "
                 "context, and the result is their total: how well that work "
-                "spreads over several cores.  Needs a build with pthread "
-                "(the default).  The cycle counts are only shown with one "
-                "thread.",
+                "spreads over several cores.  The cycle counts are only "
+                "shown with one thread.",
     },
     {
         .name = "output_format",

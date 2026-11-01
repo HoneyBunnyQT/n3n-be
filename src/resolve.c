@@ -18,7 +18,6 @@
 #include <string.h>
 #include <time.h>            // for clock_gettime
 
-#include "config.h"          // for HAVE_LIBPTHREAD
 #include "resolve.h"
 #include "sandbox.h"         // for n3n_sandbox_join
 #include "n2n.h"             // for sock_equal, parse_address_spec
@@ -28,9 +27,7 @@
 
 struct peer_info;
 
-#ifdef HAVE_LIBPTHREAD
-#include <pthread.h>
-#endif
+#include <pthread.h>         // for pthread_create, pthread_mutex_lock
 
 #ifdef _WIN32
 #include "win32/defs.h"
@@ -282,8 +279,6 @@ int supernode2sock (n3n_sock_t *sn, const char *addrIn) {
 }
 
 
-#ifdef HAVE_LIBPTHREAD
-
 static void *resolve_thread (void *p) {
 
     n3n_resolve_parameter_t *param = (n3n_resolve_parameter_t*)p;
@@ -519,36 +514,6 @@ bool resolve_check (n3n_resolve_parameter_t *param, bool requires_resolution, ti
     return ret;
 }
 
-
-int maybe_supernode2sock (n3n_sock_t * sn, const char *addrIn) {
-    return 0;
-}
-
-#else // HAVE_LIBPTHREAD
-
-int resolve_create_thread (n3n_resolve_parameter_t **param, struct peer_info *sn_list) {
-    return -1;
-}
-
-void resolve_forked (n3n_resolve_parameter_t *param) {
-}
-
-void resolve_sandbox (n3n_resolve_parameter_t *param) {
-}
-
-void resolve_cancel_thread (n3n_resolve_parameter_t *param) {
-    return;
-}
-
-
-bool resolve_check (n3n_resolve_parameter_t *param, bool requires_resolution, time_t now) {
-    return requires_resolution;
-}
-
-int maybe_supernode2sock (n3n_sock_t * sn, const char *addrIn) {
-    return supernode2sock(sn, addrIn);
-}
-#endif
 
 /*
  * Remove all entries from a hostnames list
@@ -930,12 +895,8 @@ static int request_pkt_send (uint64_t id, char *hostname) {
     // Mark it for processing by the resolve thread
     request_pkt.type = request_pkt_type_request;
 
-    // TODO:
-    // ifdef HAVE_LIBPTHREAD
-    //   wake up the thread
-    // else
+    // TODO: wake up the thread, rather than doing it here
     request_pkt_process();
-    // endif
 
     // no error
     return 0;

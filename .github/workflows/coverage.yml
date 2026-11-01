@@ -41,8 +41,7 @@ jobs:
           make build-dep
           # atomic counters: the packet threads count at once, and plain
           # ones went astray (gcov's "taken -1")
-          ./configure --enable-pthread \
-            CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
+          ./configure CFLAGS="--coverage -fprofile-update=atomic -O0 -g" \
             LDFLAGS="--coverage"
           make -j4 all fuzz
 

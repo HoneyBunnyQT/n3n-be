@@ -181,21 +181,15 @@ AS_IF([test "x$with_network_manager" != xno],
         [AC_MSG_WARN([no GTK 4 or libnma-gtk4: no settings page in GNOME's Settings, nor the dialog for a key kept in the keyring])])],
 )
 
-# pthread is there on every system n3n-be is built for: on by default,
-# --disable-pthread leaves it out - the resolver then blocks the main loop,
-# and the packets have no threads.  On Windows it is MinGW's winpthreads,
-# linked in statically, so that the programs need no DLL of the toolchain
-AC_ARG_ENABLE([pthread],
-    [AS_HELP_STRING([--disable-pthread], [without pthread: no resolver thread, no packet threads])])
-AS_IF([test "x$enable_pthread" != xno],
-    [AC_CHECK_LIB([pthread], [pthread_mutex_trylock],
-        [AC_DEFINE([HAVE_LIBPTHREAD], [1], [Define to 1 if you have the `pthread' library (-lpthread).])
-         AS_CASE([$host_os],
-            [mingw*], [LIBS="-Wl,-Bstatic,-lpthread,-Bdynamic $LIBS"],
-            [LIBS="-lpthread $LIBS"])],
-        [AC_MSG_ERROR([pthread library not found])]
-    )],
-)
+# pthread is there on every system n3n-be is built for, and needed: the
+# resolver looks names up on a thread of its own, and packets can have
+# several (daemon.threads).  On Windows it is MinGW's winpthreads, linked
+# in statically, so that the programs need no DLL of the toolchain
+AC_CHECK_LIB([pthread], [pthread_mutex_trylock],
+    [AS_CASE([$host_os],
+        [mingw*], [LIBS="-Wl,-Bstatic,-lpthread,-Bdynamic $LIBS"],
+        [LIBS="-lpthread $LIBS"])],
+    [AC_MSG_ERROR([pthread library not found])])
 
 # The 64 bit counters of src/counter.h are __atomic operations, which some 32
 # bit platforms (MIPS32, 32 bit PowerPC, ...) only have in libatomic

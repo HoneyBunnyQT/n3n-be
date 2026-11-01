@@ -47,8 +47,7 @@ jobs:
 
       - name: Build with the sanitizers
         run: |
-          ./configure --enable-pthread \
-            CFLAGS="$SAN_FLAGS" LDFLAGS="$SAN_FLAGS"
+          ./configure CFLAGS="$SAN_FLAGS" LDFLAGS="$SAN_FLAGS"
           make -j4 all
           mkdir -p /tmp/san
 
@@ -118,8 +117,7 @@ jobs:
 
       - name: Build with TSan
         run: |
-          ./configure --enable-pthread \
-            CFLAGS="$SAN_FLAGS" LDFLAGS="$SAN_FLAGS"
+          ./configure CFLAGS="$SAN_FLAGS" LDFLAGS="$SAN_FLAGS"
           make -j4 all
           mkdir -p /tmp/san
 

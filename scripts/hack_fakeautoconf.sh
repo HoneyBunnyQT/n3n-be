@@ -14,7 +14,6 @@ EOF
 cat <<EOF >include/config.h
 // Created by hack fake autoconf for windows
 // not actually a config header
-#define HAVE_LIBPTHREAD 1
 EOF
 
 cat <<EOF >configure

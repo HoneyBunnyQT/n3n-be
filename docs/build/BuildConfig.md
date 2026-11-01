@@ -71,18 +71,17 @@ the parts of this software that would link against openssl have not issued
 any exceptions for this use case.  This depends on the exact versions in
 use of all the libraries concerned.
 
-### `--disable-pthread`
+### pthread, always
 
-Threads with the pthread library are on by default (since 2026-11-01;
-`--enable-pthread` before): the resolver looks the supernodes' names up on
-a thread of its own, and edges and supernodes can handle packets on
-several threads (`daemon.threads`, see [Threads](../advanced/Threads.md)).
-`--disable-pthread` leaves them out: the names are looked up on the main
-loop, which waits meanwhile, and packets have the main thread only.  Every
-system n3n-be is built for has pthread (glibc, musl, Bionic, the BSDs,
-macOS, and MinGW's winpthreads on Windows, linked in statically so that
-the programs need no DLL of the toolchain), so this is for an odd
-toolchain only.
+The build always takes the pthread library, and `./configure` stops
+without it: the resolver looks the supernodes' names up on a thread of
+its own, and edges and supernodes can handle packets on several threads
+(`daemon.threads`, see [Threads](../advanced/Threads.md)).  Every system
+n3n-be is built for has it - glibc, musl, Bionic, the BSDs, macOS, and
+MinGW's winpthreads on Windows, linked in statically so that the
+programs need no DLL of the toolchain.  (Until 2026-11-01 it was an
+option: `--enable-pthread`, then on by default with `--disable-pthread`;
+both are gone, and `./configure` only warns of them as unknown.)
 
 ### `--disable-relay`
 

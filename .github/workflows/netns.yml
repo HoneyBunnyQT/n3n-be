@@ -38,7 +38,7 @@ jobs:
           ./autogen.sh
           ./configure
           make build-dep
-          ./configure --enable-pthread
+          ./configure
           make -j4 all fuzz
 
       - name: netns scenarios

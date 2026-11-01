@@ -21,8 +21,6 @@
  * every system, Windows too.
  */
 
-#include "config.h"             // for HAVE_LIBPTHREAD
-
 #include <inttypes.h>           // for PRIu64
 #include <n2n.h>                // for n3n_monotonic_us
 #include <n3n/benchmark.h>
@@ -33,9 +31,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef HAVE_LIBPTHREAD
 #include <pthread.h>            // for pthread_create, pthread_join
-#endif
 
 #include "../thread_local.h"    // for n3n_thread_cleanup
 #include "bench.h"
@@ -171,9 +167,7 @@ struct worker {
     int64_t bytes_in;
     int64_t bytes_out;
     struct bench_counters counters;
-#ifdef HAVE_LIBPTHREAD
     pthread_t thread;
-#endif
 };
 
 static void worker_run (struct worker *w) {
@@ -203,7 +197,6 @@ static void worker_run (struct worker *w) {
     bench_counters_stop(&w->counters);
 }
 
-#ifdef HAVE_LIBPTHREAD
 // set once all workers are there, so that they start together
 static int workers_go;
 
@@ -219,7 +212,6 @@ static void *worker_thread (void *arg) {
     n3n_thread_cleanup();
     return NULL;
 }
-#endif
 
 struct measured {
     uint64_t us;
@@ -258,7 +250,6 @@ static void measure (const struct bench_item *item, int seconds, int threads,
         w[0].until_us = start + length;
         worker_run(&w[0]);
     }
-#ifdef HAVE_LIBPTHREAD
     else {
         __atomic_store_n(&workers_go, 0, __ATOMIC_RELEASE);
         for(int i = 0; i < threads; i++) {
@@ -277,7 +268,6 @@ static void measure (const struct bench_item *item, int seconds, int threads,
             pthread_join(w[i].thread, NULL);
         }
     }
-#endif
 
     m->us = bench_now_us() - start;
     for(int i = 0; i < threads; i++) {
@@ -296,12 +286,6 @@ void benchmark_run_bench (const int level, const int seconds, int threads,
     if(threads < 1) {
         threads = 1;
     }
-#ifndef HAVE_LIBPTHREAD
-    if(threads > 1) {
-        fprintf(stderr, "built without threads (./configure --enable-pthread): one thread\n");
-        threads = 1;
-    }
-#endif
 
     if(level == 0) {
         printf("Each item runs for %i second%s", seconds, seconds == 1 ? "" : "s");

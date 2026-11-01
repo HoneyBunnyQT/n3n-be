@@ -45,9 +45,7 @@
 #include <sys/wait.h>           // for waitpid
 #include <unistd.h>             // for close, syscall
 #include "sandbox.h"            // for n3n_sandbox_enter
-#ifdef HAVE_LIBPTHREAD
 #include <pthread.h>            // for pthread_mutex_lock
-#endif
 
 extern char **environ;
 #endif
@@ -193,10 +191,8 @@ struct helper_msg {
 };
 
 static int helper = -1;
-#ifdef HAVE_LIBPTHREAD
 // several threads may open sockets (route_all_socket())
 static pthread_mutex_t helper_lock = PTHREAD_MUTEX_INITIALIZER;
-#endif
 
 
 // A request to the helper, fd handed over with it unless -1: its answer,
@@ -233,16 +229,12 @@ static int helper_call (uint32_t op, const void *data, uint32_t len, int fd) {
         c->cmsg_len = CMSG_LEN(sizeof(int));
         memcpy(CMSG_DATA(c), &fd, sizeof(int));
     }
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_lock(&helper_lock);
-#endif
     errno = 0;
     if((sendmsg(helper, &mh, MSG_NOSIGNAL) < 0) || (recv(helper, &answer, sizeof(answer), 0) != sizeof(answer))) {
         answer = errno ? errno : EPIPE;
     }
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_unlock(&helper_lock);
-#endif
     return answer;
 }
 

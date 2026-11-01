@@ -15,16 +15,12 @@
 #include <time.h>
 #include <uthash.h>         // for UT_hash_handle
 
-#include "config.h"         // for HAVE_LIBPTHREAD
-#include "peer_info.h"      // for struct peer_info
-
-#ifdef HAVE_LIBPTHREAD
 #include <pthread.h>        // for pthread_t, pthread_mutex_t, pthread_cond_t
-#endif
+
+#include "peer_info.h"      // for struct peer_info
 
 struct peer_info;
 
-#ifdef HAVE_LIBPTHREAD
 struct n3n_resolve_ip_sock {
     char          *org_ip;            /* pointer to original ip/named address string (used read only) */
     n3n_sock_t sock;                  /* resolved socket */
@@ -47,7 +43,6 @@ struct n3n_resolve_parameter {
     pthread_cond_t wake;                   /* to stop the thread while it waits */
     bool stop;                             /* the thread is asked to stop */
 };
-#endif
 
 int resolve_create_thread (n3n_resolve_parameter_t **param, struct peer_info *sn_list);
 bool resolve_check (n3n_resolve_parameter_t *param, bool resolution_request, time_t now);
@@ -58,9 +53,6 @@ void resolve_cancel_thread (n3n_resolve_parameter_t *param);
 
 // Internal resolver function, will turn static once supernode.c doesnt use it
 int supernode2sock (n3n_sock_t * sn, const char *addrIn);
-
-// called from edge_utils, runs supernode2sock only ifndef HAVE_LIBPTHREAD
-int maybe_supernode2sock (n3n_sock_t * sn, const char *addrIn);
 
 const char *resolve_hostnames_str_get (int, int);
 void resolve_log_hostnames (int);

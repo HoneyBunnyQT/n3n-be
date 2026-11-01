@@ -9,17 +9,11 @@
 #include "win32/defs.h"     // winsock2.h before windows.h
 #endif
 
-#include "config.h"         // for HAVE_LIBPTHREAD
-
 #include <n3n/random.h>     // for n3n_rand
 #include <stdlib.h>         // for calloc, free
 #include <string.h>         // for memcpy, memset, strlen
 
-#ifdef HAVE_LIBPTHREAD
-#include <pthread.h>
-#elif defined(_WIN32)
-#include <windows.h>        // for CRITICAL_SECTION
-#endif
+#include <pthread.h>        // for pthread_mutex_t, pthread_mutex_lock
 
 #include "announce.h"
 #include "uthash.h"
@@ -45,11 +39,7 @@ struct announce_peer {
 };
 
 struct n3n_announce {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_t lock;
-#elif defined(_WIN32)
-    CRITICAL_SECTION lock;
-#endif
     struct announce_peer *peers;
 };
 
@@ -161,20 +151,12 @@ int n3n_announce_decode (const uint8_t *frame, size_t len, uint8_t *flags, struc
 // ---- the peers' announcements
 
 static void lock (struct n3n_announce *a) {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_lock(&a->lock);
-#elif defined(_WIN32)
-    EnterCriticalSection(&a->lock);
-#endif
 }
 
 
 static void unlock (struct n3n_announce *a) {
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_unlock(&a->lock);
-#elif defined(_WIN32)
-    LeaveCriticalSection(&a->lock);
-#endif
 }
 
 
@@ -185,11 +167,7 @@ struct n3n_announce *n3n_announce_new (void) {
     if(!a) {
         return NULL;
     }
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_init(&a->lock, NULL);
-#elif defined(_WIN32)
-    InitializeCriticalSection(&a->lock);
-#endif
     return a;
 }
 
@@ -205,11 +183,7 @@ void n3n_announce_free (struct n3n_announce *a) {
         HASH_DEL(a->peers, p);
         free(p);
     }
-#ifdef HAVE_LIBPTHREAD
     pthread_mutex_destroy(&a->lock);
-#elif defined(_WIN32)
-    DeleteCriticalSection(&a->lock);
-#endif
     free(a);
 }
 
