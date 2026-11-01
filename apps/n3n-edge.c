@@ -1025,7 +1025,7 @@ int n3n_edge_main (int argc, char* argv[]) {
     peer_info_t *scan, *scan_tmp; /*            supernode iteration */
 
 #ifdef HAVE_LIBCAP
-    cap_t caps;
+    cap_t caps = NULL;
 #endif
 
     // the edge as a Windows service, see n3n-service.c
@@ -1316,14 +1316,20 @@ int n3n_edge_main (int argc, char* argv[]) {
     }
 
 #ifdef HAVE_LIBCAP
-    /* Before dropping the privileges, retain capabilities to regain them in future. */
-    caps = cap_get_proc();
+    // Before dropping the privileges, CAP_NET_ADMIN kept to take it up again
+    // - for tuntap.route_all only, which on Linux can be switched on while
+    // the edge runs only if it started with it.  Without, the edge needs
+    // none of root's rights after the start: setuid() takes them all, and a
+    // device lost and not opened again stops it (N3N_EXIT_RESTART)
+    if(eee->conf.tap.route_all) {
+        caps = cap_get_proc();
 
-    cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
-    cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
+        cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
+        cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
 
-    if((cap_set_proc(caps) != 0) || (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0))
-        traceEvent(TRACE_WARNING, "unable to retain permitted capabilities [%s]\n", strerror(errno));
+        if((cap_set_proc(caps) != 0) || (prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0))
+            traceEvent(TRACE_WARNING, "unable to retain permitted capabilities [%s]\n", strerror(errno));
+    }
 #else
 #ifndef __APPLE__
     // TODO:
@@ -1367,15 +1373,20 @@ int n3n_edge_main (int argc, char* argv[]) {
         // PR_SET_KEEPCAPS kept all of root's permitted capabilities across
         // setuid() - cap_get_proc() above started from them -, of which
         // any could be made effective again: CAP_NET_ADMIN only
-        cap_clear(caps);
-        cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
-        cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
-        if(cap_set_proc(caps) != 0) {
-            traceEvent(TRACE_ERROR, "unable to give up root's other capabilities [%s]", strerror(errno));
-            exit(1);
+        if(caps) {
+            cap_clear(caps);
+            cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
+            cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
+            if(cap_set_proc(caps) != 0) {
+                traceEvent(TRACE_ERROR, "unable to give up root's other capabilities [%s]", strerror(errno));
+                exit(1);
+            }
         }
 #endif
         route_all_after_setuid();
+        if(!eee->conf.tap.route_all) {
+            traceEvent(TRACE_NORMAL, "none of root's rights kept: without tuntap.route_all the edge needs none");
+        }
     }
 
     if((getuid() == 0) || (getgid() == 0))
@@ -1405,13 +1416,15 @@ int n3n_edge_main (int argc, char* argv[]) {
 
 #ifdef HAVE_LIBCAP
     /* Before completing the cleanup, regain the capabilities as some
-     * cleanup tasks require them (e.g. routes cleanup). */
-    cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
+     * cleanup tasks require them (the rules of tuntap.route_all). */
+    if(caps) {
+        cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
 
-    if(cap_set_proc(caps) != 0)
-        traceEvent(TRACE_WARNING, "could not regain the capabilities [%s]\n", strerror(errno));
+        if(cap_set_proc(caps) != 0)
+            traceEvent(TRACE_WARNING, "could not regain the capabilities [%s]\n", strerror(errno));
 
-    cap_free(caps);
+        cap_free(caps);
+    }
 #endif
 
     /* Cleanup */

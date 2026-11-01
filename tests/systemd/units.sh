@@ -198,6 +198,9 @@ eff=$(status "$EA" CapEff)
 prm=$(status "$EA" CapPrm)
 [ "$(( 0x$prm & ~0x1000 ))" = 0 ]
 check "edge: its capabilities" $? "permitted $prm, effective $eff (at most NET_ADMIN)"
+prm=$(status "$EB" CapPrm)
+[ "$prm" = 0000000000000000 ]
+check "edge b: its capabilities" $? "permitted $prm (none without tuntap.route_all)"
 eff=$(status "$SN" CapEff)
 [ "$eff" = 0000000000000400 ]
 check "supernode: its capabilities" $? "effective $eff (NET_BIND_SERVICE)"
