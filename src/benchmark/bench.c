@@ -249,8 +249,7 @@ static void measure (const struct bench_item *item, int seconds, int threads,
         start = bench_now_us();
         w[0].until_us = start + length;
         worker_run(&w[0]);
-    }
-    else {
+    } else {
         __atomic_store_n(&workers_go, 0, __ATOMIC_RELEASE);
         for(int i = 0; i < threads; i++) {
             if(pthread_create(&w[i].thread, NULL, worker_thread, &w[i]) != 0) {
