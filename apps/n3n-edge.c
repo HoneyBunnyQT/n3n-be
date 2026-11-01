@@ -1028,6 +1028,11 @@ int n3n_edge_main (int argc, char* argv[]) {
     cap_t caps = NULL;
 #endif
 
+    // the helper of tuntap.route_all, which the edge starts itself - not for
+    // people to type, see route_all.h
+    if((argc > 1) && !strcmp(argv[1], "route-helper")) {
+        return route_all_helper_main(argc - 1, argv + 1);
+    }
     // the edge as a Windows service, see n3n-service.c
     if((argc > 1) && !strcmp(argv[1], "service")) {
         return n3n_service_main(argc - 1, argv + 1);
@@ -1315,13 +1320,21 @@ int n3n_edge_main (int argc, char* argv[]) {
         signal(SIGHUP, hup_handler);
     }
 
+    // with tuntap.route_all, a process of its own for what needs root's
+    // CAP_NET_ADMIN from now on, so that the edge keeps none of root's
+    // rights itself
+    if(route_all_helper_start(&eee->conf) < 0) {
+        exit(1);
+    }
+
 #ifdef HAVE_LIBCAP
     // Before dropping the privileges, CAP_NET_ADMIN kept to take it up again
     // - for tuntap.route_all only, which on Linux can be switched on while
-    // the edge runs only if it started with it.  Without, the edge needs
-    // none of root's rights after the start: setuid() takes them all, and a
-    // device lost and not opened again stops it (N3N_EXIT_RESTART)
-    if(eee->conf.tap.route_all) {
+    // the edge runs only if it started with it, and only if no helper does
+    // it.  Without, the edge needs none of root's rights after the start:
+    // setuid() takes them all, and a device lost and not opened again stops
+    // it (N3N_EXIT_RESTART)
+    if(eee->conf.tap.route_all && !route_all_helper_running()) {
         caps = cap_get_proc();
 
         cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
@@ -1386,6 +1399,8 @@ int n3n_edge_main (int argc, char* argv[]) {
         route_all_after_setuid();
         if(!eee->conf.tap.route_all) {
             traceEvent(TRACE_NORMAL, "none of root's rights kept: without tuntap.route_all the edge needs none");
+        } else if(route_all_helper_running()) {
+            traceEvent(TRACE_NORMAL, "none of root's rights kept: the helper does what needs CAP_NET_ADMIN");
         }
     }
 

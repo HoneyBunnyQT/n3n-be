@@ -41,6 +41,7 @@ TESTS+=tests-fec
 TESTS+=tests-mgmt-client
 TESTS+=tests-announce
 TESTS+=tests-sandbox
+TESTS+=tests-route-helper
 
 .PHONY: all clean install
 all: $(TOOLS) $(TESTS)

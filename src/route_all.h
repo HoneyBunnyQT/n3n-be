@@ -74,6 +74,23 @@ uint32_t route_all_exit (void);
 // What kept the last attempt from routing all traffic, "" for nothing
 const char *route_all_problem (void);
 
+// Linux, with tuntap.route_all: the helper process, which alone keeps
+// CAP_NET_ADMIN once the edge has dropped its privileges, and does what it
+// needs it for (routes, rules, resolvectl, the sockets' marks) on the
+// edge's requests, checked.  The edge starts it before setuid(), once its
+// device is there: 0; 1 if there is none to start (no tuntap.route_all, no
+// drop of the privileges, not Linux); -1 if it failed - the edge cannot
+// route all traffic then, and stops.
+int route_all_helper_start (const n2n_edge_conf_t *conf);
+bool route_all_helper_running (void);
+// The helper itself: "n3n-be-edge route-helper ...", which the edge runs
+int route_all_helper_main (int argc, char *argv[]);
+// What the helper does, and nothing else, for tests/: 0, or EPERM - a
+// netlink request of the edge's rules and routes into the device of that
+// index, resolvectl on that device
+int route_all_helper_check (const void *msg, size_t len, unsigned dev_index);
+int route_all_helper_check_run (const char *const argv[], const char *device);
+
 // Linux, for the edge that drops its privileges, after setuid():
 // CAP_NET_ADMIN once more - for the marks of the sockets opened from then
 // on, and for taking the rules back.  route_all_init() has the capabilities

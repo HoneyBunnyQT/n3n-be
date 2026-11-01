@@ -142,9 +142,15 @@ supernode and peer:
     ```
 
     The first rule keeps the main table's routes but its default ones -
-    the local networks, the community's subnet.  The edge keeps
-    CAP_NET_ADMIN after dropping its privileges, for the sockets it
-    opens later and for taking the rules back.  Strict reverse path
+    the local networks, the community's subnet.  After the edge has
+    dropped its privileges, what needs CAP_NET_ADMIN - the routes and
+    rules, the marks of the sockets it opens later, `resolvectl` - is
+    done by a helper: a process of its own that the edge starts at its
+    start (`n3n-be-helper` in `ps`), which alone keeps that right, as
+    `n3n-be`, reads no packets, and does only these, for the edge's
+    device and table; the edge itself keeps none of root's rights.  When
+    the edge ends - also when it crashes - the helper takes the rules
+    back and ends too.  Strict reverse path
     filtering (`net.ipv4.conf.all.rp_filter = 1`, the default of some
     distributions) drops what the supernodes and peers send then, as the
     way back to them looks as if it went into the tunnel; the edge warns
@@ -205,7 +211,7 @@ for the next one.
   start, and binds them to the default route's interface once it is to
   route all traffic.
 - On Linux the edge's sockets carry the firewall mark from their start,
-  and the edge keeps CAP_NET_ADMIN, only when it starts with
+  and the edge has its helper (above), only when it starts with
   `tuntap.route_all = true`.  Such an edge may start without
   `tuntap.gateway`: it routes nothing then, and waits for an exit peer.
   Any other edge answers `set_gateway` with the reason it cannot, and its

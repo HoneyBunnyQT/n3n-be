@@ -1,0 +1,27 @@
+the default route of its table, via the exit peer        done
+the IPv6 default route of its table                      done
+that route deleted                                       done
+the rule of the main table without its default routes    done
+the rule of all that is not marked to its table          done
+an IPv6 rule deleted                                     done
+a default route of the main table                        refused
+a route of its table into another device                 refused
+a route without its protocol                             refused
+a route to a network, not the default                    refused
+a route with another attribute                           refused
+a rule without its protocol                              refused
+its table for all that is marked                         refused
+a rule to the local table                                refused
+a dump of the routes                                     refused
+an address                                               refused
+a request with bytes after its attributes                refused
+a request longer than it says                            refused
+resolvectl dns on its device                             done
+resolvectl domain ~. on its device                       done
+resolvectl default-route true on its device              done
+resolvectl revert on its device                          done
+resolvectl dns on another device                         refused
+resolvectl dns with what is no address                   refused
+resolvectl domain of another name                        refused
+another command of resolvectl                            refused
+another program                                          refused

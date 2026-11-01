@@ -11,9 +11,10 @@
 #
 # - each starts, the edges register, a has its device with its address
 # - each runs as n3n-be with its group only, NoNewPrivs and the seccomp
-#   filter, with only the rights its unit gives (the edge CAP_NET_ADMIN,
-#   the supernode CAP_NET_BIND_SERVICE); /home empty for it, /usr read-only;
-#   and in its own sandbox too (Landlock, get_info)
+#   filter: the edges with none of root's rights - a's helper process for
+#   tuntap.route_all with CAP_NET_ADMIN alone -, the supernode with
+#   CAP_NET_BIND_SERVICE; /home empty for it, /usr read-only; and in its own
+#   sandbox too (Landlock, get_info)
 # - a reload (SIGHUP) leaves each running
 # - the community file as an encrypted credential (systemd-creds): the
 #   supernode starts again from it alone
@@ -194,10 +195,16 @@ done
 bnd=$(status "$EA" CapBnd)
 [ "$bnd" = 00000000000014c1 ]
 check "edge: its bounding set" $? "$bnd (NET_ADMIN, NET_BIND_SERVICE, SETUID, SETGID, CHOWN)"
-eff=$(status "$EA" CapEff)
 prm=$(status "$EA" CapPrm)
-[ "$(( 0x$prm & ~0x1000 ))" = 0 ]
-check "edge: its capabilities" $? "permitted $prm, effective $eff (at most NET_ADMIN)"
+[ "$prm" = 0000000000000000 ]
+check "edge a: its capabilities" $? "permitted $prm (none: its helper keeps CAP_NET_ADMIN)"
+# a's helper (tuntap.route_all, src/route_all.c): as n3n-be, with
+# CAP_NET_ADMIN alone, in its own sandbox
+helper=$(pgrep -P "$(systemctl show -p MainPID --value "$EA")" -x n3n-be-helper)
+hprm=$(awk '$1 == "CapPrm:" {print $2}' "/proc/$helper/status" 2>/dev/null)
+huid=$(awk '$1 == "Uid:" {print $2}' "/proc/$helper/status" 2>/dev/null)
+[ -n "$helper" ] && [ "$hprm" = 0000000000001000 ] && [ "$huid" = "$n3n_uid" ]
+check "edge a: its helper" $? "${helper:-none}: uid ${huid:-?}, permitted ${hprm:-?} (NET_ADMIN)"
 prm=$(status "$EB" CapPrm)
 [ "$prm" = 0000000000000000 ]
 check "edge b: its capabilities" $? "permitted $prm (none without tuntap.route_all)"

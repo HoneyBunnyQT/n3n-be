@@ -82,11 +82,15 @@ The daemons drop their privileges once the device and the sockets are
 set up: to the user `n3n-be` (or `nobody`) by default, see `daemon.userid`
 and `daemon.groupid`, with that group only - none of root's.  The
 configuration file has to be readable for that user, or a reload finds
-none.  On Linux an edge started with `tuntap.route_all` keeps one of
-root's rights, `CAP_NET_ADMIN`, for the routes and the firewall mark of
-its sockets, and to take them back at the end; any other keeps none - on
-Linux all traffic can go through an exit while the edge runs only if it
-started with the option, so it would not need it.  An edge that loses its
+none.  On Linux the edge keeps none of root's rights.  One started with
+`tuntap.route_all` has a helper for what needs one of them,
+`CAP_NET_ADMIN` - the routes, the firewall mark of its sockets,
+`resolvectl` -, a process of its own, started by the edge, which alone
+keeps it, as the same user, reads no packets and does only that, for the
+edge's own device and routing table (see
+[Routing](../advanced/Routing.md#all-internet-traffic-through-the-office)).
+On Linux all traffic can go through an exit while the edge runs only if
+it started with the option.  An edge that loses its
 device cannot open it again without that right: it stops with exit code
 75, for its service manager to start it anew (the systemd units do).
 

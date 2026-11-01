@@ -69,7 +69,8 @@ units have systemd take away the rest:
 
 - the rights of root: only those in `CapabilityBoundingSet=` - for the
   edge `CAP_NET_ADMIN` (its device, addresses and routes, and
-  `tuntap.route_all` - kept after the start only with it), `CAP_SETUID` and `CAP_SETGID` (to become `n3n-be`),
+  `tuntap.route_all` - after the start kept only by its helper, with
+  it), `CAP_SETUID` and `CAP_SETGID` (to become `n3n-be`),
   `CAP_CHOWN` (its management socket for `n3n-be`) and
   `CAP_NET_BIND_SERVICE`; for the supernode `CAP_NET_BIND_SERVICE` only.
   `NoNewPrivileges=yes`: no program it starts gets more;

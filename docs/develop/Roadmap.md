@@ -603,7 +603,7 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       (`RestartForceExitStatus=75`).  On `fixes` too: with libcap
       (`--enable-cap`) the edge kept all of root's permitted
       capabilities across setuid(), CAP_NET_ADMIN only now
-- [~] The route_all helper (asked 2026-11-01), v3's first step of the
+- [x] The route_all helper (asked 2026-11-01, done the same day), v3's first step of the
       privilege separation (Far future): on Linux, an edge with
       `tuntap.route_all` forks before it drops its privileges; the child
       - the same program, no other to install or start - keeps
@@ -616,8 +616,17 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       The helper ignores SIGTERM (systemd sends it to both), takes the
       routes away when the edge's end of the socket closes - also after
       a crash, which left the rules behind until the next start - and
-      ends.  No pthread needed: a process, not a thread.  Later: the
-      device opened anew by it (its fd handed back), instead of exit 75
+      ends.  No pthread needed: a process, not a thread.  The edge
+      spawns itself (/proc/self/exe, `route-helper`, its end of the
+      socket as fd 3) rather than forking, as its resolver thread runs
+      by then.  Found on the way: the resolver thread of an edge with
+      tuntap.route_all kept all of root's permitted capabilities across
+      setuid() (the PR_SET_KEEPCAPS of route_all_init(), each thread's
+      own) - none now.  Tested: tests-route-helper (what it does and
+      refuses), the route_all netns scenarios, tests/systemd/units.sh
+      (the edge with no rights, the helper with CAP_NET_ADMIN as
+      n3n-be).  Later: the device opened anew by it (its fd handed
+      back), instead of exit 75
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`

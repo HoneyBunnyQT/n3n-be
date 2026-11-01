@@ -15,6 +15,7 @@ tests-mgmt-client
 tests-tun
 tests-peers
 tests-regex
+tests-route-helper
 tests-sandbox
 tests-sock
 tests-speck

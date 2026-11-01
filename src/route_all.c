@@ -19,6 +19,7 @@
 #include <errno.h>              // for errno
 #include <n3n/logging.h>        // for traceEvent
 #include <stdarg.h>             // for va_list
+#include <stddef.h>             // for offsetof
 #include <stdio.h>              // for snprintf, vsnprintf
 #include <stdlib.h>             // for realloc, system
 #include <string.h>             // for memset, strerror
@@ -35,11 +36,18 @@
 #include <net/if.h>             // for if_nametoindex
 #include <signal.h>             // for sigaction, SIGCHLD
 #include <spawn.h>              // for posix_spawnp
+#include <grp.h>                // for setgroups
+#include <stdint.h>             // for uint32_t
 #include <sys/prctl.h>          // for prctl, PR_SET_KEEPCAPS
-#include <sys/socket.h>         // for setsockopt, SO_MARK
+#include <sys/socket.h>         // for setsockopt, SO_MARK, socketpair, SCM_RIGHTS
+#include <sys/stat.h>           // for fstat, S_ISSOCK
 #include <sys/syscall.h>        // for SYS_capget, SYS_capset
 #include <sys/wait.h>           // for waitpid
 #include <unistd.h>             // for close, syscall
+#include "sandbox.h"            // for n3n_sandbox_enter
+#ifdef HAVE_LIBPTHREAD
+#include <pthread.h>            // for pthread_mutex_lock
+#endif
 
 extern char **environ;
 #endif
@@ -167,6 +175,78 @@ static void nl_attr (struct nl_req *req, int type, const void *data, int len) {
 }
 
 
+// The helper, which alone keeps CAP_NET_ADMIN once the edge has dropped its
+// privileges (route_all_helper_start()): the edge's end of the socket to
+// it, -1 while there is none - and in the helper itself, which does the
+// work.  What it does, it is asked by these, each answered by an int: 0,
+// or an errno
+enum {
+    HELPER_NETLINK = 1,         // a request of nl_talk(), checked
+    HELPER_RUN,                 // resolvectl, the arguments one after the other
+    HELPER_MARK,                // the firewall mark on the socket handed over
+};
+
+struct helper_msg {
+    uint32_t op;
+    uint32_t len;
+    char data[sizeof(struct nl_req)];
+};
+
+static int helper = -1;
+#ifdef HAVE_LIBPTHREAD
+// several threads may open sockets (route_all_socket())
+static pthread_mutex_t helper_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
+
+// A request to the helper, fd handed over with it unless -1: its answer,
+// or an errno of its own if it cannot be asked
+static int helper_call (uint32_t op, const void *data, uint32_t len, int fd) {
+
+    struct helper_msg msg;
+    struct iovec iov = { .iov_base = &msg, .iov_len = offsetof(struct helper_msg, data) + len };
+    union {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } ctl;
+    struct msghdr mh = { .msg_iov = &iov, .msg_iovlen = 1 };
+    int32_t answer = EPIPE;
+
+    if(len > sizeof(msg.data)) {
+        return EINVAL;
+    }
+    memset(&msg, 0, sizeof(msg));
+    msg.op = op;
+    msg.len = len;
+    if(len) {
+        memcpy(msg.data, data, len);
+    }
+    if(fd >= 0) {
+        struct cmsghdr *c;
+
+        memset(&ctl, 0, sizeof(ctl));
+        mh.msg_control = ctl.buf;
+        mh.msg_controllen = sizeof(ctl.buf);
+        c = CMSG_FIRSTHDR(&mh);
+        c->cmsg_level = SOL_SOCKET;
+        c->cmsg_type = SCM_RIGHTS;
+        c->cmsg_len = CMSG_LEN(sizeof(int));
+        memcpy(CMSG_DATA(c), &fd, sizeof(int));
+    }
+#ifdef HAVE_LIBPTHREAD
+    pthread_mutex_lock(&helper_lock);
+#endif
+    errno = 0;
+    if((sendmsg(helper, &mh, MSG_NOSIGNAL) < 0) || (recv(helper, &answer, sizeof(answer), 0) != sizeof(answer))) {
+        answer = errno ? errno : EPIPE;
+    }
+#ifdef HAVE_LIBPTHREAD
+    pthread_mutex_unlock(&helper_lock);
+#endif
+    return answer;
+}
+
+
 // Sends a request, waits for its answer: 0, or the errno it tells
 static int nl_talk (struct nl_req *req) {
 
@@ -178,6 +258,9 @@ static int nl_talk (struct nl_req *req) {
     int fd, err = 0;
     ssize_t n;
 
+    if(helper >= 0) {
+        return helper_call(HELPER_NETLINK, req, req->nh.nlmsg_len, -1);
+    }
     fd = socket(AF_NETLINK, SOCK_RAW | SOCK_CLOEXEC, NETLINK_ROUTE);
     if(fd < 0) {
         return errno;
@@ -327,7 +410,28 @@ static int run (const char *const argv[], bool quiet) {
     pid_t pid;
     int status = -1;
     int err;
-    bool amb = ambient(true);
+    bool amb;
+
+    if(helper >= 0) {
+        // the arguments one after the other, each with its \0
+        char buf[sizeof(((struct helper_msg *)0)->data)];
+        size_t used = 0;
+
+        for(int i = 0; argv[i]; i++) {
+            size_t l = strlen(argv[i]) + 1;
+            if(used + l > sizeof(buf)) {
+                return -1;
+            }
+            memcpy(buf + used, argv[i], l);
+            used += l;
+        }
+        err = helper_call(HELPER_RUN, buf, used, -1);
+        if(err && !quiet) {
+            traceEvent(TRACE_WARNING, "failed: %s %s %s (by the helper)", argv[0], argv[1], argv[2]);
+        }
+        return err ? -1 : 0;
+    }
+    amb = ambient(true);
 
     // the edge ignores SIGCHLD, which would take the exit status away
     memset(&dfl, 0, sizeof(dfl));
@@ -552,11 +656,11 @@ int route_all_init (const n2n_edge_conf_t *conf) {
     if(conf_ok(conf) < 0) {
         return -1;
     }
-    // before the first thread: they all keep CAP_NET_ADMIN across the
-    // setuid() of the privileges dropped, see net_admin()
-    if(prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) {
-        traceEvent(TRACE_WARNING, "tuntap.route_all: cannot keep CAP_NET_ADMIN [%s]", strerror(errno));
-    }
+    // No PR_SET_KEEPCAPS here, before the first thread, as there was: the
+    // flag is each thread's, and a thread that has it keeps all of root's
+    // permitted capabilities across setuid() - the resolver's did, which
+    // opens no socket of the edge's to give them up.  What needs
+    // CAP_NET_ADMIN after the drop is the helper's (route_all_helper_start())
     armed = true;
     return 0;
 }
@@ -573,8 +677,14 @@ bool route_all_socket (SOCKET fd, int family) {
         return true;
     }
     // a thread that has not taken up CAP_NET_ADMIN since the privileges
-    // were dropped
-    if((errno == EPERM) && net_admin() && (setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0)) {
+    // were dropped, or the helper, which alone has it then
+    if((errno == EPERM) && (helper >= 0)) {
+        int err = helper_call(HELPER_MARK, NULL, 0, fd);
+        if(!err) {
+            return true;
+        }
+        errno = err;
+    } else if((errno == EPERM) && net_admin() && (setsockopt(fd, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) == 0)) {
         return true;
     }
     traceEvent(TRACE_ERROR, "tuntap.route_all: cannot keep a socket of the edge out of the tunnel, "
@@ -585,10 +695,405 @@ bool route_all_socket (SOCKET fd, int family) {
 
 void route_all_after_setuid (void) {
 
+    if(helper >= 0) {
+        traceEvent(TRACE_NORMAL, "tuntap.route_all: the routes, the DNS server and the sockets' marks by the "
+                   "helper process, which alone keeps CAP_NET_ADMIN");
+        return;
+    }
     if(armed && !net_admin()) {
         traceEvent(TRACE_WARNING, "tuntap.route_all: no CAP_NET_ADMIN after dropping the privileges: sockets "
                    "opened from now on cannot be kept out of the tunnel, and the rules stay at the end");
     }
+}
+
+
+// What the helper does for the edge, and nothing else: its two kinds of
+// rules (rule()) and the default routes of its table into its device
+// (route()), each with its protocol - added or deleted, but no other route,
+// rule, table or device.  0, or EPERM.
+int route_all_helper_check (const void *msg, size_t len, unsigned dev_index) {
+
+    const struct nlmsghdr *nh = msg;
+    const struct rtattr *rta;
+    int attrlen;
+    uint32_t table = 0, oif = 0, fwmark = 0, fwmask = 0, suppress = 1;
+    uint8_t proto = 0;
+    bool have_table = false, have_oif = false, have_fwmark = false, have_fwmask = false;
+    bool have_suppress = false, have_proto = false;
+
+    if((len < NLMSG_HDRLEN) || (len > sizeof(struct nl_req)) || (nh->nlmsg_len != len)) {
+        return EPERM;
+    }
+    // no dumps, no echo, no other flags than those of route()
+    if(nh->nlmsg_flags & ~(NLM_F_CREATE | NLM_F_REPLACE)) {
+        return EPERM;
+    }
+
+    if((nh->nlmsg_type == RTM_NEWROUTE) || (nh->nlmsg_type == RTM_DELROUTE)) {
+        const struct rtmsg *rt = NLMSG_DATA(nh);
+
+        if((len < NLMSG_LENGTH(sizeof(*rt))) || ((rt->rtm_family != AF_INET) && (rt->rtm_family != AF_INET6))
+           || rt->rtm_dst_len || rt->rtm_src_len || (rt->rtm_protocol != ROUTE_ALL_PROTO)
+           || (rt->rtm_table != RT_TABLE_UNSPEC) || (rt->rtm_type != RTN_UNICAST)) {
+            return EPERM;
+        }
+        rta = RTM_RTA(rt);
+        attrlen = (int)len - NLMSG_LENGTH(sizeof(*rt));
+        for(; RTA_OK(rta, attrlen); rta = RTA_NEXT(rta, attrlen)) {
+            switch(rta->rta_type) {
+                case RTA_TABLE:
+                    if(RTA_PAYLOAD(rta) != sizeof(table)) {
+                        return EPERM;
+                    }
+                    memcpy(&table, RTA_DATA(rta), sizeof(table));
+                    have_table = true;
+                    break;
+                case RTA_OIF:
+                    if(RTA_PAYLOAD(rta) != sizeof(oif)) {
+                        return EPERM;
+                    }
+                    memcpy(&oif, RTA_DATA(rta), sizeof(oif));
+                    have_oif = true;
+                    break;
+                case RTA_GATEWAY:
+                    // the exit peer, in the device's subnet: through the device
+                    if(RTA_PAYLOAD(rta) != ((rt->rtm_family == AF_INET) ? 4 : 16)) {
+                        return EPERM;
+                    }
+                    break;
+                default:
+                    return EPERM;
+            }
+        }
+        // nothing left that is no attribute
+        if(attrlen) {
+            return EPERM;
+        }
+        if(!have_table || (table != ROUTE_ALL_MARK) || !have_oif || !dev_index || (oif != dev_index)) {
+            return EPERM;
+        }
+        return 0;
+    }
+
+    if((nh->nlmsg_type == RTM_NEWRULE) || (nh->nlmsg_type == RTM_DELRULE)) {
+        const struct fib_rule_hdr *frh = NLMSG_DATA(nh);
+
+        if((len < NLMSG_LENGTH(sizeof(*frh))) || ((frh->family != AF_INET) && (frh->family != AF_INET6))
+           || frh->dst_len || frh->src_len || frh->tos || (frh->action != FR_ACT_TO_TBL)) {
+            return EPERM;
+        }
+        rta = (const struct rtattr *)((const char *)frh + NLMSG_ALIGN(sizeof(*frh)));
+        attrlen = (int)len - NLMSG_LENGTH(sizeof(*frh));
+        for(; RTA_OK(rta, attrlen); rta = RTA_NEXT(rta, attrlen)) {
+            uint32_t v = 0;
+
+            if(rta->rta_type == FRA_PROTOCOL) {
+                if(RTA_PAYLOAD(rta) != 1) {
+                    return EPERM;
+                }
+                proto = *(const uint8_t *)RTA_DATA(rta);
+                have_proto = true;
+                continue;
+            }
+            if(RTA_PAYLOAD(rta) != sizeof(v)) {
+                return EPERM;
+            }
+            memcpy(&v, RTA_DATA(rta), sizeof(v));
+            switch(rta->rta_type) {
+                case FRA_TABLE:
+                    table = v;
+                    have_table = true;
+                    break;
+                case FRA_FWMARK:
+                    fwmark = v;
+                    have_fwmark = true;
+                    break;
+                case FRA_FWMASK:
+                    fwmask = v;
+                    have_fwmask = true;
+                    break;
+                case FRA_SUPPRESS_PREFIXLEN:
+                    suppress = v;
+                    have_suppress = true;
+                    break;
+                default:
+                    return EPERM;
+            }
+        }
+        if(attrlen || !have_proto || (proto != ROUTE_ALL_PROTO)) {
+            return EPERM;
+        }
+        // the main table without its default routes
+        if((frh->table == RT_TABLE_MAIN) && !frh->flags && have_suppress && !suppress
+           && !have_table && !have_fwmark && !have_fwmask) {
+            return 0;
+        }
+        // all that is not the edge's to its table
+        if((frh->table == 0) && (frh->flags == FIB_RULE_INVERT) && have_fwmark && (fwmark == ROUTE_ALL_MARK)
+           && have_fwmask && (fwmask == 0xffffffff) && have_table && (table == ROUTE_ALL_MARK) && !have_suppress) {
+            return 0;
+        }
+        return EPERM;
+    }
+    return EPERM;
+}
+
+
+// resolvectl on the edge's device, as sys_dns() runs it: revert, dns with
+// an IPv4 address, domain ~., default-route true.  0, or EPERM.
+int route_all_helper_check_run (const char *const argv[], const char *device) {
+
+    int argc = 0;
+    struct in_addr a;
+
+    while(argv[argc] && (argc < 5)) {
+        argc++;
+    }
+    if((argc < 3) || strcmp(argv[0], "resolvectl") || !device[0] || strcmp(argv[2], device)) {
+        return EPERM;
+    }
+    if(!strcmp(argv[1], "revert") && (argc == 3)) {
+        return 0;
+    }
+    if(argc != 4) {
+        return EPERM;
+    }
+    if((!strcmp(argv[1], "dns") && (inet_pton(AF_INET, argv[3], &a) == 1))
+       || (!strcmp(argv[1], "domain") && !strcmp(argv[3], "~."))
+       || (!strcmp(argv[1], "default-route") && !strcmp(argv[3], "true"))) {
+        return 0;
+    }
+    return EPERM;
+}
+
+
+// The helper's own rights: those of the user the edge drops to, and
+// CAP_NET_ADMIN, effective - nothing else of root's.  false if that fails.
+static bool helper_privileges (uid_t uid, gid_t gid) {
+
+    struct __user_cap_header_struct hdr = {
+        .version = _LINUX_CAPABILITY_VERSION_3,
+        .pid = 0,
+    };
+    struct __user_cap_data_struct data[2];
+
+    if((prctl(PR_SET_KEEPCAPS, 1, 0, 0, 0) != 0) || (setgroups(1, &gid) != 0)
+       || (setgid(gid) != 0) || (setuid(uid) != 0)) {
+        return false;
+    }
+    memset(data, 0, sizeof(data));
+    data[0].permitted = data[0].effective = 1u << CAP_NET_ADMIN;
+    return (syscall(SYS_capset, &hdr, data) == 0) && (prctl(PR_SET_KEEPCAPS, 0, 0, 0, 0) == 0);
+}
+
+
+// The edge's end has closed - the edge ended, or crashed: its rules away
+// (the routes went with its device, or go now), and its DNS server
+static void helper_cleanup (void) {
+
+    const char *const revert[] = {"resolvectl", "revert", dev, NULL};
+
+    rules_del();
+    route(RTM_DELROUTE, AF_INET, 0);
+    route(RTM_DELROUTE, AF_INET6, 0);
+    run(revert, true);
+}
+
+
+// One request of the edge, done if it is one the helper does: the answer
+static int32_t helper_do (struct helper_msg *msg, int passed) {
+
+    switch(msg->op) {
+        case HELPER_NETLINK: {
+            struct nl_req req;
+
+            if(route_all_helper_check(msg->data, msg->len, dev_index)) {
+                traceEvent(TRACE_WARNING, "route-helper: refused a netlink request of type %u",
+                           (unsigned)((struct nlmsghdr *)msg->data)->nlmsg_type);
+                return EPERM;
+            }
+            memset(&req, 0, sizeof(req));
+            memcpy(&req, msg->data, msg->len);
+            return nl_talk(&req);
+        }
+        case HELPER_RUN: {
+            const char *args[6] = {NULL};
+            int k = 0;
+            size_t i = 0;
+
+            // the arguments, each ended by its \0
+            while((i < msg->len) && (k < 5)) {
+                const char *s = msg->data + i;
+                size_t l = strnlen(s, msg->len - i);
+
+                if(l == msg->len - i) {
+                    return EPERM;
+                }
+                args[k++] = s;
+                i += l + 1;
+            }
+            if(!k || (i != msg->len) || route_all_helper_check_run(args, dev)) {
+                traceEvent(TRACE_WARNING, "route-helper: refused to run %s", k ? args[0] : "?");
+                return EPERM;
+            }
+            return run(args, true) ? EIO : 0;
+        }
+        case HELPER_MARK: {
+            struct stat st;
+            uint32_t mark = ROUTE_ALL_MARK;
+
+            if((passed < 0) || (fstat(passed, &st) != 0) || !S_ISSOCK(st.st_mode)) {
+                return EPERM;
+            }
+            return setsockopt(passed, SOL_SOCKET, SO_MARK, &mark, sizeof(mark)) ? errno : 0;
+        }
+        default:
+            return EPERM;
+    }
+}
+
+
+int route_all_helper_main (int argc, char *argv[]) {
+
+    // route-helper FD DEVICE INDEX UID GID SANDBOX SYSLOG
+    long max = sysconf(_SC_OPEN_MAX);
+    int fd;
+
+    if(argc != 8) {
+        fprintf(stderr, "route-helper: not for people to start, but for the edge\n");
+        return 1;
+    }
+    fd = atoi(argv[1]);
+    snprintf(dev, sizeof(dev), "%s", argv[2]);
+    dev_index = (unsigned)strtoul(argv[3], NULL, 10);
+    if(atoi(argv[7])) {
+        setUseSyslog(1);
+    }
+
+    // nothing of the edge's but this socket, and stdin, stdout, stderr
+    if((max <= 0) || (max > 65536)) {
+        max = 65536;
+    }
+    for(long i = 3; i < max; i++) {
+        if(i != fd) {
+            close((int)i);
+        }
+    }
+    // systemd stops the edge and its helper at once: the edge needs it for
+    // taking the routes back, and its end closing is what ends the helper
+    signal(SIGTERM, SIG_IGN);
+    signal(SIGINT, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+    signal(SIGPIPE, SIG_IGN);
+    prctl(PR_SET_NAME, "n3n-be-helper", 0, 0, 0);
+
+    if(!helper_privileges((uid_t)strtoul(argv[4], NULL, 10), (gid_t)strtoul(argv[5], NULL, 10))) {
+        traceEvent(TRACE_ERROR, "route-helper: cannot keep CAP_NET_ADMIN alone [%s]", strerror(errno));
+        return 1;
+    }
+    if(atoi(argv[6])) {
+        // resolvectl it runs, nothing else of the files
+        struct n3n_sandbox_paths paths = { .exec = true };
+        n3n_sandbox_enter(&paths);
+    }
+    traceEvent(TRACE_INFO, "route-helper: for %s, with CAP_NET_ADMIN only", dev);
+
+    for(;;) {
+        struct helper_msg msg;
+        union {
+            char buf[CMSG_SPACE(sizeof(int))];
+            struct cmsghdr align;
+        } ctl;
+        struct iovec iov = { .iov_base = &msg, .iov_len = sizeof(msg) };
+        struct msghdr mh = { .msg_iov = &iov, .msg_iovlen = 1, .msg_control = ctl.buf,
+                             .msg_controllen = sizeof(ctl.buf) };
+        struct cmsghdr *c;
+        int passed = -1;
+        int32_t answer = EPERM;
+        ssize_t n;
+
+        memset(&msg, 0, sizeof(msg));
+        n = recvmsg(fd, &mh, MSG_CMSG_CLOEXEC);
+        if((n < 0) && (errno == EINTR)) {
+            continue;
+        }
+        if(n <= 0) {
+            break;
+        }
+        for(c = CMSG_FIRSTHDR(&mh); c; c = CMSG_NXTHDR(&mh, c)) {
+            if((c->cmsg_level == SOL_SOCKET) && (c->cmsg_type == SCM_RIGHTS)
+               && (c->cmsg_len == CMSG_LEN(sizeof(int)))) {
+                memcpy(&passed, CMSG_DATA(c), sizeof(int));
+            }
+        }
+        if(((size_t)n >= offsetof(struct helper_msg, data))
+           && (msg.len == (size_t)n - offsetof(struct helper_msg, data))) {
+            answer = helper_do(&msg, passed);
+        }
+        if(passed >= 0) {
+            close(passed);
+        }
+        if(send(fd, &answer, sizeof(answer), MSG_NOSIGNAL) != sizeof(answer)) {
+            break;
+        }
+    }
+    helper_cleanup();
+    traceEvent(TRACE_INFO, "route-helper: the edge has ended, so does its helper");
+    return 0;
+}
+
+
+// The edge starts it - itself, with the subcommand route-helper - before it
+// drops its privileges, with tuntap.route_all once its device is there:
+// the edge itself keeps none of root's rights then.  1 if there is none to
+// start (no tuntap.route_all, no drop of the privileges), -1 if it could
+// not be started.
+int route_all_helper_start (const n2n_edge_conf_t *conf) {
+
+    int sv[2];
+    char idx[16], uid[16], gid[16];
+    posix_spawn_file_actions_t fa;
+    pid_t pid;
+    int err;
+
+    if(!armed || (geteuid() != 0) || (!conf->userid && !conf->groupid)) {
+        return 1;
+    }
+    if(!dev[0]) {
+        traceEvent(TRACE_ERROR, "tuntap.route_all: no helper without the device");
+        return -1;
+    }
+    if(socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, sv) != 0) {
+        traceEvent(TRACE_ERROR, "tuntap.route_all: no helper [%s]", strerror(errno));
+        return -1;
+    }
+    snprintf(idx, sizeof(idx), "%u", dev_index);
+    snprintf(uid, sizeof(uid), "%u", (unsigned)conf->userid);
+    snprintf(gid, sizeof(gid), "%u", (unsigned)conf->groupid);
+    char *const args[] = {
+        "n3n-be-edge", "route-helper", "3", dev, idx, uid, gid,
+        conf->sandbox ? "1" : "0", conf->background ? "1" : "0", NULL
+    };
+    // its end as fd 3, where dup2() clears the CLOEXEC
+    posix_spawn_file_actions_init(&fa);
+    posix_spawn_file_actions_adddup2(&fa, sv[1], 3);
+    err = posix_spawn(&pid, "/proc/self/exe", &fa, NULL, args, environ);
+    posix_spawn_file_actions_destroy(&fa);
+    close(sv[1]);
+    if(err) {
+        traceEvent(TRACE_ERROR, "tuntap.route_all: no helper [%s]", strerror(err));
+        close(sv[0]);
+        return -1;
+    }
+    helper = sv[0];
+    traceEvent(TRACE_INFO, "tuntap.route_all: helper process %d", (int)pid);
+    return 0;
+}
+
+
+bool route_all_helper_running (void) {
+
+    return helper >= 0;
 }
 
 #elif defined(_WIN64)
@@ -1256,6 +1761,43 @@ uint32_t route_all_exit (void) {
 
 
 void route_all_after_setuid (void) {
+}
+
+#endif
+
+
+#ifndef ROUTE_ALL_LINUX
+
+// the helper is Linux's, see above
+
+int route_all_helper_start (const n2n_edge_conf_t *conf) {
+
+    return 1;
+}
+
+
+bool route_all_helper_running (void) {
+
+    return false;
+}
+
+
+int route_all_helper_main (int argc, char *argv[]) {
+
+    fprintf(stderr, "route-helper: on Linux only\n");
+    return 1;
+}
+
+
+int route_all_helper_check (const void *msg, size_t len, unsigned dev_index) {
+
+    return EPERM;
+}
+
+
+int route_all_helper_check_run (const char *const argv[], const char *device) {
+
+    return EPERM;
 }
 
 #endif

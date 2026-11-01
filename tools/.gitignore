@@ -31,6 +31,7 @@ tests-pdu-in
 tests-ipv6
 tests-tun
 tests-sandbox
+tests-route-helper
 tests-speck
 tests-tf
 tests-auth.exe
@@ -50,6 +51,7 @@ tests-pdu-in.exe
 tests-ipv6.exe
 tests-tun.exe
 tests-sandbox.exe
+tests-route-helper.exe
 tests-speck.exe
 tests-tf.exe
 tests-fec
