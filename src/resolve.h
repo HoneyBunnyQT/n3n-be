@@ -18,6 +18,10 @@
 #include "config.h"         // for HAVE_LIBPTHREAD
 #include "peer_info.h"      // for struct peer_info
 
+#ifdef HAVE_LIBPTHREAD
+#include <pthread.h>        // for pthread_t, pthread_mutex_t, pthread_cond_t
+#endif
+
 struct peer_info;
 
 #ifdef HAVE_LIBPTHREAD
