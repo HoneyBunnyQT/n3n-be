@@ -34,6 +34,10 @@ been emulated by the `hack_fakeautoconf`.
 This fake auto conf is only done due to the high hostility of installing
 autotools in the Windows environment.  It should not be done on any Unix
 system, or any system that autotools can actually be installed on.
+
+Threads come from the toolchain's winpthreads, which `hack_fakeautoconf` and
+`./configure --host=...-w64-mingw32` both link in statically: the programs
+need no DLL of the toolchain.
  
 Note that building with the UPnP libraries on Windows requires a bit of manual
 work at the moment.

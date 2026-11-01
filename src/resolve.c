@@ -284,17 +284,7 @@ int supernode2sock (n3n_sock_t *sn, const char *addrIn) {
 
 #ifdef HAVE_LIBPTHREAD
 
-#ifdef _MSC_VER
-// FIXME: this code may not work as expected - see also src/win32/n2n_win32.h
-//
-#define N2N_THREAD_RETURN_DATATYPE       DWORD WINAPI
-#define N2N_THREAD_PARAMETER_DATATYPE    LPVOID
-#else
-#define N2N_THREAD_RETURN_DATATYPE        void*
-#define N2N_THREAD_PARAMETER_DATATYPE     void*
-#endif
-
-N2N_THREAD_RETURN_DATATYPE resolve_thread (N2N_THREAD_PARAMETER_DATATYPE p) {
+static void *resolve_thread (void *p) {
 
     n3n_resolve_parameter_t *param = (n3n_resolve_parameter_t*)p;
     struct n3n_resolve_ip_sock *entry;

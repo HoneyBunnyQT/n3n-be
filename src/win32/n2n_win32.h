@@ -44,35 +44,6 @@
 
 
 /* ************************************* */
-// FIXME: this code has rotted and no longer works as expected
-
-#define HAVE_PTHREAD
-#define pthread_t       HANDLE
-#define pthread_mutex_t HANDLE
-
-#define pthread_create(p_thread_handle, attr, thread_func, p_param)                         \
-    (*p_thread_handle = CreateThread(0 /* default security flags */, 0 /*default stack*/,   \
-                                     thread_func, p_param, 0 /* default creation flags */,                      \
-                                     NULL) == 0)
-
-#define pthread_cancel(p_thread_handle) \
-    TerminateThread(p_thread_handle, 0)
-
-#define pthread_mutex_init(p_mutex_handle, attr)                      \
-    *p_mutex_handle = CreateMutex(NULL /*default security flags */,  \
-                                  FALSE /* initially not owned */, NULL /* unnamed */)
-
-#define pthread_mutex_lock(mutex)         \
-    WaitForSingleObject(*mutex, INFINITE)
-
-#define pthread_mutex_trylock(mutex)  \
-    WaitForSingleObject(*mutex, NULL)
-
-#define pthread_mutex_unlock(mutex) \
-    ReleaseMutex(*mutex)
-
-
-/* ************************************* */
 
 
 #endif

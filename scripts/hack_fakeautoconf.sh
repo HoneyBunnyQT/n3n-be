@@ -14,6 +14,7 @@ EOF
 cat <<EOF >include/config.h
 // Created by hack fake autoconf for windows
 // not actually a config header
+#define HAVE_LIBPTHREAD 1
 EOF
 
 cat <<EOF >configure
@@ -36,5 +37,5 @@ WINDRES=windres
 
 CFLAGS+=$CFLAGS -g -O2
 LDFLAGS+=$LDFLAGS
-LDLIBS_EXTRA+=-lnetapi32 -lws2_32 -liphlpapi
+LDLIBS_EXTRA+=-Wl,-Bstatic,-lpthread,-Bdynamic -lnetapi32 -lws2_32 -liphlpapi
 EOF

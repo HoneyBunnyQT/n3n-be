@@ -183,14 +183,16 @@ AS_IF([test "x$with_network_manager" != xno],
 
 # pthread is there on every system n3n-be is built for: on by default,
 # --disable-pthread leaves it out - the resolver then blocks the main loop,
-# and the packets have no threads.  Not yet on Windows, whose build has
-# pthread functions of its own (src/win32/n2n_win32.h) that MinGW's
-# winpthreads would clash with: off there unless asked for
+# and the packets have no threads.  On Windows it is MinGW's winpthreads,
+# linked in statically, so that the programs need no DLL of the toolchain
 AC_ARG_ENABLE([pthread],
-    [AS_HELP_STRING([--disable-pthread], [without pthread: no resolver thread, no packet threads])],
-    [], [AS_CASE([$host_os], [mingw*], [enable_pthread=no], [enable_pthread=yes])])
+    [AS_HELP_STRING([--disable-pthread], [without pthread: no resolver thread, no packet threads])])
 AS_IF([test "x$enable_pthread" != xno],
-    [AC_CHECK_LIB([pthread], [pthread_mutex_trylock],,
+    [AC_CHECK_LIB([pthread], [pthread_mutex_trylock],
+        [AC_DEFINE([HAVE_LIBPTHREAD], [1], [Define to 1 if you have the `pthread' library (-lpthread).])
+         AS_CASE([$host_os],
+            [mingw*], [LIBS="-Wl,-Bstatic,-lpthread,-Bdynamic $LIBS"],
+            [LIBS="-lpthread $LIBS"])],
         [AC_MSG_ERROR([pthread library not found])]
     )],
 )

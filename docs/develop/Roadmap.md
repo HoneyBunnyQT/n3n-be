@@ -630,10 +630,12 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
 - [~] pthread always (asked 2026-11-01).  Step 1, done 2026-11-01: on by
       default (`--disable-pthread`), as every system built for has it -
       the packages, which never asked for it, now have the resolver
-      thread and `daemon.threads`; Windows stays without it, as its own
-      pthread functions (src/win32/n2n_win32.h, "rotted") clash with
-      MinGW's winpthreads.  Step 2: Windows on winpthreads, its shim
-      gone; then the paths without pthread removed (34 `#ifdef
+      thread and `daemon.threads`.  Step 2, Windows on winpthreads, done
+      2026-11-01: its own pthread functions (src/win32/n2n_win32.h,
+      "rotted"), which clashed with them, are gone; winpthreads is
+      linked in statically (no DLL of the toolchain to bring along), the
+      resolver is a thread there too, packet threads stay Linux's.
+      Then the paths without pthread removed (34 `#ifdef
       HAVE_LIBPTHREAD` in six files), and with them `--disable-pthread`,
       which would have nothing left to build: configure stops without
       pthread.  One thread is then `daemon.threads = 1`, the default; the

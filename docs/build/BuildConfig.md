@@ -79,10 +79,10 @@ a thread of its own, and edges and supernodes can handle packets on
 several threads (`daemon.threads`, see [Threads](../advanced/Threads.md)).
 `--disable-pthread` leaves them out: the names are looked up on the main
 loop, which waits meanwhile, and packets have the main thread only.  Every
-system n3n-be is built for has pthread (glibc, musl, the BSDs, macOS), so
-this is for an odd toolchain only.  Windows builds stay without it for
-now: the Windows code has pthread functions of its own, which MinGW's
-winpthreads would clash with (`--enable-pthread` there does not build).
+system n3n-be is built for has pthread (glibc, musl, Bionic, the BSDs,
+macOS, and MinGW's winpthreads on Windows, linked in statically so that
+the programs need no DLL of the toolchain), so this is for an odd
+toolchain only.
 
 ### `--disable-relay`
 

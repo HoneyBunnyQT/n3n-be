@@ -147,7 +147,7 @@ int edge_threads_wanted (const n2n_edge_conf_t *conf) {
 }
 
 
-#ifdef HAVE_LIBPTHREAD
+#if defined(HAVE_LIBPTHREAD) && !defined(_WIN32)
 
 #include <errno.h>           // for errno, EAGAIN
 #include <fcntl.h>           // for fcntl, O_NONBLOCK
@@ -929,7 +929,7 @@ int edge_threads_wake_fd (struct n3n_runtime_data *eee) {
 }
 
 
-#else // HAVE_LIBPTHREAD -------------------------------------------------------
+#else // HAVE_LIBPTHREAD && !_WIN32 -------------------------------------------
 
 
 void edge_threads_main_release (struct n3n_runtime_data *eee) {
@@ -989,4 +989,4 @@ int edge_threads_wake_fd (struct n3n_runtime_data *eee) {
 }
 
 
-#endif // HAVE_LIBPTHREAD
+#endif // HAVE_LIBPTHREAD && !_WIN32
