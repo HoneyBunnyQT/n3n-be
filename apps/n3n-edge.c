@@ -1258,6 +1258,18 @@ int main (int argc, char* argv[]) {
             traceEvent(TRACE_ERROR, "unable to drop privileges [%u/%s]", errno, strerror(errno));
             exit(1);
         }
+#ifdef HAVE_LIBCAP
+        // PR_SET_KEEPCAPS kept all of root's permitted capabilities across
+        // setuid() - cap_get_proc() above started from them -, of which
+        // any could be made effective again: CAP_NET_ADMIN only
+        cap_clear(caps);
+        cap_set_flag(caps, CAP_PERMITTED, num_cap, cap_values, CAP_SET);
+        cap_set_flag(caps, CAP_EFFECTIVE, num_cap, cap_values, CAP_SET);
+        if(cap_set_proc(caps) != 0) {
+            traceEvent(TRACE_ERROR, "unable to give up root's other capabilities [%s]", strerror(errno));
+            exit(1);
+        }
+#endif
     }
 
     if((getuid() == 0) || (getgid() == 0))
