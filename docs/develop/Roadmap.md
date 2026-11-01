@@ -603,6 +603,21 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       (`RestartForceExitStatus=75`).  On `fixes` too: with libcap
       (`--enable-cap`) the edge kept all of root's permitted
       capabilities across setuid(), CAP_NET_ADMIN only now
+- [~] The route_all helper (asked 2026-11-01), v3's first step of the
+      privilege separation (Far future): on Linux, an edge with
+      `tuntap.route_all` forks before it drops its privileges; the child
+      - the same program, no other to install or start - keeps
+      CAP_NET_ADMIN, as n3n-be, in a Landlock sandbox of its own, reads no
+      packets, and does only what a socketpair asks: netlink requests of
+      the edge's two rules and its routes (its table, its device, its
+      protocol - checked), resolvectl on its device (revert, dns,
+      domain, default-route), SO_MARK on a socket handed over
+      (SCM_RIGHTS).  The edge itself keeps none of root's rights then.
+      The helper ignores SIGTERM (systemd sends it to both), takes the
+      routes away when the edge's end of the socket closes - also after
+      a crash, which left the rules behind until the next start - and
+      ends.  No pthread needed: a process, not a thread.  Later: the
+      device opened anew by it (its fd handed back), instead of exit 75
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`
@@ -1132,7 +1147,8 @@ release has it - as FEC was; there is no branch for it (see Decisions
       addresses and routes, `tuntap.route_all`, DNS) and does only what a
       few requests over a socketpair ask, and the one that reads the
       network with no rights at all (no CAP_NET_ADMIN, nothing of
-      Windows' SYSTEM).  Part of the peer's design, not of v3's edge
+      Windows' SYSTEM).  Part of the peer's design; v3's first step is in
+      Next (the route_all helper, Linux)
 
 ## Decisions
 
