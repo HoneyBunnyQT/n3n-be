@@ -637,7 +637,12 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       HAVE_LIBPTHREAD` in six files), and with them `--disable-pthread`,
       which would have nothing left to build: configure stops without
       pthread.  One thread is then `daemon.threads = 1`, the default; the
-      resolver is always a thread
+      resolver is always a thread.  Nothing is lost on the way: Android's
+      build has pthread already (android/app/src/main/cpp/config.h,
+      Bionic has it in its libc), and winpthreads comes with every MinGW
+      toolchain, CI's too; packet threads stay Linux's either way.
+      Step 3, once that has proven stable: `daemon.threads = 0` (half
+      the physical cores) as the default, instead of 1
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`
