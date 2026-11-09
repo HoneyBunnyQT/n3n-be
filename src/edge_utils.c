@@ -2059,7 +2059,8 @@ void edge_init_conf_defaults (n2n_edge_conf_t *conf, char *sessionname) {
     // Cannot rely on having unix domain sockets on windows
     conf->mgmt_port = N2N_EDGE_MGMT_PORT;
 #endif
-    conf->threads = 1;
+    // half the physical cores, see edge_threads.c
+    conf->threads = 0;
     conf->udp_gso = true;
 
     edge_conf_role_defaults(conf);

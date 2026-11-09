@@ -394,6 +394,28 @@ void tuntap_close_queues (struct tuntap_dev *tuntap, int keep) {
 }
 
 
+// Take the queues but the first from the device for a while, and give them
+// back: the device hands nothing to a detached queue, so what it has goes
+// to the first one, while nobody reads the others.  Needs none of root's
+// rights, unlike opening them anew.  A queue that cannot be attached again
+// is closed, and the ones after it with it.
+void tuntap_detach_queues (struct tuntap_dev *tuntap, bool detach) {
+
+    struct ifreq ifr;
+
+    for(int q = 1; q < tuntap->queues; q++) {
+        memset(&ifr, 0, sizeof(ifr));
+        ifr.ifr_flags = detach ? IFF_DETACH_QUEUE : IFF_ATTACH_QUEUE;
+        if(ioctl(tuntap->queue_fd[q], TUNSETQUEUE, (void *)&ifr) < 0) {
+            traceEvent(TRACE_WARNING, "tuntap: cannot %s queue %d: %s[%d]",
+                       detach ? "detach" : "attach", q, strerror(errno), errno);
+            tuntap_close_queues(tuntap, q);
+            return;
+        }
+    }
+}
+
+
 void tuntap_close (struct tuntap_dev *tuntap) {
 
     tuntap_close_queues(tuntap, 1);

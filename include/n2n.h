@@ -110,6 +110,7 @@ int tuntap_open_queues (struct tuntap_dev *device, int queues, char *dev,
 int tuntap_read_queue (struct tuntap_dev *tuntap, int queue, unsigned char *buf, int len);
 int tuntap_write_queue (struct tuntap_dev *tuntap, int queue, unsigned char *buf, int len);
 void tuntap_close_queues (struct tuntap_dev *tuntap, int keep);
+void tuntap_detach_queues (struct tuntap_dev *tuntap, bool detach);
 #endif
 #if defined(__linux__) || defined(__APPLE__)
 // Put an IPv6 address on the device: 0, or -1 after a line in the log

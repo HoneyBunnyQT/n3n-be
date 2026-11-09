@@ -115,9 +115,8 @@ What differs and can change while running is applied at once:
   `connection.watch_network`; a new description is told to the peers at
   once, with a REGISTER
 - `filter.allow_multicast`, `filter.allow_routing`, and the rules
-  (`filter.rule`): a new set of them takes over at once - not with packet
-  threads (`daemon.threads`), which use the filter while it changes; there
-  they wait for a restart
+  (`filter.rule`): a new set of them takes over at once, with packet
+  threads (`daemon.threads`) too
 - `logging.verbose`, `management.password`
 - `tuntap.gateway`, `tuntap.route_all`, `tuntap.dns` (an edge): all traffic
   through another exit peer, through one, or through none, as

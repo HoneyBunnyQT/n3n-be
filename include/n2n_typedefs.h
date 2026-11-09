@@ -843,6 +843,8 @@ struct n3n_runtime_data {
     const struct n3n_role_ops *ops;     /* of its role, see above */
 
     struct edge_threads *threads;       /* NULL unless PACKETs are handled by several threads, see edge_threads.h */
+    int threads_paused;                 /* the threads to start again once back on UDP, see edge_threads_pause() */
+    const struct edge_thread_ops *threads_paused_ops;
 
     bool                             *keep_running;                      /**< Pointer to edge loop stop/go flag */
     int exit_code;                      /* what run_edge_loop() returns: 0, or N3N_EXIT_RESTART */

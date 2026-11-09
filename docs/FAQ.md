@@ -90,8 +90,9 @@ supernode = tcp://sn.example.org:443
 ```
 
 `n3n-be-ctl get_supernodes` shows each supernode's `transports` and
-`tcp_sockaddr`.  The fallback does not work with several packet threads
-(`daemon.threads`), which need UDP.
+`tcp_sockaddr`.  Packet threads (`daemon.threads`) need UDP: while the
+edge is on TCP, it handles its packets on the main thread alone, and starts
+its threads again once it is back on UDP.
 
 Supernodes that the edge learns from the federation come with their UDP
 address only, so over TCP it tries the configured ones first, and a

@@ -252,6 +252,13 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", reload="a"),
     Scenario(
+        "reload-threads",
+        "as reload, the edges with packet threads: the new filter rule "
+        "takes over while they run",
+        Site(["easy-kept"], conf={"daemon": {"userid": 0, "groupid": 0}}),
+        Site(["easy-changed"]),
+        "direct", reload="a", conf={"daemon": {"threads": 3}}),
+    Scenario(
         "sn-tap-reload",
         "easy-kept / the TAP device of sn2 (supernode.tap); sn2's "
         "configuration gets another description and a filter rule for its "
@@ -616,6 +623,13 @@ SCENARIOS = [
         Site(["easy-kept"], block_udp=True),
         Site([]),
         "direct", unblock_udp=True),
+    Scenario(
+        "tcp-fallback-back-threads",
+        "as tcp-fallback-back, the edges with packet threads: they stop "
+        "while on TCP, and start again back on UDP",
+        Site(["easy-kept"], block_udp=True),
+        Site([]),
+        "direct", unblock_udp=True, conf={"daemon": {"threads": 3}}),
     Scenario(
         "lossy-direct",
         "edges behind easy NATs, direct; then their direct path loses 30% "

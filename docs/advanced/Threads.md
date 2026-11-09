@@ -5,24 +5,28 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 
 # Threads
 
-By default, edges and supernodes handle every packet on one thread.  On a
-fast link, that one thread can end up using a whole CPU core on encryption,
-decryption and system calls while the other cores sit idle.  With the
-`daemon.threads` option they handle packets on several threads at once.
+On a fast link, one thread can end up using a whole CPU core on
+encryption, decryption and system calls while the other cores sit idle.  So
+edges and supernodes handle packets on several threads at once: by default
+on half the physical cores (`daemon.threads = 0`, since 2026-11; one
+thread before), with the `daemon.threads` option on as many as given.
 
-This is worth it where there is a lot of traffic in one place - for example
-an edge in a well connected data centre used as the exit into the internet
-for many other edges, or a supernode that has to relay much of its
-communities' traffic because the edges cannot reach each other directly - or
-where a single core is slow, as on small ARM boards.  On a typical desktop
-link, one thread is plenty.
+It pays off where there is a lot of traffic in one place - for example an
+edge in a well connected data centre used as the exit into the internet for
+many other edges, or a supernode that has to relay much of its communities'
+traffic because the edges cannot reach each other directly - or where a
+single core is slow, as on small ARM boards.  On a typical desktop link one
+thread would do as well; `threads=1` keeps everything on the main thread.
 
 ## Requirements
 
 - Linux
-- for an edge: UDP to the supernode (not `connection.connect_tcp`)
+- for an edge: UDP to the supernode (not `connection.connect_tcp`); one
+  that falls back to TCP (`connection.tcp_fallback`) stops its threads
+  while it is on TCP, and starts them again once it is back on UDP
 
-If any of these is missing, a warning is printed and one thread is used.
+If any of these is missing, one thread is used - with a warning where a
+number was asked for, quietly with the default.
 
 A supernode with an edge of its own (`supernode.tap`) can have threads too;
 the PACKETs to and from its own edge are handled by the main thread.
@@ -39,8 +43,8 @@ threads=4
 or on the command line: `-Odaemon.threads=4`.  The value counts the main
 thread too, so `threads=4` starts three more.  At most 16 are used.
 
-`threads=0` picks the number itself: half the physical cores the process
-may run on, rounded up - so 4 on an 8 core machine, 2 on a Raspberry Pi 4
+`threads=0`, the default, picks the number itself: half the physical cores
+the process may run on, rounded up - so 4 on an 8 core machine, 2 on a Raspberry Pi 4
 and 1 on a VM with 2 vCPUs.  The other half is left for the kernel, which
 does much of the work of every packet.  Where threads do not work, it
 quietly uses one.

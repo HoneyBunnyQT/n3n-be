@@ -118,7 +118,8 @@ static n2n_cookie_t forwarded_reg_cookie (const struct n3n_runtime_data *eee) {
 // uses UDP until no supernode answers over it, then TCP (eee->client.tcp),
 // and goes back to UDP once a PING over UDP gets its answer: while on TCP,
 // transport_probe() sends one from a socket of its own now and then.  With
-// connect_tcp, it stays on TCP.  Packet threads need UDP, see edge_threads.h.
+// connect_tcp, it stays on TCP.  Packet threads need UDP: they stop while it
+// is on TCP, see edge_threads_pause().
 static size_t encode_query_peer (struct n3n_runtime_data *eee, uint8_t *pktbuf, const n2n_mac_t dst_mac);
 
 
@@ -278,7 +279,7 @@ static int supernode_count (struct n3n_runtime_data *eee, bool tcp) {
 static bool transport_can_fall_back (const struct n3n_runtime_data *eee) {
 
     return eee->conf.client.tcp_fallback && !eee->conf.client.connect_tcp
-           && !eee->conf.client.local_link && !eee->threads;
+           && !eee->conf.client.local_link;
 }
 
 
@@ -297,6 +298,10 @@ void transport_probe_close (struct n3n_runtime_data *eee) {
 static void transport_switch (struct n3n_runtime_data *eee, bool tcp, time_t now, const char *why) {
 
     traceEvent(TRACE_NORMAL, "%s", why);
+    if(tcp) {
+        // back with the new UDP sockets, see supernode_connect()
+        edge_threads_pause(eee);
+    }
     supernode_disconnect(eee);
     transport_probe_close(eee);
     eee->client.tcp = tcp;

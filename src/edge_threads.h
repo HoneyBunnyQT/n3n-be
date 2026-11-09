@@ -95,8 +95,16 @@ int edge_threads_start (struct n3n_runtime_data *eee, int threads,
 // Stop the workers again, applying what they queued. Called by the main thread.
 void edge_threads_stop (struct n3n_runtime_data *eee);
 
-// The main socket was opened again: move the workers to the new one.
+// The main socket was opened again: move the workers to the new one - or,
+// back on UDP, start those that edge_threads_pause() stopped.
 void edge_threads_socket_changed (struct n3n_runtime_data *eee);
+
+// The edge goes over TCP (connection.tcp_fallback), which the workers
+// cannot serve - it reaches the supernode on the main thread's socket:
+// stop them, noting how many ran, for edge_threads_socket_changed() to
+// start them again once the edge is back on UDP.  Called by the main
+// thread.
+void edge_threads_pause (struct n3n_runtime_data *eee);
 
 // From a worker: the socket it receives on and sends from.
 SOCKET edge_threads_sock (struct n3n_runtime_data *eee);

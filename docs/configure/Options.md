@@ -147,7 +147,7 @@ Default: `false`
 
 Fall back to TCP when UDP does not get through.
 
-Defaulting to true: when no supernode answers over UDP, for a round over all of them (at least two rounds), the edge connects to them over TCP instead, as connect_tcp does. While on TCP, it sends a UDP ping to its supernode every three register_intervals, and goes back to UDP as soon as one is answered. Peer-to-peer connections need UDP, so over TCP everything goes through the supernode; while a peer is heard directly over UDP, the edge stays on it, as the supernodes are rather down than blocked. Over TCP the configured supernodes come first: one learned from the federation, which tells its UDP address only, is tried at that port, and reached over UDP only once it refuses or does not answer there while others do. Not with several threads (daemon.threads).
+Defaulting to true: when no supernode answers over UDP, for a round over all of them (at least two rounds), the edge connects to them over TCP instead, as connect_tcp does. While on TCP, it sends a UDP ping to its supernode every three register_intervals, and goes back to UDP as soon as one is answered. Peer-to-peer connections need UDP, so over TCP everything goes through the supernode; while a peer is heard directly over UDP, the edge stays on it, as the supernodes are rather down than blocked. Over TCP the configured supernodes come first: one learned from the federation, which tells its UDP address only, is tried at that port, and reached over UDP only once it refuses or does not answer there while others do. With packet threads (daemon.threads), PACKETs are handled on the main thread alone while on TCP.
 
 Default: `true`
 
@@ -269,9 +269,9 @@ Settings for running the service
 
 Threads handling packets.
 
-Defaulting to 1, more threads let an edge encrypt and decrypt, and a supernode relay, packets on several cores at once. 0 picks half the physical cores, rounded up. Received traffic from one peer stays on one thread, and so does each flow read from the tap device. Needs Linux and, for an edge, UDP to the supernode; otherwise one thread is used.
+Defaulting to 0, which picks half the physical cores, rounded up: more threads let an edge encrypt and decrypt, and a supernode relay, packets on several cores at once. 1 keeps them on the main thread. Received traffic from one peer stays on one thread, and so does each flow read from the tap device. Needs Linux and, for an edge, UDP to the supernode; otherwise one thread is used.
 
-Default: `1`
+Default: `0`
 
 ### daemon.userid
 

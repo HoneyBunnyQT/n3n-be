@@ -142,8 +142,10 @@ the Unix Domain socket /run/n3n-be/\fB<sessionname>\fR/mgmt, and on the TCP port
 section for its edge too, and \fBn3n-be-ctl -r edge\fR asks the edge.  See
 docs/internals/ManagementAPI.md.
 .SH THREADS
-With \fBdaemon.threads\fR the supernode relays PACKETs on several threads.
-This needs Linux, see docs/advanced/Threads.md.
+The supernode relays PACKETs on several threads: by default on half the
+physical cores (\fBdaemon.threads\fR = 0), on as many as
+\fBdaemon.threads\fR gives, on the main thread alone with 1.  This needs
+Linux, see docs/advanced/Threads.md.
 .SH ENVIRONMENT
 .TP
 .B N3N_FEDERATION

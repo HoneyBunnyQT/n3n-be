@@ -643,8 +643,14 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       a thread.  Nothing was lost on the way: Android's build had pthread
       already (Bionic has it in its libc), and winpthreads comes with
       every MinGW toolchain, CI's too; packet threads stay Linux's.
-      Step 3, once that has proven stable: `daemon.threads = 0` (half
-      the physical cores) as the default, instead of 1
+      Step 3, done 2026-11-09: `daemon.threads = 0` (half the physical
+      cores) as the default, instead of 1.  An edge that falls back to
+      TCP (`connection.tcp_fallback`), which the packet threads cannot
+      serve, stops them while it is on TCP and starts them again back on
+      UDP - detaching and reattaching their tap queues, which needs none
+      of root's rights; the filter rules reload with threads too, each
+      thread's cache keyed by the filter's id.  netns: `reload-threads`,
+      `tcp-fallback-back-threads`
 - [x] Windows XP again (asked 2026-11-09): the 32 bit build had not started
       there for a while - GetTickCount64() (Vista), in
       n3n_monotonic_us() and in the winpthreads linked in.  Now the

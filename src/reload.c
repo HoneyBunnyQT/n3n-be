@@ -340,18 +340,17 @@ static bool is_local_edge_option (const char *key) {
 // The rules of the traffic filter as conf has them, for the edge of rt (a
 // supernode's own edge for a supernode): a filter of their own, which the
 // caches of verdicts know by its id, so that none of the old ones is
-// taken.  Not while packet threads use the filter, as they do with
-// daemon.threads.  The edge of a supernode shares the list of rules with
-// the supernode, and frees it at its end, see edge_term().
+// taken - each thread's cache, with packet threads (daemon.threads), which
+// use the filter only in a batch, under the read side of their lock: the
+// main thread, awake, holds the write side.  The edge of a supernode
+// shares the list of rules with the supernode, and frees it at its end,
+// see edge_term().
 static bool apply_rules (struct n3n_runtime_data *rt, n2n_edge_conf_t *conf) {
 
     struct n3n_runtime_data *eee = rt->conf.is_supernode ? rt->relay.local_edge : rt;
     filter_rule_t *rule, *tmp;
     network_traffic_filter_t *filter;
 
-    if(eee && eee->threads) {
-        return false;
-    }
     if(eee) {
         filter = create_network_traffic_filter();
         if(!filter) {

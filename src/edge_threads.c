@@ -814,10 +814,40 @@ static int threads_start (struct n3n_runtime_data *eee, int threads,
 }
 
 
+void edge_threads_pause (struct n3n_runtime_data *eee) {
+
+    if(!eee->threads) {
+        return;
+    }
+    eee->threads_paused = eee->threads->requested;
+    eee->threads_paused_ops = eee->threads->ops;
+    traceEvent(TRACE_NORMAL, "over TCP, PACKETs on the main thread only, until back on UDP");
+    edge_threads_stop(eee);
+    if(eee->threads_paused_ops->tap) {
+        // the device would go on handing flows to the workers' queues
+        tuntap_detach_queues(&eee->tap.device, true);
+    }
+}
+
+
 int edge_threads_start (struct n3n_runtime_data *eee, int threads,
                         const struct edge_thread_ops *ops) {
 
-    int started = threads_start(eee, threads, ops);
+    int started;
+
+    if((threads > 1) && eee->client.tcp && !eee->conf.client.connect_tcp) {
+        // over TCP by connection.tcp_fallback (the device opened again
+        // meanwhile): they start once the edge is back on UDP, with the
+        // tap queues that are left open for them
+        eee->threads_paused = threads;
+        eee->threads_paused_ops = ops;
+        close_early_sockets();
+        if(ops->tap) {
+            tuntap_detach_queues(&eee->tap.device, true);
+        }
+        return 1;
+    }
+    started = threads_start(eee, threads, ops);
 
     close_early_sockets();
 
@@ -877,6 +907,16 @@ void edge_threads_socket_changed (struct n3n_runtime_data *eee) {
     int threads;
 
     if(!eee->threads) {
+        if(eee->threads_paused && !eee->client.tcp) {
+            // back on UDP: the ones edge_threads_pause() stopped, on
+            // sockets of the new main socket's port
+            threads = eee->threads_paused;
+            eee->threads_paused = 0;
+            if(eee->threads_paused_ops->tap) {
+                tuntap_detach_queues(&eee->tap.device, false);
+            }
+            edge_threads_start(eee, threads, eee->threads_paused_ops);
+        }
         return;
     }
 
@@ -960,6 +1000,9 @@ void edge_threads_stop (struct n3n_runtime_data *eee) {
 }
 
 void edge_threads_socket_changed (struct n3n_runtime_data *eee) {
+}
+
+void edge_threads_pause (struct n3n_runtime_data *eee) {
 }
 
 SOCKET edge_threads_sock (struct n3n_runtime_data *eee) {

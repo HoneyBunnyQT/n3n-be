@@ -354,7 +354,8 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
 
 
     /* Random MAC address */
-    sss->conf.threads = 1;
+    // half the physical cores, see edge_threads.c
+    sss->conf.threads = 0;
 
     memrnd(sss->conf.relay.sn_mac_addr, N2N_MAC_SIZE);
     sss->conf.relay.sn_mac_addr[0] &= ~0x01; /* Clear multicast bit */

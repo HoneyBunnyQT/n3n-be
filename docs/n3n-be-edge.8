@@ -404,8 +404,10 @@ configuration file has to be readable for \fBdaemon.userid\fR then.  See
 docs/configure/ConfigurationFiles.md.
 
 .SH THREADS
-With \fBdaemon.threads\fR the edge encrypts and decrypts packets on several
-threads.  This needs Linux, see docs/advanced/Threads.md.
+The edge encrypts and decrypts packets on several threads: by default on
+half the physical cores (\fBdaemon.threads\fR = 0), on as many as
+\fBdaemon.threads\fR gives, on the main thread alone with 1.  This needs
+Linux and UDP to the supernode, see docs/advanced/Threads.md.
 
 .SH MANAGEMENT INTERFACE
 Edge always provides JsonAPI listening on a Unix Domain socket in /run/n3n-be and

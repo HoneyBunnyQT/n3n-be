@@ -275,7 +275,8 @@ static struct n3n_conf_option section_connection[] = {
                 "from the federation, which tells its UDP address only, is "
                 "tried at that port, and reached over UDP only once it "
                 "refuses or does not answer there while others do.  "
-                "Not with several threads (daemon.threads).",
+                "With packet threads (daemon.threads), PACKETs are "
+                "handled on the main thread alone while on TCP.",
     },
     {
         .name = "description",
@@ -464,9 +465,10 @@ static struct n3n_conf_option section_daemon[] = {
         .type = n3n_conf_uint32,
         .offset = offsetof(n2n_edge_conf_t, threads),
         .desc = "Threads handling packets",
-        .help = "Defaulting to 1, more threads let an edge encrypt and "
-                "decrypt, and a supernode relay, packets on several cores "
-                "at once.  0 picks half the physical cores, rounded up.  "
+        .help = "Defaulting to 0, which picks half the physical cores, "
+                "rounded up: more threads let an edge encrypt and decrypt, "
+                "and a supernode relay, packets on several cores at once.  "
+                "1 keeps them on the main thread.  "
                 "Received traffic from one peer stays on one thread, and "
                 "so does each flow read from the tap device.  Needs Linux "
                 "and, for an edge, UDP to the supernode; otherwise one "
