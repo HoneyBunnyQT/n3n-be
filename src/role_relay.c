@@ -620,8 +620,20 @@ void sn_rx_packet (struct n3n_runtime_data *sss, struct pdu_ctx *c) {
 
         uint16_t oldEncx = encx;
 
+        /* The re-encoded header carries a socket this one may not have
+         * had, so it can be longer than the header that arrived: the
+         * payload after it would then not fit in encbuf.  Drop the packet
+         * rather than write past encbuf - it takes a non-standard MTU, or
+         * a crafted packet, to get here. */
+        size_t pktsize = c->size - c->idx;
+        if((encx > N2N_SN_PKTBUF_SIZE) || (pktsize > (size_t)N2N_SN_PKTBUF_SIZE - encx)) {
+            traceEvent(TRACE_INFO, "PACKET too long to forward (%zu + %zu > %u), dropping",
+                       (size_t)encx, pktsize, (unsigned)N2N_SN_PKTBUF_SIZE);
+            return;
+        }
+
         /* Copy the original payload unchanged */
-        encode_buf(encbuf, &encx, (c->buf + c->idx), (c->size - c->idx));
+        encode_buf(encbuf, &encx, (c->buf + c->idx), pktsize);
 
         if(c->comm->header_encryption == HEADER_ENCRYPTION_ENABLED) {
             // in case of user-password auth, also encrypt the iv of payload assuming ChaCha20 and SPECK having the same iv size
