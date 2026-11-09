@@ -564,6 +564,12 @@ jobs:
           ./configure --host ${{ matrix.arch }}
           make
 
+      # the 32 bit Windows build is the one for Windows XP
+      - name: No import of what Windows XP lacks
+        if: matrix.arch == 'i686-w64-mingw32'
+        run: |
+          scripts/check_xp_imports.sh i686-w64-mingw32-objdump apps/*.exe
+
       - name: Create binary dir
         shell: bash
         run: |

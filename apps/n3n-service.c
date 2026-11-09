@@ -254,6 +254,7 @@ static void tray_file (int port, const char *password) {
 static void firewall (const char *exe) {
 
     char cmd[2 * MAX_PATH + 200];
+    bool ok;
 
     // a rule of an earlier install, whose program may have been elsewhere
     snprintf(cmd, sizeof(cmd), "netsh advfirewall firewall delete rule name=\"%s\" > nul 2>&1", service_name);
@@ -263,7 +264,14 @@ static void firewall (const char *exe) {
     }
     snprintf(cmd, sizeof(cmd), "netsh advfirewall firewall add rule name=\"%s\" dir=in action=allow "
              "program=\"%s\" enable=yes profile=any > nul", service_name, exe);
-    if(system(cmd) != 0) {
+    ok = (system(cmd) == 0);
+    if(!ok) {
+        // Windows XP's firewall has no advfirewall, only this
+        snprintf(cmd, sizeof(cmd), "netsh firewall add allowedprogram program=\"%s\" name=\"%s\" "
+                 "mode=ENABLE > nul 2>&1", exe, service_name);
+        ok = (system(cmd) == 0);
+    }
+    if(!ok) {
         printf("the firewall rule %s failed: peers that come unasked do not get through\n", service_name);
     } else {
         printf("firewall: a rule %s lets what comes to the edge through\n", service_name);

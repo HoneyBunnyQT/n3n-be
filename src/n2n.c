@@ -886,12 +886,46 @@ static uint64_t time_stamp_next (uint64_t previous, uint64_t micro_seconds) {
 }
 
 
+#ifdef _WIN32
+// The performance counter, in microseconds since the computer started: Windows
+// XP has it, unlike GetTickCount64() (Vista), and it counts finer than ticks
+static uint64_t win32_counter_us (void) {
+
+    LARGE_INTEGER freq, count;
+    uint64_t f, c;
+
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&count);
+    f = (uint64_t)freq.QuadPart;
+    c = (uint64_t)count.QuadPart;
+    // in two parts, so that c * 1000000 cannot overflow
+    return (c / f) * 1000000 + (c % f) * 1000000 / f;
+}
+#endif
+
+
+#if defined(_WIN32) && !defined(_WIN64)
+// winpthreads, linked in statically, calls GetTickCount64(), which the
+// kernel32.dll of Windows XP does not have - and the import of a function
+// a DLL lacks keeps a program from starting at all.  So its import pointer
+// is defined here, for the 32 bit build that XP runs: the linker takes
+// this one instead of the import library's, and winpthreads counts on the
+// performance counter, in the milliseconds GetTickCount64() would give.
+static ULONGLONG WINAPI tick_count64 (void) {
+
+    return win32_counter_us() / 1000;
+}
+
+ULONGLONG (WINAPI *n3n_imp_GetTickCount64)(void) __asm__("__imp__GetTickCount64@0") __attribute__((used)) = tick_count64;
+#endif
+
+
 // Microseconds of a clock that only goes forward, for measuring how long
 // something took: not the time of day
 uint64_t n3n_monotonic_us (void) {
 
 #ifdef _WIN32
-    return (uint64_t)GetTickCount64() * 1000;
+    return win32_counter_us();
 #else
     struct timespec ts;
 

@@ -49,12 +49,23 @@ app - is in [Windows](../quick_start/Windows.md) under Getting Started.
 
 ## Windows XP
 
-There is deliberate support for compiling the n3n project to work on Windows
-XP 32bit.  This has been used by people to support using old LAN protocols
-across the internet (eg, for retro gaming)
+The 32 bit build (`./configure --host i686-w64-mingw32`, or CI's
+`binaries-i686-w64-mingw32`, see the [FAQ](../FAQ.md)) is the one for
+Windows XP - for old LAN games over the internet, say.  It imports
+nothing XP's DLLs lack, which would keep a program from starting at all:
+the clock that only goes forward is the performance counter, and
+`GetTickCount64()` - Vista's, which the winpthreads linked in asks for -
+is answered by n3n-be itself (`src/n2n.c`).  The tray app looks up the
+few Vista functions it uses and goes without them: on XP it takes no QR
+code from the clipboard, and its icon speaks the older version of the
+notification area.  `scripts/check_xp_imports.sh` fails on an import of
+a Vista function, and CI runs it on every 32 bit build.  Checked so, by
+the imports - not on an XP of its own.
 
-Note that there are a number of features that are simply disabled in the
-Windows XP build.
+On XP the edge needs the TAP driver (TAP-Windows 9.9.2, the last for XP),
+not Wintun, which needs Windows 7.  The service's firewall rule falls
+back to XP's `netsh firewall`.  Some features are disabled in the 32 bit
+build.
 
 ## Windows unsupported features
 

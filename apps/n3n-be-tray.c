@@ -120,6 +120,14 @@ static struct snapshot shown;   // the window's own copy, for its menu
 static HANDLE wake;             // polls at once when set
 static volatile LONG acting;    // an action under way
 static bool qr_waiting;         // for a QR code's text on the clipboard
+// Vista's, looked up at the start so that the tray runs on Windows XP too:
+// there, no QR code is taken from the clipboard - the Camera app that puts
+// it there is Windows 10's - and the icons are scaled as for any program
+static BOOL (WINAPI *add_clipboard_listener)(HWND);
+static BOOL (WINAPI *remove_clipboard_listener)(HWND);
+// Windows Vista or newer, whose notification area knows version 4 of the
+// icon's messages - XP's knows 3, and a smaller NOTIFYICONDATAW
+static bool vista;
 static volatile LONG checks_wanted;     // the exits are to be checked: the menu opened
 // before a peer's name in the menu: a pink dot for a confirmed exit, a blue
 // one for one that only says it is, nothing - of the same size - otherwise
@@ -901,7 +909,7 @@ static void from_code (char *text) {
 static void qr_stop (void) {
 
     if(qr_waiting) {
-        RemoveClipboardFormatListener(window);
+        remove_clipboard_listener(window);
         KillTimer(window, QR_TIMER);
         qr_waiting = false;
     }
@@ -956,8 +964,12 @@ static void clipboard_changed (void) {
 // takes it from the clipboard - any other reader that copies it does too
 static void from_qr (void) {
 
+    if(!add_clipboard_listener || !remove_clipboard_listener) {
+        note(L"Taking a QR code's text from the clipboard needs Windows Vista or newer");
+        return;
+    }
     if(!qr_waiting) {
-        qr_waiting = AddClipboardFormatListener(window);
+        qr_waiting = add_clipboard_listener(window);
         SetTimer(window, QR_TIMER, QR_WAIT_MS, NULL);
     }
     if((INT_PTR)ShellExecuteW(NULL, L"open", L"microsoft.windows.camera:", NULL, NULL, SW_SHOWNORMAL) <= 32) {
@@ -1297,7 +1309,7 @@ static void update_icon (void) {
         return;
     }
     wcscpy(nid.szTip, tip);
-    nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | NIF_SHOWTIP;
+    nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | (vista ? NIF_SHOWTIP : 0);
     nid.hIcon = icons[shown.phase];
     Shell_NotifyIconW(NIM_MODIFY, &nid);
 }
@@ -1305,15 +1317,15 @@ static void update_icon (void) {
 
 static void add_icon (void) {
 
-    nid.cbSize = sizeof(nid);
+    nid.cbSize = vista ? sizeof(nid) : NOTIFYICONDATAW_V3_SIZE;
     nid.hWnd = window;
     nid.uID = 1;
-    nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | NIF_SHOWTIP;
+    nid.uFlags = NIF_ICON | NIF_TIP | NIF_MESSAGE | (vista ? NIF_SHOWTIP : 0);
     nid.uCallbackMessage = WM_TRAY;
     nid.hIcon = icons[shown.phase];
     describe(&shown, nid.szTip, sizeof(nid.szTip) / sizeof(wchar_t));
     Shell_NotifyIconW(NIM_ADD, &nid);
-    nid.uVersion = NOTIFYICON_VERSION_4;
+    nid.uVersion = vista ? NOTIFYICON_VERSION_4 : NOTIFYICON_VERSION;
     Shell_NotifyIconW(NIM_SETVERSION, &nid);
 }
 
@@ -1471,7 +1483,15 @@ static LRESULT CALLBACK proc (HWND w, UINT msg, WPARAM wp, LPARAM lp) {
                 case WM_CONTEXTMENU:
                 case NIN_SELECT:
                 case NIN_KEYSELECT:
-                    menu((short)LOWORD(wp), (short)HIWORD(wp));
+                    if(vista) {
+                        menu((short)LOWORD(wp), (short)HIWORD(wp));
+                    } else {
+                        // version 3 tells no position: where the mouse is
+                        POINT at;
+
+                        GetCursorPos(&at);
+                        menu(at.x, at.y);
+                    }
                     break;
             }
             return 0;
@@ -1536,7 +1556,23 @@ int WINAPI WinMain (HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show) {
         return 0;
     }
 
-    SetProcessDPIAware();
+    {
+        HMODULE user32 = GetModuleHandleW(L"user32.dll");
+        FARPROC add = GetProcAddress(user32, "AddClipboardFormatListener");
+        FARPROC remove = GetProcAddress(user32, "RemoveClipboardFormatListener");
+        FARPROC dpi = GetProcAddress(user32, "SetProcessDPIAware");
+
+        // function pointers of their own types, from FARPROC's
+        vista = (add != NULL);
+        memcpy(&add_clipboard_listener, &add, sizeof(add));
+        memcpy(&remove_clipboard_listener, &remove, sizeof(remove));
+        if(dpi) {
+            BOOL (WINAPI *dpi_aware)(void);
+
+            memcpy(&dpi_aware, &dpi, sizeof(dpi));
+            dpi_aware();
+        }
+    }
     WSAStartup(MAKEWORD(2, 2), &wsa);
     InitializeCriticalSection(&lock);
     wake = CreateEventW(NULL, FALSE, FALSE, NULL);

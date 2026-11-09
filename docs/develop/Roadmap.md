@@ -645,6 +645,13 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       every MinGW toolchain, CI's too; packet threads stay Linux's.
       Step 3, once that has proven stable: `daemon.threads = 0` (half
       the physical cores) as the default, instead of 1
+- [x] Windows XP again (asked 2026-11-09): the 32 bit build had not started
+      there for a while - GetTickCount64() (Vista), in
+      n3n_monotonic_us() and in the winpthreads linked in.  Now the
+      performance counter, and on 32 bit an import pointer of n3n-be's
+      own for winpthreads' calls; the tray looks its three Vista
+      functions up.  scripts/check_xp_imports.sh in CI on every 32 bit
+      build; checked by the imports, not on an XP
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`
