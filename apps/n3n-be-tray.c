@@ -123,8 +123,8 @@ static bool qr_waiting;         // for a QR code's text on the clipboard
 // Vista's, looked up at the start so that the tray runs on Windows XP too:
 // there, no QR code is taken from the clipboard - the Camera app that puts
 // it there is Windows 10's - and the icons are scaled as for any program
-static BOOL (WINAPI *add_clipboard_listener)(HWND);
-static BOOL (WINAPI *remove_clipboard_listener)(HWND);
+static BOOL(WINAPI *add_clipboard_listener)(HWND);
+static BOOL(WINAPI *remove_clipboard_listener)(HWND);
 // Windows Vista or newer, whose notification area knows version 4 of the
 // icon's messages - XP's knows 3, and a smaller NOTIFYICONDATAW
 static bool vista;
@@ -1567,7 +1567,7 @@ int WINAPI WinMain (HINSTANCE inst, HINSTANCE prev, LPSTR cmdline, int show) {
         memcpy(&add_clipboard_listener, &add, sizeof(add));
         memcpy(&remove_clipboard_listener, &remove, sizeof(remove));
         if(dpi) {
-            BOOL (WINAPI *dpi_aware)(void);
+            BOOL(WINAPI *dpi_aware)(void);
 
             memcpy(&dpi_aware, &dpi, sizeof(dpi));
             dpi_aware();

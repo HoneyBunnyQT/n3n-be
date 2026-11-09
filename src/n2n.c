@@ -916,7 +916,7 @@ static ULONGLONG WINAPI tick_count64 (void) {
     return win32_counter_us() / 1000;
 }
 
-ULONGLONG (WINAPI *n3n_imp_GetTickCount64)(void) __asm__("__imp__GetTickCount64@0") __attribute__((used)) = tick_count64;
+ULONGLONG(WINAPI *n3n_imp_GetTickCount64)(void) __asm__ ("__imp__GetTickCount64@0") __attribute__((used)) = tick_count64;
 #endif
 
 
