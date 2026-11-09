@@ -31,3 +31,4 @@ common: no supernode added for them: ok
 dispatch: the handler of its type, once: ok
 dispatch: a type without a handler: ok
 dispatch: a type beyond the last: ok
+forward: an oversized PACKET does not overflow the buffer: ok

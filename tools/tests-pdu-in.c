@@ -38,6 +38,7 @@
 #include "uthash.h"             // for HASH_COUNT
 #include "../src/pdu_in.h"      // for pdu_in_common, pdu_header_decrypt, ...
 #include "../src/peer_info.h"   // for peer_info_malloc, clear_peer_list
+#include "../src/role_relay.h"  // for sn_rx_packet
 
 #define COMMUNITY "pdu-test"
 #define BODY 16                // bytes after the common header
@@ -326,6 +327,42 @@ static void test_dispatch (void) {
     check("dispatch: a type beyond the last", (ret < 0) && (handled == 1));
 }
 
+// Forwarding a maximum-size PACKET that arrived without a socket of its
+// own: the supernode re-encodes the header with a socket added, so the
+// re-encoded header is longer than the one that came in and the unchanged
+// payload after it no longer fits in the N2N_SN_PKTBUF_SIZE buffer.  The
+// edge must drop it rather than write past the buffer - a regression test
+// for that overflow, which AddressSanitizer catches without the guard.
+static void test_sn_forward (void) {
+    struct n3n_runtime_data sss;
+    struct sn_community comm;
+    struct pdu_ctx c;
+    uint8_t buf[N2N_SN_PKTBUF_SIZE];
+
+    memset(&sss, 0, sizeof(sss));
+    memset(&comm, 0, sizeof(comm));
+    comm.header_encryption = HEADER_ENCRYPTION_NONE;
+
+    // a PACKET from an edge (no socket, not from a supernode), its common
+    // header decoded as a received one
+    memset(buf, 0xa5, sizeof(buf));
+    ctx_of(&c, buf, MSG_TYPE_PACKET, 0, 0, 9);
+    if(pdu_in_common(&c, false, 0, NULL, 0) != 0) {
+        check("forward: the oversized PACKET set up", 0);
+        return;
+    }
+    // stretch it to fill the whole receive buffer, and give it an IPv6
+    // sender so the socket the supernode adds is as large as it gets
+    c.size = sizeof(buf);
+    c.rem = c.size - c.idx;
+    c.sender.family = AF_INET6;
+    c.comm = &comm;
+    c.now = 1;
+
+    sn_rx_packet(&sss, &c);
+    check("forward: an oversized PACKET does not overflow the buffer", 1);
+}
+
 int main (int argc, char *argv[]) {
 
     setTraceLevel(TRACE_ERROR);
@@ -336,6 +373,7 @@ int main (int argc, char *argv[]) {
     test_decrypt();
     test_common();
     test_dispatch();
+    test_sn_forward();
 
     return failed;
 }
