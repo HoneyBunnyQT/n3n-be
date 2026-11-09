@@ -823,10 +823,12 @@ void edge_threads_pause (struct n3n_runtime_data *eee) {
     eee->threads_paused_ops = eee->threads->ops;
     traceEvent(TRACE_NORMAL, "over TCP, PACKETs on the main thread only, until back on UDP");
     edge_threads_stop(eee);
+#ifdef __linux__
     if(eee->threads_paused_ops->tap) {
         // the device would go on handing flows to the workers' queues
         tuntap_detach_queues(&eee->tap.device, true);
     }
+#endif
 }
 
 
@@ -842,9 +844,11 @@ int edge_threads_start (struct n3n_runtime_data *eee, int threads,
         eee->threads_paused = threads;
         eee->threads_paused_ops = ops;
         close_early_sockets();
+#ifdef __linux__
         if(ops->tap) {
             tuntap_detach_queues(&eee->tap.device, true);
         }
+#endif
         return 1;
     }
     started = threads_start(eee, threads, ops);
@@ -912,9 +916,11 @@ void edge_threads_socket_changed (struct n3n_runtime_data *eee) {
             // sockets of the new main socket's port
             threads = eee->threads_paused;
             eee->threads_paused = 0;
+#ifdef __linux__
             if(eee->threads_paused_ops->tap) {
                 tuntap_detach_queues(&eee->tap.device, false);
             }
+#endif
             edge_threads_start(eee, threads, eee->threads_paused_ops);
         }
         return;
