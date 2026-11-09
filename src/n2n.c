@@ -93,16 +93,31 @@ SOCKET open_socket (struct sockaddr *local_address, socklen_t addrlen, int type 
     SOCKET sock_fd;
     int sockopt;
     int family;
-
+    int socktype = (type == 0) ? SOCK_DGRAM : SOCK_STREAM;
 
     if(local_address) {
         family = local_address->sa_family;
+        sock_fd = n3n_socket(family, socktype, 0);
     } else {
-        // If no bind details provided, assume IPv4.
-        family = AF_INET;
+        // No bind address given: prefer an IPv6 socket, made dual-stack
+        // below (IPV6_V6ONLY cleared), so both IPv4 and IPv6 peers and
+        // supernodes are reachable; fall back to IPv4 where the host has no
+        // IPv6.  n3n-be's own daemons bind a dual-stack [::] socket through
+        // open_udp_sockets() / n3n_open_bind_sockets() and never reach here
+        // unbound; this is for programs that embed the core and call
+        // open_socket() with no address.  Same idea as upstream n42n/n3n
+        // PR #180 (https://github.com/n42n/n3n/pull/180, Andy Chiang).
+        family = AF_INET6;
+        sock_fd = n3n_socket(family, socktype, 0);
+        if((int)sock_fd < 0) {
+            traceEvent(TRACE_INFO, "no IPv6 socket [%s], falling back to IPv4",
+                       strerror(errno));
+            family = AF_INET;
+            sock_fd = n3n_socket(family, socktype, 0);
+        }
     }
 
-    if((int)(sock_fd = n3n_socket(family, ((type == 0) ? SOCK_DGRAM : SOCK_STREAM), 0)) < 0) {
+    if((int)sock_fd < 0) {
         traceEvent(TRACE_ERROR, "Unable to create socket for family %d [%s][%d]\n",
                    family, strerror(errno), sock_fd);
         return -1;
