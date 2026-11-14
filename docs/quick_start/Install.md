@@ -18,7 +18,10 @@ All of them have the same program, `n3n-be`: as an edge it is also
 called `n3n-be-edge`, as a supernode `n3n-be-supernode`.  `n3n-be-ctl`,
 the command line tool to look into a running edge or supernode, comes with
 it (it needs Python 3).  The names are n3n-be's own, not n3n's, so that it
-installs next to n3n.
+installs next to n3n.  To run both at the same time, give one of them
+other ports and another session name: both take the management ports
+5644 (edge) and 5645 (supernode), a supernode's port 7654, and an edge's
+session name `edge`, after which its device is named.
 
 ## Debian and Ubuntu
 

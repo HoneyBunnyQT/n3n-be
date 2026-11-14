@@ -126,9 +126,14 @@ a branch of its own that was merged into `main` and retired on
 Picked on 2026-10-18, in this order: the flaky netns scenarios, the BSD
 job, `src/benchmark/` written anew, the possible bug in `update_edge()`,
 the lossy direct path, the coverage report - all done by 2026-10-19 - and
-FEC, which came in between and is under way.  Next in line: rate limits
-and the Prometheus endpoint.  The design of v4 is written down before any
-v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
+FEC, which came in between: done but for the few points left in its entry,
+its wire format fixed by the first release that has it.  Since then the
+announcements, Windows (service, tray, Wintun, installer), OpenWrt
+packages, NetworkManager, fewer privileges and pthread always came in
+between, as asked.  Next in line (2026-11-14): rate limits at the
+supernode and the Prometheus endpoint, then a release.  The design of v4
+is written down before any v4 code: [the peer protocol](PeerProtocol.md)
+(2026-10-20).
 
 - [x] `update_edge()` (`role_relay.c`): a REGISTER_SUPER from a MAC the
       supernode does not know took the entry of the edge at the same
@@ -292,7 +297,10 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
             `interop-fec` (an edge of an older version, which got 0 of
             500 frames before)
       - [x] The loss per peer in `get_edges` (`fec`), beside the probes'
-            `loss` of the direct path; [ ] on the page
+            `loss` of the direct path; on the page too (2026-10-24): the
+            columns `lost` (the peer's report, else the probes') and `FEC`
+            (`peer_cells()` in `management_page.c`).  Not in the tray or
+            the Android app
 - [x] A supernode answered an edge's REGISTER_SUPER at once - with the
       header keys, with user/password - and passed it on to the
       federation: a user deleted at one supernode was refused everywhere,
@@ -408,29 +416,44 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
 - [ ] Rate limits at the supernode against floods of registrations (and
       of anything else that costs it work before it knows the sender),
       per source address; moved up from "Far future" (2026-10-18)
-- [ ] Prometheus endpoint for the metrics (the management interface has
-      them already); moved up from "Far future" (2026-10-18)
+- [~] Prometheus endpoint for the metrics; moved up from "Far future"
+      (2026-10-18).  There is a start (checked 2026-11-14): `/metrics.txt`,
+      and `/metrics` for whoever does not ask for HTML, give the counters
+      in Prometheus' text format, `n3n_MODULE_NAME{session="..."}`, without
+      the management password (`src/metrics.c`).  Left: it says "Still
+      unstable testing format"; no `# TYPE` lines and only some `# HELP`
+      (counters are not named `_total`); the port listens on localhost
+      only, so a Prometheus elsewhere cannot scrape it; and the edge's
+      per-peer values (round trip, loss, path, FEC) are not in it
 - [x] Coverage report: `coverage.yml` on every push - the tests built
       with `--coverage`, unit, builtin, integration, the fuzz corpus and
       the netns scenarios; gcovr's summary on the run's page, the HTML
       report as an artifact, `coverage.xml` to Codecov (tokenless, OIDC;
       the repository is to be added at codecov.io) (2026-10-19)
-- [ ] Installable next to upstream n3n, if ever wanted: the program,
-      `n3nctl`, the systemd units, the man pages, the sysusers file,
-      `/etc/n3n` and `/run/n3n` under names of n3n-be's own, and the
-      packages without `Conflicts`, `Replaces` and `Provides: n3n`
-      (suggested by upstream's maintainer, 2026-10-18).  Not for now:
-      n3n-be is a drop-in replacement for n3n, as wire compatible as its
-      files are - who switches keeps the configuration, the units and the
-      scripts.  What tells the two apart is what the program says of
-      itself: "n3n-be" in its version, help, log, management interface
-      and the version string on the wire (5384980f)
+- [x] Installable next to upstream n3n (suggested by upstream's
+      maintainer, 2026-10-18; first declined, done with the names of its
+      own on 2026-10-25, above).  Checked 2026-11-14: `make install`
+      writes no path without `n3n-be` in it; the .deb, .rpm and Arch
+      packages have no `Conflicts`, `Replaces` or `Provides`; OpenWrt's
+      are `n3n-be-edge` and `n3n-be-supernode` with `/etc/n3n-be` and
+      init scripts of those names; on Windows `Program Files\n3n-be`,
+      `%ProgramData%\n3n-be` and the services `n3n-be-edge(@NAME)`.  Not
+      separate: the defaults of the ports - the management port 5644
+      (edge) and 5645 (supernode), a supernode's 7654 - and the session
+      name `edge`, after which the device is named: to run an n3n and an
+      n3n-be daemon at once, one of them needs others (an edge that
+      cannot listen on its management port stops)
 - [x] Communities configured the same way for both roles (see Scratchpad)
 - [x] netns scenarios where a supernode fails over with user/password
       authentication, header encryption, TCP and `supernode.tap` (db91c09)
 - [x] Automatic transport: UDP, TCP when no supernode answers over UDP,
       back to UDP once a probe gets through (`connection.tcp_fallback`,
-      netns scenarios `tcp-fallback*`).  Open: with packet threads
+      netns scenarios `tcp-fallback*`).  With packet threads since
+      2026-11-09 (pthread always, step 3): they stop while the edge is on
+      TCP and start again back on UDP (`edge_threads_pause()`,
+      `tcp-fallback-back-threads`); an edge on TCP only
+      (`connection.connect_tcp`) runs one thread.  Packet threads are
+      Linux's only
 - [x] `udp://` and `tcp://` in front of addresses of `connection.bind` and
       `community.supernode`: UDP and TCP on different ports (netns
       scenarios `tcp-port`, `tcp-only`).  Not planned for now: `udp4://`,
@@ -658,6 +681,16 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       own for winpthreads' calls; the tray looks its three Vista
       functions up.  scripts/check_xp_imports.sh in CI on every 32 bit
       build; checked by the imports, not on an XP
+- [x] The supernode's forward buffer (2026-11-09): a PACKET forwarded
+      between edges gets the sender's socket added to its header, so one
+      near the buffer's size that came without overflowed the buffer on
+      the stack - a supernode crashed from the network.  Upstream found
+      and fixed it first (bef00e7, 7318858); written anew here, as the
+      forwarding moved to `sn_rx_packet()` (e4227b4), with a case in
+      `tests-pdu-in`.  Not for `fixes`: upstream has it.  And
+      `open_socket()` without a bind address makes a dual-stack socket
+      instead of an IPv4 one - which the daemons never call so, only
+      programs embedding the core (25a94b6)
 - [ ] Ideas to pick from (all v3 compatible): names for peers (DNS);
       `n3n-edge tools init`, writing a first
       configuration with a fresh community name and key (`tools keygen`
@@ -675,8 +708,8 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       in mind before FEC's wire format is fixed by a release: such work
       may want room in the PACKET as well
 - [~] Releases of n3n-be (see [Releasing](Releasing.md)): the packages
-      are `n3n-be` (.deb, .rpm, and a PKGBUILD for Arch), the user `n3n`
-      from sysusers.d, the app's version that of the core and its release
+      are `n3n-be` (.deb, .rpm, and a PKGBUILD for Arch), the user
+      `n3n-be` from sysusers.d (`n3n` up to 3.4.8), the app's version that of the core and its release
       build signed from the environment; `release.yml`, started by hand,
       builds them all from a tag, with a draft GitHub Release if asked;
       `tests.yml` no longer reacts to releases.  The app's ID is
@@ -744,9 +777,14 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       would else not set again.  netns `route-all-switch` (quick): on,
       off, by reload, the page's own button, refused outside the subnet
       and by an edge started without it.  Found on the way: Windows left
-      its IPv4 routes behind (deleted with next hop 0).  Open:
-      try it on Windows (CI only builds it there); the tray app (below)
-      switches it;
+      its IPv4 routes behind (deleted with next hop 0).  Since: tried on
+      a Windows 11 computer (2026-10-26, see Windows below: works, with
+      the NRPT rule against the DNS leak found there); in CI on Windows
+      runners switched on and off by `set_gateway`, its DNS rule checked
+      and a name asked through the tunnel (`tests/windows/wintun.sh`) -
+      not its routes; the tray switches it too ("Route all traffic
+      through").  Open: the page's buttons and the tray on Windows by
+      hand;
       macOS (`IP_BOUND_IF`, utun); the Android app taking
       `tuntap.route_all` and `tuntap.dns` from a configuration it imports
       (it ignores them now); IPv6 through an exit peer; blocking what
@@ -1047,11 +1085,15 @@ v4 code: [the peer protocol](PeerProtocol.md) (2026-10-20).
       `tuntap.address6` (`auto`: the prefix `tuntap.prefix6`, by default
       from a hash of the community's name, and the IPv4 address or else
       the MAC as interface ID - nothing on the wire), put on the device by
-      netlink on Linux; neighbour solicitations pass without
-      `filter.allow_multicast`; the TUN edge's neighbour discovery; the
-      Android app (`Core.ipv6Address()`, the core's address); netns
-      `ipv6-tap`, `ipv6-tun-tap`, `ipv6-tun-tun`.  Open: trying it on a
-      phone; other systems' devices; IPv6 through an exit peer
+      netlink on Linux, and by ifconfig on macOS's utun (2026-10-17,
+      pinged over in CI by `tests/macos/utun.py`); neighbour
+      solicitations pass without `filter.allow_multicast`; the TUN edge's
+      neighbour discovery; the Android app (`Core.ipv6Address()`, the
+      core's address); netns `ipv6-tap`, `ipv6-tun-tap`, `ipv6-tun-tun`.
+      Open: trying it on a phone; Windows (TAP and Wintun) and the BSDs,
+      where the edge works the address out but warns that it does not
+      put it on the device (`edge_ipv6_setup()`); IPv6 through an exit
+      peer
 - [ ] Supernode lookup by DNS SRV (`resolve.c` TODO): moved to v4, see
       Decisions and [the peer protocol](PeerProtocol.md#dns-srv)
 
@@ -1175,13 +1217,17 @@ release has it - as FEC was; there is no branch for it (see Decisions
 - [ ] Peer names in DNS (`laptop.mycommunity`), answered by the peer itself
 - [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
       "Next", 2026-10-18)
-- [ ] Windows on par with Linux.  Done: all traffic through an exit
+- [~] Windows on par with Linux.  Done: all traffic through an exit
       peer (`tuntap.route_all`, 2026-10-25, see Next); the edge as a
-      service (2026-10-25, see Next).  One step: TUN on Wintun (the signed
-      driver of WireGuard, a DLL that installs it on the fly), with
-      `tun.c` as on Android and macOS, instead of OpenVPN's TAP driver;
-      its licence for shipping the DLL with a GPL-3.0 program to check
-      first.  What needs layer 2 (bridging, non-IP protocols) stays TAP
+      service (2026-10-25, see Next); TUN on Wintun with `tun.c` as on
+      Android and macOS (2026-10-26, see Next - the DLL fetched by each
+      computer rather than shipped, see Decisions), TAP still taken where
+      its driver is installed, and for what needs layer 2 (bridging,
+      non-IP protocols).  Left (checked 2026-11-14): `supernode.tap`
+      ("not supported on Windows yet"), packet threads (Linux only), the
+      IPv6 address on the device, a network change watch of its own (the
+      edge follows the default route every 2 s only while routing all
+      traffic)
 - [ ] Privilege separation (asked 2026-10-31): the peer as two processes,
       as OpenSSH is - a small one that keeps the rights (the device, its
       addresses and routes, `tuntap.route_all`, DNS) and does only what a
@@ -1392,7 +1438,7 @@ release has it - as FEC was; there is no branch for it (see Decisions
 
 Current ideas, half-decided things, commands worth keeping.
 
-### Where things stand (2026-10-20)
+### Where things stand (2026-11-14)
 
 The repository is `HoneyBunnyQT/n3n-be` (since 2026-10-15; the old name
 `HoneyBunnyQT/n3n` redirects there), out of the fork network since
@@ -1400,38 +1446,46 @@ The repository is `HoneyBunnyQT/n3n-be` (since 2026-10-15; the old name
 fixes on `fixes` for whoever wants them, compatibility with upstream
 watched by `upstream.yml`.  Its branches: `main`, where all work happens,
 and `fixes`.  3.4.8 is released (2026-10-15, rebuilt 2026-10-18 with the
-Windows zip); `release.yml` builds a release from a tag.
+Windows zip) and still the latest; `release.yml` builds a release from a
+tag.
 
 On `main` since 3.4.8, not released yet: names of its own (`n3n-be-edge`,
 `/etc/n3n-be`, ...), so that it installs next to n3n, the edge on macOS's utun device
-(and the macOS tarball with it), FEC (under development, see Next), the
+(and the macOS tarball with it), FEC, the
 lossy direct path (`connection.p2p_max_loss`), the supernode holding its
 answer until the federation could refuse it (user/password), the address
 the supernode gives an edge kept as the edge's, user/password entries
 that stay with their user, what a supernode forwards batched with GSO,
 the coverage report, the BSD job on every push, `src/benchmark/`
 written anew, fixes found by new netns scenarios (`dual-stack`,
-`userpw-spoof`, `userpw-lockout`), and all traffic through an exit peer
-on Linux and Windows (`tuntap.route_all`).  CI runs the tests, the netns
-scenarios, the sanitizers, fuzzing, interop and Windows on every push.
+`userpw-spoof`, `userpw-lockout`), all traffic through an exit peer
+on Linux and Windows (`tuntap.route_all`), the announcements (names,
+FEC per peer, exits), on Windows the service, the tray, Wintun and the
+installer, OpenWrt packages, NetworkManager and GNOME (experimental),
+fewer privileges (the units' sandbox, Landlock, the route_all helper),
+pthread always with `daemon.threads = 0` as the default, Windows XP
+again, and the supernode's forward buffer (see Next).  CI runs the
+tests, the netns scenarios, the sanitizers, fuzzing, interop and Windows
+on every push.
 
 Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
 (2026-10-20).
 
 Open, in rough order:
 
-- FEC: what is left of it in Next (`auto` without reports, per peer
-  instead of per community, the page), then fixing its wire format in a
-  release.
-- Rate limits at the supernode, the Prometheus endpoint (Next).
-- `slow_openwrt.yml` (the `openwrt` branch, or by hand): stale - it
-  checks out to `src` and builds `$GITHUB_WORKSPACE/n3n`, sets
-  `PKG_VERSION` where the package takes `BUILD_VERSION`, and compiles
-  without `USE_SOURCE_DIR`.
-- IPv6 inside the tunnel: on a phone, then other systems.
-- Fewer privileges (Next): Landlock.
-- All traffic through an exit peer: tried on Windows, the switching
-  from the management page too (Next).
+- Rate limits at the supernode, the Prometheus endpoint (a start is
+  there, see Next).
+- A release, which fixes FEC's wire format: before it, whether less
+  recognisable traffic (Next) wants room in the PACKET; FEC's `auto`
+  without reports.
+- GNOME and NetworkManager: why the first tries in use went badly.
+- `slow_openwrt.yml` (the `openwrt` branch, or by hand; `openwrt.yml`
+  builds the packages meanwhile): stale - it checks out to `src` and
+  builds `$GITHUB_WORKSPACE/n3n`, sets `PKG_VERSION` where the package
+  takes `BUILD_VERSION`, and compiles without `USE_SOURCE_DIR`.
+- IPv6 inside the tunnel: on a phone, then Windows and the BSDs.
+- All traffic through an exit peer on Windows: the page's buttons and
+  the tray by hand (Next).
 - Releases: the channels - decisions to take.
 - DLNA/SSDP between edges (VLC on Windows and Linux, minidlna on Linux):
   found out and documented (2026-10-31, UseCases.md, a page of what
