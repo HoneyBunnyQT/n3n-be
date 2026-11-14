@@ -776,11 +776,12 @@ static void register_with_new_peer (struct n3n_runtime_data *eee,
 
         // new to the edge, or again: what it announced may be of a program
         // that is no more - an older one started in its place, which reads
-        // no FEC.  So it is asked anew, see announce.h.
+        // no FEC.  So it is asked anew, see announce.h - once the peer is
+        // pending (below): the announcement is a frame to a peer the edge
+        // does not know, which looks it up among the pending ones, and
+        // added it there a second time while it was not yet
         HASH_FIND_PEER(eee->client.known_peers, mac, known);
-        if(!known && n3n_announce_renew(eee->client.announce, mac, time(NULL))) {
-            edge_announce(eee, mac, N3N_ANNOUNCE_ASK);
-        }
+        bool ask = !known && n3n_announce_renew(eee->client.announce, mac, time(NULL));
 
         scan = peer_info_malloc(mac);
 
@@ -846,6 +847,9 @@ static void register_with_new_peer (struct n3n_runtime_data *eee,
             send_register(eee, &(scan->sock), mac, N2N_REGULAR_REG_COOKIE);
         }
         register_with_local_peers(eee);
+        if(ask) {
+            edge_announce(eee, mac, N3N_ANNOUNCE_ASK);
+        }
     } else{
         scan->sock = *peer;
     }
