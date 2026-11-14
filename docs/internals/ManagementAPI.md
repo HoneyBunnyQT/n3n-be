@@ -189,6 +189,7 @@ curl --unix-socket /run/n3n-be/edge/mgmt http://x/metrics
 Every family has its `# HELP` and `# TYPE` (counter or gauge); a
 `## module=NAME` comment line goes before each module's.  The names start
 with `n3n_`, as upstream n3n's, and each sample has the label `session`.
+What there is: [Metrics](../advanced/Metrics.md).
 
 ## Events Stream
 

@@ -12,6 +12,7 @@ SPDX-FileCopyrightText: Copyright Honey Bunny QT
 - [What an Edge Tells Its Peers](Announcements.md): announcements of FEC,
   a longer name, and exits to the internet, without breaking v3
 - [Threads](Threads.md): handling packets on several cores
+- [Metrics](Metrics.md): what edges and supernodes count, for Prometheus
 - [Routing](Routing.md): reaching networks behind an edge, or the
   internet through one
 - [Bridging](Bridging.md): one Ethernet segment across sites, with a

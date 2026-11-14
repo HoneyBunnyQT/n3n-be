@@ -287,8 +287,27 @@ static struct n3n_metrics_module strbuf_metrics_module = {
 };
 
 /**********************************************************/
+// The version of the program, as a label of a gauge that is always 1
+
+static void build_metrics (strbuf_t **reply, const struct n3n_metrics_module *module) {
+
+    const char *labels[] = { "version", VERSION, NULL };
+
+    n3n_metrics_render_family(reply, module, "info", n3n_metrics_gauge,
+                              "Always 1: the program's version as a label");
+    n3n_metrics_render_sample(reply, module, "info", labels, 1);
+}
+
+static struct n3n_metrics_module build_metrics_module = {
+    .name = "build",
+    .cb = build_metrics,
+    .type = n3n_metrics_type_cb,
+};
+
+/**********************************************************/
 void n3n_initfuncs_metrics () {
     n3n_metrics_register(&strbuf_metrics_module);
+    n3n_metrics_register(&build_metrics_module);
 }
 
 void n3n_metrics_set_session (char *name) {

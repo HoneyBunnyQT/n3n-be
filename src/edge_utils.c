@@ -44,6 +44,7 @@
 
 #include "auth.h"                    // for generate_private_key, generate_shared_secret, ...
 #include "config.h"                  // for HAVE_LIBZSTD
+#include "edge_metrics.h"             // for edge_metrics_register
 #include "edge_utils.h"
 #include "announce.h"                // for n3n_announce_new, n3n_announce_purge
 #include "exit_probe.h"              // for edge_exit_tick
@@ -1579,6 +1580,7 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
     edge_metrics_module2.data = &eee->stats_sum;
     n3n_metrics_register(&edge_metrics_module1);
     n3n_metrics_register(&edge_metrics_module2);
+    edge_metrics_register(eee);
 
     edge_register_ticks(NULL);
 
@@ -1617,6 +1619,7 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
 #endif
 
     supernode_disconnect(eee);
+    edge_metrics_unregister(eee);
 
     return eee->exit_code;
 }

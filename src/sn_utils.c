@@ -515,6 +515,73 @@ static struct n3n_metrics_module metrics_rl_module = {
 };
 
 
+// What the supernode does and holds, as "supernode": its packets, and how
+// many communities, edges, federated supernodes and TCP connections it has -
+// not their names: with header encryption, a community's name is its key
+static void metrics_sn_cb (strbuf_t **reply, const struct n3n_metrics_module *module) {
+
+    struct n3n_runtime_data *sss = metrics_sss;
+    struct n2n_edge_stats st;
+    struct sn_community *comm, *tmp;
+    int communities = 0, edges = 0;
+
+    if(!sss) {
+        return;
+    }
+    n3n_stats_sum(sss, &st);
+
+    static const struct {
+        const char *event;
+        size_t offset;
+    } packets[] = {
+        { "fwd", offsetof(struct n2n_edge_stats, sn_fwd) },
+        { "broadcast", offsetof(struct n2n_edge_stats, sn_broadcast) },
+        { "reg", offsetof(struct n2n_edge_stats, sn_reg) },
+        { "reg_nak", offsetof(struct n2n_edge_stats, sn_reg_nak) },
+        { "errors", offsetof(struct n2n_edge_stats, sn_errors) },
+        { "drop", offsetof(struct n2n_edge_stats, sn_drop) },
+    };
+    n3n_metrics_render_family(reply, module, "packets", n3n_metrics_counter,
+                              "PDUs forwarded to an edge, broadcast to a community, registrations "
+                              "taken and refused, errors sending, drops");
+    for(size_t i = 0; i < sizeof(packets) / sizeof(packets[0]); i++) {
+        uint32_t v;
+        memcpy(&v, (const char *)&st + packets[i].offset, sizeof(v));
+        const char *labels[] = { "event", packets[i].event, NULL };
+        n3n_metrics_render_sample(reply, module, "packets", labels, v);
+    }
+
+    HASH_ITER(hh, sss->relay.communities, comm, tmp) {
+        if(!comm->is_federation) {
+            communities++;
+            edges += HASH_COUNT(comm->edges);
+        }
+    }
+    n3n_metrics_render_family(reply, module, "communities", n3n_metrics_gauge,
+                              "Communities with an entry here");
+    n3n_metrics_render_sample(reply, module, "communities", NULL, communities);
+    n3n_metrics_render_family(reply, module, "edges", n3n_metrics_gauge,
+                              "Edges registered here, all communities together");
+    n3n_metrics_render_sample(reply, module, "edges", NULL, edges);
+    n3n_metrics_render_family(reply, module, "federation_supernodes", n3n_metrics_gauge,
+                              "Supernodes of the federation this one knows");
+    n3n_metrics_render_sample(reply, module, "federation_supernodes", NULL,
+                              sss->relay.federation ? HASH_COUNT(sss->relay.federation->edges) : 0);
+    n3n_metrics_render_family(reply, module, "tcp_connections", n3n_metrics_gauge,
+                              "TCP connections of edges open");
+    n3n_metrics_render_sample(reply, module, "tcp_connections", NULL, HASH_COUNT(sss->relay.tcp_connections));
+    n3n_metrics_render_family(reply, module, "start_time_seconds", n3n_metrics_gauge,
+                              "When the supernode started, in seconds since the epoch");
+    n3n_metrics_render_sample(reply, module, "start_time_seconds", NULL, (double)sss->start_time);
+}
+
+static struct n3n_metrics_module metrics_sn_module = {
+    .name = "supernode",
+    .cb = metrics_sn_cb,
+    .type = n3n_metrics_type_cb,
+};
+
+
 // Every 10 s, a line where sources were limited
 static void sn_rl_log (struct n3n_runtime_data *sss, time_t now) {
 
@@ -549,6 +616,7 @@ void sn_init (struct n3n_runtime_data *sss) {
     }
     metrics_sss = sss;
     n3n_metrics_register(&metrics_rl_module);
+    n3n_metrics_register(&metrics_sn_module);
 
     // Show the user what has been configured
     resolve_log_hostnames(RESOLVE_LIST_SUPERNODE);
