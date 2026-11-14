@@ -731,6 +731,7 @@ void sn_term (struct n3n_runtime_data *sss) {
     }
 
     free(sss->conf.bind_address);
+    free(sss->conf.metrics_bind);
 
     free(sss->conf.relay.community_file);
     n3n_conf_strlist_free(&sss->conf.relay.community_regex);

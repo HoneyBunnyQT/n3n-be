@@ -30,6 +30,8 @@ enum __attribute__((__packed__)) fd_info_proto {
     fd_info_proto_wakeup,       // only wakes the main loop, see edge_threads.c
     fd_info_proto_listen_v3tcp, // accepts v3tcp connections (supernode)
     fd_info_proto_netwatch,     // changes of the host's network, see netwatch.h
+    fd_info_proto_listen_metrics,   // accepts scrapes of the metrics (management.metrics_bind)
+    fd_info_proto_metrics,      // such a connection: GET /metrics only, see mgmt_metrics_handler()
 };
 
 // Place debug info from the slots into the strbuf

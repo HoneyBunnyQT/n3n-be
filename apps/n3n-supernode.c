@@ -46,7 +46,7 @@
 
 // FIXME, including private headers
 #include "../src/edge_threads.h"      // for edge_threads_open_early
-#include "../src/management.h"        // for mgmt_password_warn
+#include "../src/management.h"        // for mgmt_password_warn, mgmt_metrics_listen
 #include "../src/notify.h"            // for n3n_notify_ready
 #include "../src/peer_info.h"         // for peer_info
 #include "../src/reload.h"            // for n3n_reload_setup, n3n_reload_request
@@ -647,6 +647,10 @@ int n3n_supernode_main (int argc, char * argv[]) {
         // Remove this once the mainloop supports stopping on windows
         windows_stop_fd = fd;
 #endif
+    }
+    // for a Prometheus elsewhere, see management.metrics_bind
+    if(mgmt_metrics_listen(&sss_node) != 0) {
+        exit(1);
     }
 
     n3n_config_setup_sessiondir(&sss_node.conf);

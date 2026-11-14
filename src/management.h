@@ -32,6 +32,15 @@ struct n3n_runtime_data;
 void mgmt_event_post (const enum n3n_event_topic topic, const int data0, const void *data1);
 bool mgmt_api_handler (struct n3n_runtime_data *, conn_t *);
 
+// A connection of management.metrics_bind: GET /metrics with the
+// management password, nothing else
+bool mgmt_metrics_handler (struct n3n_runtime_data *, conn_t *);
+
+// The listening sockets of management.metrics_bind, registered with the
+// mainloop; -1 (logged) if one cannot be opened, or the management password
+// is the default one
+int mgmt_metrics_listen (struct n3n_runtime_data *rt);
+
 // Whether management.password is still the default everybody knows, and a
 // warning in the log if so
 bool mgmt_password_is_default (const struct n3n_runtime_data *rt);

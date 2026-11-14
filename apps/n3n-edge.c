@@ -1448,8 +1448,10 @@ int n3n_edge_main (int argc, char* argv[]) {
     edge_term(eee);
 
     // the addresses of connection.bind, which the config loading allocated
-    // and edge_init() only took a copy of the pointer to
+    // and edge_init() only took a copy of the pointer to; so too
+    // management.metrics_bind
     free(conf.bind_address);
+    free(conf.metrics_bind);
 
     return(rc);
 }

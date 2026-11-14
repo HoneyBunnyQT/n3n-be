@@ -568,6 +568,7 @@ typedef struct n2n_edge_conf {
     uint32_t mgmt_port;     // TODO: ports are actually uint16_t
     uint32_t mgmt_sock_perms;
     char * mgmt_password;
+    struct n3n_bind *metrics_bind;                   /**< management.metrics_bind, if given: an array ended by family 0 */
     uint32_t userid;
     uint32_t groupid;
     bool background;

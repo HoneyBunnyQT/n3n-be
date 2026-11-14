@@ -355,6 +355,12 @@ Some of the management interface provided information that is only intended for 
 
 Default: `false`
 
+### management.metrics_bind
+
+Serve the metrics for Prometheus on these addresses.
+
+One or more [address]:port, separated by spaces, to listen on with TCP for scrapes of the metrics (/metrics, nothing else of the management interface), e.g. 10.0.0.1:9645 for the address the Prometheus server reaches - on Linux also the device's own, which it may get only later. A scrape needs management.password, as HTTP basic authentication with any user name; the daemon does not start with the default password. Off by default: the management port and socket serve the metrics on this host only.
+
 ### management.password
 
 The password to authenticate management access.

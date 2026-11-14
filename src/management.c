@@ -16,6 +16,7 @@
 #include <n3n/metrics.h> // for n3n_metrics_render
 #include <n3n/strings.h> // for ip_subnet_to_str, sock_to_cstr, sockaddr_to_str
 #include <sn_selection.h> // for sn_selection_criterion_str
+#include <errno.h>              // for errno
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -35,6 +36,7 @@
 #include "management_page.h"
 #include "n2n.h"
 #include "n2n_typedefs.h"
+#include "n2n_wire.h"    // for fill_n3nsock
 #include "natclass.h"    // for nat_view_str
 #include "peer_info.h"   // for peer_info
 #include "reload.h"      // for n3n_reload
@@ -1785,6 +1787,110 @@ static void render_help_page (struct n3n_runtime_data *eee, conn_t *conn) {
 
     generate_http_headers(conn, "text/plain", 200);
 }
+
+static bool http_close_after (const char *req);
+
+// A connection of management.metrics_bind: a scrape of the metrics, with
+// the management password (HTTP basic authentication, any user name), and
+// nothing else - not the API, not the page
+bool mgmt_metrics_handler (struct n3n_runtime_data *eee, conn_t *conn) {
+
+    const char *req = conn->request->str;
+    bool close_after = http_close_after(req);
+
+    if(strncmp(req, "GET /metrics ", 13) && strncmp(req, "GET /metrics.txt ", 17)) {
+        render_error(conn, "only /metrics here");
+    } else if(!auth_check(eee, conn)) {
+        auth_request(conn);
+    } else {
+        render_metrics_text(eee, conn);
+    }
+    conn_write(conn, conn->fd);
+    return close_after;
+}
+
+
+// The listening sockets of management.metrics_bind: TCP, an IPv6 one for
+// IPv4 too unless an IPv4 address has its port; none without it
+int mgmt_metrics_listen (struct n3n_runtime_data *rt) {
+
+    const struct n3n_bind *list = rt->conf.metrics_bind;
+    n3n_sock_str_t sockbuf;
+    n3n_sock_t sock;
+
+    if(!list || !list[0].sa.ss_family) {
+        return 0;
+    }
+    // reachable from elsewhere, with a password everybody knows: no
+    if(!rt->conf.mgmt_password || !strcmp(rt->conf.mgmt_password, N3N_MGMT_PASSWORD)) {
+        traceEvent(TRACE_ERROR, "management.metrics_bind needs a management.password of its own: "
+                   "the default one is no protection");
+        return -1;
+    }
+    for(int i = 0; (i < N3N_BIND_MAX) && list[i].sa.ss_family; i++) {
+        const struct sockaddr *sa = (const struct sockaddr *)&list[i].sa;
+        const struct sockaddr_in6 *sa6 = (const struct sockaddr_in6 *)sa;
+        struct sockaddr_in any4;
+        int one = 1, v6only = 0;
+        SOCKET fd;
+
+        fill_n3nsock(&sock, sa);
+        sock_to_cstr(sockbuf, &sock);
+        fd = socket(sa->sa_family, SOCK_STREAM, 0);
+#ifndef _WIN32
+        // [::] on a system without IPv6: 0.0.0.0, as connection.bind does
+        if((fd < 0) && (errno == EAFNOSUPPORT) && IN6_IS_ADDR_UNSPECIFIED(&sa6->sin6_addr)) {
+            memset(&any4, 0, sizeof(any4));
+            any4.sin_family = AF_INET;
+            any4.sin_port = sa6->sin6_port;
+            sa = (const struct sockaddr *)&any4;
+            fill_n3nsock(&sock, sa);
+            sock_to_cstr(sockbuf, &sock);
+            fd = socket(AF_INET, SOCK_STREAM, 0);
+        }
+#endif
+        socklen_t len = (sa->sa_family == AF_INET) ? sizeof(struct sockaddr_in) : sizeof(struct sockaddr_in6);
+#ifdef _WIN32
+        if(fd == INVALID_SOCKET) {
+#else
+        if(fd < 0) {
+#endif
+            traceEvent(TRACE_ERROR, "management.metrics_bind %s: %s", sockbuf, strerror(errno));
+            return -1;
+        }
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, (char *)&one, sizeof(one));
+#ifdef IP_FREEBIND
+        // an address that comes later: the device's own, which a supernode
+        // opens after this (supernode.tap) and an edge may get from its
+        // supernode - for a scrape through the community
+        setsockopt(fd, IPPROTO_IP, IP_FREEBIND, (char *)&one, sizeof(one));
+#endif
+        if(sa->sa_family == AF_INET6) {
+            // [::] takes IPv4 as well, unless an IPv4 address has its port
+            for(int j = 0; (j < N3N_BIND_MAX) && list[j].sa.ss_family; j++) {
+                const struct sockaddr_in *sa4 = (const struct sockaddr_in *)&list[j].sa;
+                if((sa4->sin_family == AF_INET) && (sa4->sin_port == ((const struct sockaddr_in6 *)sa)->sin6_port)) {
+                    v6only = 1;
+                }
+            }
+            setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, (char *)&v6only, sizeof(v6only));
+        }
+        if((bind(fd, sa, len) != 0) || (listen(fd, 8) != 0)) {
+            traceEvent(TRACE_ERROR, "management.metrics_bind %s: %s", sockbuf, strerror(errno));
+#ifdef _WIN32
+            closesocket(fd);
+#else
+            close(fd);
+#endif
+            return -1;
+        }
+        mainloop_register_fd(fd, fd_info_proto_listen_metrics);
+        traceEvent(TRACE_NORMAL, "metrics for Prometheus at http://%s/metrics (with the management password)",
+                   sockbuf);
+    }
+    return 0;
+}
+
 
 // Unknown counts as encrypted: a supernode knows only once an edge of the
 // community has registered

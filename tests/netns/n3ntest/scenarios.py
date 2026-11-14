@@ -564,6 +564,17 @@ SCENARIOS = [
         Site(["hard-range"]), Site(["hard-range"]),
         "relayed", flood=2000),
     Scenario(
+        "metrics-remote",
+        "the supernodes and a public edge with management.metrics_bind, "
+        "scraped from the internet as by a Prometheus elsewhere: only with "
+        "the management password, and only the metrics",
+        Site([], conf={"management": {"metrics_bind": "[::]:9645",
+                                      "password": "scrape-me"}}),
+        Site(["easy-kept"]),
+        "direct", metrics_remote=True,
+        sn_conf={"management": {"metrics_bind": "[::]:9645",
+                                "password": "scrape-me"}}),
+    Scenario(
         "spray",
         "mutated PDUs of the community at the supernodes, over UDP and "
         "TCP, and at b (no NAT) for 20s (fuzz-spray): all stay up, the "

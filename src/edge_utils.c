@@ -1797,6 +1797,7 @@ void edge_term (struct n3n_runtime_data * eee) {
         // The conf is a copy of the supernode's, see edge_start_local(): what
         // the supernode frees, it frees
         eee->conf.bind_address = NULL;
+        eee->conf.metrics_bind = NULL;
         eee->conf.relay.community_file = NULL;
         eee->conf.relay.community_regex = NULL;
         eee->conf.mgmt_password = NULL;
@@ -1895,6 +1896,11 @@ static int edge_init_sockets (struct n3n_runtime_data *eee) {
         // HACK!
         windows_stop_fd = fd;
 #endif
+    }
+    // for a Prometheus elsewhere; not the edge of a supernode, whose
+    // supernode has them (supernode.tap)
+    if(!eee->conf.client.local_link && (mgmt_metrics_listen(eee) != 0)) {
+        return -1;
     }
 
     n3n_config_setup_sessiondir(&eee->conf);

@@ -578,6 +578,21 @@ static struct n3n_conf_option section_management[] = {
                 "by default.",
     },
     {
+        .name = "metrics_bind",
+        .type = n3n_conf_sockaddr,
+        .offset = offsetof(n2n_edge_conf_t, metrics_bind),
+        .desc = "Serve the metrics for Prometheus on these addresses",
+        .help = "One or more [address]:port, separated by spaces, to listen "
+                "on with TCP for scrapes of the metrics (/metrics, nothing "
+                "else of the management interface), e.g. 10.0.0.1:9645 for "
+                "the address the Prometheus server reaches - on Linux also "
+                "the device's own, which it may get only later.  A scrape needs "
+                "management.password, as HTTP basic authentication with any "
+                "user name; the daemon does not start with the default "
+                "password.  Off by default: the management port and socket "
+                "serve the metrics on this host only.",
+    },
+    {
         .name = "password",
         .type = n3n_conf_strdup,
         .offset = offsetof(n2n_edge_conf_t, mgmt_password),

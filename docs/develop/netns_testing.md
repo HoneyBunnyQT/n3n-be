@@ -365,6 +365,7 @@ ports from all of it.
 | sn-tcp-1100 | as sn-tcp-burst with 1100 connections, the supernodes started with a soft limit of 1024 open files (`sn_nofile`), as under systemd | relayed; all taken: epoll, and the limit raised to the hard one |
 | sn-ratelimit | hard-range / hard-range, the supernodes with `supernode.rate_limit = 20`; a host on the "internet" (the bridge's namespace, an address of its own) floods a's supernode at 2000/s with pings and registrations of new communities from the warm-up's end until the frames are through (`flood`) | relayed; the flooder answered no more than the burst (80) and 20 a second, the rest dropped by the limit (`n3n_ratelimit_*` in the metrics) |
 | sn-ratelimit-threads | as sn-ratelimit, the supernodes with packet threads (`daemon.threads = 3`), which look up the sources out of tokens without a lock | the same |
+| metrics-remote | public / easy-kept, the supernodes and edge a with `management.metrics_bind` and a password of their own (`metrics_remote`), scraped from the "internet" | direct; a scrape without the password or with a wrong one gets 401, the API at that port 404, with the password the metrics in Prometheus' format |
 | sn-flood | as sn-ratelimit without the limit | relayed; more than half of the flood answered - what the limit is measured against, and that the flood is real |
 | tun-tap | easy-kept with `tuntap.type=tun` / easy-changed with a TAP device | direct, the TUN edge building the frames |
 | tun-tun | hard-range / hard-range, both with `tuntap.type=tun` | relayed |

@@ -16,6 +16,44 @@ curl http://localhost:5644/metrics       # the edge's management port
 curl http://localhost:5645/metrics       # a supernode's
 ```
 
+## A Prometheus on another host
+
+The management port and socket answer on the daemon's own host only.  For
+a Prometheus elsewhere, `management.metrics_bind` opens a port of its own
+that serves the metrics and nothing else of the management interface -
+not the API, not the page:
+
+```ini
+[management]
+password = a password of its own
+metrics_bind = 10.0.0.1:9645       # one or more [address]:port
+```
+
+A scrape needs the management password, as HTTP basic authentication
+with any user name; the daemon does not start with `metrics_bind` and the
+default password, which everybody knows.  In Prometheus:
+
+```yaml
+scrape_configs:
+  - job_name: n3n-be
+    basic_auth:
+      username: prometheus
+      password: a password of its own
+    static_configs:
+      - targets: ["10.0.0.1:9645"]
+```
+
+Bind it to the address the Prometheus server reaches.  Its address in
+the community is a good one, so that the scrape goes through the VPN: on
+Linux that works even though the device gets the address only after the
+port is opened - an edge's from its supernode, a supernode's own edge's
+(`supernode.tap`).  The password is sent in the clear: on a
+public address, put the port behind a firewall rule for the Prometheus
+server, or a TLS proxy.  `[::]` takes IPv4 too, and on a system without
+IPv6 is `0.0.0.0`.
+
+## The format
+
 Every family has its `# HELP` and `# TYPE`, counter or gauge.  The names
 start with `n3n_`, as upstream n3n's do, and every sample has the label
 `session`, the daemon's session name.  A `## module=NAME` comment line

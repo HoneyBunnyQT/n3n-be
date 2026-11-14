@@ -131,6 +131,8 @@ static char *proto_str[] = {
     [fd_info_proto_wakeup] = "wakeup",
     [fd_info_proto_listen_v3tcp] = "listen_v3tcp",
     [fd_info_proto_netwatch] = "netwatch",
+    [fd_info_proto_listen_metrics] = "listen_metrics",
+    [fd_info_proto_metrics] = "metrics",
 };
 
 struct fd_info {
@@ -817,17 +819,21 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
 #endif
             return;
 
-        case fd_info_proto_listen_http: {
+        case fd_info_proto_listen_http:
+        case fd_info_proto_listen_metrics: {
             int client = accept(info.fd, NULL, 0);
             if(client == -1) {
                 // TODO:
                 // - increment error stats
                 return;
             }
+            // a scrape of the metrics is all such a connection may do
+            enum fd_info_proto proto = (info.proto == fd_info_proto_listen_metrics)
+                                       ? fd_info_proto_metrics : fd_info_proto_http;
 
             int http_conns = 0;
             for(int i = 0; i < fdlist_size; i++) {
-                http_conns += (fdlist[i].proto == fd_info_proto_http);
+                http_conns += (fdlist[i].proto == fd_info_proto_http) || (fdlist[i].proto == fd_info_proto_metrics);
             }
             if(http_conns >= HTTP_CONN_MAX) {
                 send(client, "HTTP/1.1 503 full\r\n", 19, 0);
@@ -835,7 +841,7 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
                 return;
             }
 
-            int slotnr = fdlist_allocslot(client, fd_info_proto_http, eee);
+            int slotnr = fdlist_allocslot(client, proto, eee);
             if(slotnr < 0) {
                 // TODO:
                 // - increment error stats
@@ -914,7 +920,8 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
             return;
         }
 
-        case fd_info_proto_http: {
+        case fd_info_proto_http:
+        case fd_info_proto_metrics: {
             struct conn *conn = connlist[info.connnr];
             conn_read(conn, info.fd);
 
@@ -927,7 +934,8 @@ static void handle_fd (const time_t now, int slot, struct n3n_runtime_data *eee)
                     return;
 
                 case CONN_READY: {
-                    bool close_after = mgmt_api_handler(eee, conn);
+                    bool close_after = (info.proto == fd_info_proto_metrics)
+                                       ? mgmt_metrics_handler(eee, conn) : mgmt_api_handler(eee, conn);
                     if(conn->reply_sendpos == 0) {
                         // Looks like we have finished a write, so we can clean up
                         sb_zero(conn->request);

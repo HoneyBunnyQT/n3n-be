@@ -202,6 +202,7 @@ out:
     }
     edge_term(eee);
     free(conf.bind_address);
+    free(conf.metrics_bind);
 
     traceEvent(TRACE_NORMAL, "embedded edge stopped");
     n3n_set_socket_hook(NULL, NULL);

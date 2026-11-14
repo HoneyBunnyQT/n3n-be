@@ -214,7 +214,8 @@ class Scenario:
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
-                 fec_loss=0, load=0, exit=None, flood=0):
+                 fec_loss=0, load=0, exit=None, flood=0,
+                 metrics_remote=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -368,6 +369,10 @@ class Scenario:
         # cost the supernode work and are answered (with sn_conf's
         # supernode.rate_limit, only as far as that lets it)
         self.flood = flood
+        # The daemons with management.metrics_bind (sn_conf, a site's conf)
+        # are scraped from the "internet" as a Prometheus elsewhere would:
+        # only with the management password, only /metrics
+        self.metrics_remote = metrics_remote
         # These supernodes take UDP only (connection.bind udp://), no TCP
         self.sn_udp_only = set(sn_udp_only)
         # (site, first, then): after the warm-up, once the site's edge is
@@ -1607,6 +1612,73 @@ class Run:
             self.check("metrics", not bad,
                        "; ".join(bad) or "{} families of {} daemons in "
                        "Prometheus' format".format(families, len(daemons)))
+
+    # a scrape from another namespace: the status without a password, with
+    # a wrong one, with the right one (and its body), and of the API
+    SCRAPE_SCRIPT = (
+        "import base64, json, sys, urllib.error, urllib.request\n"
+        "url, password = sys.argv[1], sys.argv[2]\n"
+        "opener = urllib.request.build_opener(\n"
+        "    urllib.request.ProxyHandler({}))\n"
+        "def get(path, auth, data=None):\n"
+        "    r = urllib.request.Request(url + path, data=data)\n"
+        "    if auth is not None:\n"
+        "        r.add_header('Authorization', 'Basic ' + "
+        "base64.b64encode(('prometheus:' + auth).encode()).decode())\n"
+        "    try:\n"
+        "        with opener.open(r, timeout=5) as f:\n"
+        "            return f.status, f.read().decode('utf8', 'replace')\n"
+        "    except urllib.error.HTTPError as e:\n"
+        "        return e.code, ''\n"
+        "    except OSError as e:\n"
+        "        return 0, str(e)\n"
+        "out = {'none': get('/metrics', None)[0],\n"
+        "       'wrong': get('/metrics', 'wrong')[0],\n"
+        "       'api': get('/v1', password, b'{}')[0]}\n"
+        "out['right'], out['body'] = get('/metrics', password)\n"
+        "print(json.dumps(out))\n")
+
+    def check_metrics_remote(self):
+        """sc.metrics_remote: the daemons with management.metrics_bind,
+        scraped from the lab's internet"""
+        def remote(conf):
+            m = conf.get("management", {})
+            if "metrics_bind" not in m:
+                return None
+            return int(str(m["metrics_bind"]).rsplit(":", 1)[1]), \
+                m.get("password", "n3n")
+        targets = []
+        if remote(self.sc.sn_conf):
+            port, password = remote(self.sc.sn_conf)
+            targets += [(name, sn["ip"], port, password)
+                        for name, sn in sorted(self.supernodes.items())
+                        if name not in self.killed]
+        for name, site in sorted(self.sc.sites.items()):
+            if remote(site.conf) and not site.nat:
+                port, password = remote(site.conf)
+                targets.append((name, self.edges[name]["ip"], port, password))
+        for name, ip, port, password in targets:
+            p = subprocess.run(
+                ["ip", "netns", "exec", self.inet, sys.executable, "-c",
+                 self.SCRAPE_SCRIPT, "http://{}:{}".format(ip, port),
+                 password], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                universal_newlines=True, timeout=60)
+            try:
+                got = json.loads(p.stdout)
+            except ValueError:
+                self.check("metrics remote: " + name, False,
+                           "no answer: {}".format(p.stderr.strip()[-200:]))
+                continue
+            problems, families = promtext.check(got["body"])
+            ok = (got["none"] == 401 and got["wrong"] == 401
+                  and got["api"] == 404 and got["right"] == 200
+                  and not problems and "n3n_build_info" in families)
+            self.check("metrics remote: " + name, ok,
+                       "{}:{} without the password {}, with a wrong one {}, "
+                       "the API {}, with it {}: {} families{}".format(
+                           ip, port, got["none"], got["wrong"], got["api"],
+                           got["right"], len(families),
+                           ", " + problems[0] if problems else ""))
 
     def _metrics(self, name):
         """The metrics of a supernode, as {name: value}, without labels"""
@@ -2950,6 +3022,8 @@ class Run:
                     self.check_descriptions("description after")
                     self.check_announcements("announced after")
                     self.check_metrics()
+                    if self.sc.metrics_remote:
+                        self.check_metrics_remote()
             if self.sc.flood and self.flood:
                 self.flood_check()
             if self.sc.route_all in ("switch", "reload") and \
