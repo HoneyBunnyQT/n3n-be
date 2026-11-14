@@ -48,7 +48,8 @@
 #include "sn_communities.h"
 #include "sn_utils.h"
 #include "local_link.h"         // for LOCAL_LINK_FD, local_link_to_edge
-#include "exit_probe.h"         // for exit_probe_echo
+#include "exit_probe.h"         // for exit_probe_echo, exit_probe_is
+#include "ratelimit.h"          // for n3n_ratelimit_take, n3n_ratelimit_blocked, ...
 #include "sock.h"               // for bind_entry_of_sock, sendto_logged, ...
 #include "stats.h"              // for STATS_INC
 
@@ -392,10 +393,161 @@ void sn_init_conf_defaults (struct n3n_runtime_data *sss, char *sessionname) {
 
 
 /** Initialise the supernode */
+/* The rate limits per source address (supernode.rate_limit, ratelimit.h).
+ * What costs work before the supernode knows the sender takes a token of
+ * its source's: a registration, a query or ping, a new TCP connection, an
+ * exit probe, and whatever is dropped as undecryptable or malformed.  What
+ * the edges send each other through the supernode does not, nor what the
+ * federated supernodes send, nor its own edge over the local link.  A
+ * source out of tokens is dropped before anything else, at the cost of a
+ * lookup. */
+
+static struct n3n_ratelimit *sn_ratelimit (struct n3n_runtime_data *sss) {
+
+    // made by a reload while packet threads read it, see n3n_ratelimit_configure()
+    return __atomic_load_n(&sss->relay.ratelimit, __ATOMIC_ACQUIRE);
+}
+
+static bool sn_rl_blocked (struct n3n_runtime_data *sss, const struct sockaddr *sa) {
+
+    struct n3n_ratelimit *rl = sn_ratelimit(sss);
+
+    return rl && n3n_ratelimit_blocked(rl, sa, n3n_monotonic_us() / 1000);
+}
+
+// false if the source has no token left: what it sent is dropped
+static bool sn_rl_take (struct n3n_runtime_data *sss, const struct sockaddr *sa) {
+
+    struct n3n_ratelimit *rl = sn_ratelimit(sss);
+    n3n_sock_str_t sockbuf;
+
+    if(!rl || n3n_ratelimit_take(rl, sa, n3n_monotonic_us() / 1000)) {
+        return true;
+    }
+    traceEvent(TRACE_DEBUG, "rate limit: dropped what %s sent",
+               sockaddr_to_str(sockbuf, sizeof(sockbuf), sa));
+    return false;
+}
+
+// What the PDU of h costs, before it is handled: false if it is dropped
+static bool sn_rl_charge (struct n3n_runtime_data *sss, const struct pdu_ctx *h) {
+
+    if((h->socket_fd == LOCAL_LINK_FD) || h->sn) {
+        return true;
+    }
+    switch(h->cmn.pc) {
+        case MSG_TYPE_REGISTER_SUPER:
+        case MSG_TYPE_UNREGISTER_SUPER:
+        case MSG_TYPE_QUERY_PEER:
+            return sn_rl_take(sss, h->sender_sock);
+        default:
+            return true;
+    }
+}
+
+// Something of h's source dropped as broken: it costs a token as well
+static void sn_rl_dropped (struct n3n_runtime_data *sss, const struct pdu_ctx *h) {
+
+    if(h->socket_fd != LOCAL_LINK_FD) {
+        sn_rl_take(sss, h->sender_sock);
+    }
+}
+
+
+// The table as supernode.rate_limit and supernode.rate_burst say (a reload
+// sets them so too, see reload.c)
+static void sn_ratelimit_configure (struct n3n_runtime_data *sss) {
+
+    n3n_ratelimit_configure(&sss->relay.ratelimit, sss->conf.relay.rate_limit, sss->conf.relay.rate_burst);
+}
+
+
+// Its counters in the metrics, as "ratelimit"
+static struct n3n_runtime_data *metrics_sss;
+static struct n3n_ratelimit_stats metrics_rl;
+
+static void metrics_rl_prepare (struct n3n_metrics_module *module) {
+
+    struct n3n_ratelimit *rl = metrics_sss ? sn_ratelimit(metrics_sss) : NULL;
+
+    memset(&metrics_rl, 0, sizeof(metrics_rl));
+    if(rl) {
+        n3n_ratelimit_get_stats(rl, &metrics_rl);
+    }
+}
+
+static const struct n3n_metrics_items_uint32 metrics_rl_items[] = {
+    {
+        .name = "taken",
+        .desc = "tokens taken by sources",
+        .offset = offsetof(struct n3n_ratelimit_stats, taken),
+    },
+    {
+        .name = "limited",
+        .desc = "messages dropped, their source out of tokens",
+        .offset = offsetof(struct n3n_ratelimit_stats, limited),
+    },
+    {
+        .name = "blocked",
+        .desc = "packets dropped unread while their source was out of tokens",
+        .offset = offsetof(struct n3n_ratelimit_stats, blocked),
+    },
+    {
+        .name = "evicted",
+        .desc = "sources not full forgotten for others",
+        .offset = offsetof(struct n3n_ratelimit_stats, evicted),
+    },
+    {
+        .name = "sources",
+        .desc = "entries of the table in use",
+        .offset = offsetof(struct n3n_ratelimit_stats, sources),
+    },
+    { },
+};
+
+static struct n3n_metrics_module metrics_rl_module = {
+    .name = "ratelimit",
+    .data = &metrics_rl,
+    .items_uint32 = metrics_rl_items,
+    .type = n3n_metrics_type_uint32,
+    .prepare = metrics_rl_prepare,
+};
+
+
+// Every 10 s, a line where sources were limited
+static void sn_rl_log (struct n3n_runtime_data *sss, time_t now) {
+
+    static time_t last;
+    static struct n3n_ratelimit_stats before;
+    struct n3n_ratelimit *rl = sn_ratelimit(sss);
+    struct n3n_ratelimit_stats st;
+
+    if(!rl || (now - last < 10)) {
+        return;
+    }
+    last = now;
+    n3n_ratelimit_get_stats(rl, &st);
+    uint32_t dropped = (st.limited - before.limited) + (st.blocked - before.blocked);
+    if(dropped) {
+        traceEvent(TRACE_NORMAL, "rate limit: dropped %u of sources over their limit in the last 10 s", dropped);
+    }
+    before = st;
+}
+
+
 void sn_init (struct n3n_runtime_data *sss) {
     // The packet threads, if there are any, each read into a buffer of their
     // own pool of this shape
     n3n_pktbuf_initialise(N2N_SN_PKTBUF_SIZE, 4);
+
+    sn_ratelimit_configure(sss);
+    if(sss->relay.ratelimit) {
+        traceEvent(TRACE_NORMAL, "rate limit: %u a second per source address, a burst of %u",
+                   sss->conf.relay.rate_limit, sss->conf.relay.rate_burst ? sss->conf.relay.rate_burst
+                   : sss->conf.relay.rate_limit * N3N_RATELIMIT_BURST_SECONDS);
+    }
+    metrics_sss = sss;
+    n3n_metrics_register(&metrics_rl_module);
 
     // Show the user what has been configured
     resolve_log_hostnames(RESOLVE_LIST_SUPERNODE);
@@ -439,6 +591,11 @@ void sn_term (struct n3n_runtime_data *sss) {
     resolve_cancel_thread(sss->resolve_parameter);
 
     sn_held_acks_free(sss);
+
+    // the packet threads, which may look at it, are gone by now
+    n3n_ratelimit_free(sss->relay.ratelimit);
+    sss->relay.ratelimit = NULL;
+    metrics_sss = NULL;
 
     // sock and tcp_sock are the first of these
     for(int i = 1; i < sss->bind_count; i++) {
@@ -735,6 +892,7 @@ static int process_pdu_body (struct n3n_runtime_data * sss,
                      PDU_TYPE_BIT(MSG_TYPE_REGISTER_SUPER) | PDU_TYPE_BIT(MSG_TYPE_REGISTER_SUPER_ACK)
                      | PDU_TYPE_BIT(MSG_TYPE_REGISTER_SUPER_NAK),
                      &(sss->relay.federation->edges), PDU_TYPE_BIT(MSG_TYPE_REGISTER_SUPER)) < 0) {
+        sn_rl_dropped(sss, h);
         return -1;
     }
 
@@ -750,8 +908,13 @@ static int process_pdu_body (struct n3n_runtime_data * sss,
         return 0;
     }
 
+    if(!sn_rl_charge(sss, h)) {
+        return 0;
+    }
     h->comm = comm;
-    pdu_dispatch(sss, sn_pdu_handlers, h);
+    if(pdu_dispatch(sss, sn_pdu_handlers, h) < 0) {
+        sn_rl_dropped(sss, h);
+    }
 
     return 0;
 }
@@ -776,7 +939,11 @@ static int process_pdu (struct n3n_runtime_data * sss,
     };
     struct sn_community *comm;
 
+    if((socket_fd != LOCAL_LINK_FD) && sn_rl_blocked(sss, sender_sock)) {
+        return -1;
+    }
     if(pdu_head_find(sss, &h, &comm) < 0) {
+        sn_rl_dropped(sss, &h);
         return -1;
     }
     return process_pdu_body(sss, &h, comm);
@@ -879,7 +1046,11 @@ void sn_rx_udp (struct n3n_runtime_data *sss, SOCKET sock,
                 struct sockaddr *from, socklen_t from_len,
                 uint8_t *buf, size_t len, time_t now) {
 
-    // an edge's exit probe: back to where it came from, see exit_probe.h
+    // an edge's exit probe: back to where it came from, see exit_probe.h -
+    // a token of its source's, as the answer may go to another than sent it
+    if(exit_probe_is(buf, len) && (sn_rl_blocked(sss, from) || !sn_rl_take(sss, from))) {
+        return;
+    }
     if(exit_probe_echo(sock, from, from_len, buf, len, now)) {
         return;
     }
@@ -925,9 +1096,15 @@ void sn_accepted_proto3_tcp (struct n3n_runtime_data *sss,
                              const struct sockaddr *addr,
                              socklen_t addr_len) {
 
-    n2n_tcp_connection_t *conn = calloc(1, sizeof(n2n_tcp_connection_t));
+    n2n_tcp_connection_t *conn;
     n3n_sock_str_t sockbuf;
 
+    // a new connection costs a token of its source's
+    if(sn_rl_blocked(sss, addr) || !sn_rl_take(sss, addr)) {
+        mainloop_close_fd(sock);
+        return;
+    }
+    conn = calloc(1, sizeof(n2n_tcp_connection_t));
     if(!conn || (addr_len > sizeof(conn->sas))) {
         free(conn);
         mainloop_close_fd(sock);
@@ -982,6 +1159,7 @@ static void sn_tick (struct n3n_runtime_data *sss, time_t now) {
     static time_t last_re_reg_and_purge = 0;
 
     sn_held_acks_send(sss, n3n_monotonic_us());
+    sn_rl_log(sss, now);
 
     re_register_and_purge_supernodes(
         sss,

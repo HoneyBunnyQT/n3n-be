@@ -31,6 +31,7 @@
 #include "n2n.h"              // for n3n_monotonic_us
 #include "notify.h"             // for n3n_notify
 #include "peer_info.h"
+#include "ratelimit.h"          // for n3n_ratelimit_configure
 #include "reload.h"
 #include "resolve.h"            // for resolve_cancel_thread, resolve_hostname_str_to_peer_info
 #include "role_client.h"        // for edge_supernodes_changed
@@ -66,6 +67,8 @@ static const char *const live_options[] = {
     "filter.rule",
     "logging.verbose",
     "management.password",
+    "supernode.rate_burst",
+    "supernode.rate_limit",
     "tuntap.dns",
     "tuntap.exit",
     "tuntap.gateway",
@@ -465,6 +468,10 @@ static bool apply (struct n3n_runtime_data *rt, const char *key, const struct se
         n3n_config_set_option(&rt->relay.local_edge->conf, section, option, (char *)value);
     }
 
+    // the rate limits per source, see ratelimit.h
+    if(!strncmp(key, "supernode.rate_", 15) && rt->conf.is_supernode) {
+        n3n_ratelimit_configure(&rt->relay.ratelimit, rt->conf.relay.rate_limit, rt->conf.relay.rate_burst);
+    }
     if(!strcmp(key, "connection.watch_network") && edge) {
         edge_netwatch_update(rt);
     }

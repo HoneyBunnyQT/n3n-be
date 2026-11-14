@@ -522,6 +522,8 @@ struct n3n_conf_relay {
     struct peer_info *sn_edges;     // SN federation storage during configure
     n2n_ip_subnet_t sn_min_auto_ip_net;                        /* Address range of auto_ip service. */
     n2n_ip_subnet_t sn_max_auto_ip_net;                        /* Address range of auto_ip service. */
+    uint32_t rate_limit;            /* per source and second, 0: none (supernode.rate_limit) */
+    uint32_t rate_burst;            /* tokens a source may have saved, 0: 4 s of rate_limit */
 };
 
 /* The settings of a community: of the one an edge joins, and of each one
@@ -806,6 +808,7 @@ struct n3n_rt_relay {
     time_t last_sn_reg;       /* Time when last REGISTER_SUPER was received. */
     struct sn_held_ack *held_acks;  /* REGISTER_SUPER_ACKs waiting, see role_relay.c */
     int held_acks_count;
+    struct n3n_ratelimit *ratelimit;    /* per source address, NULL: none, see ratelimit.h */
 };
 
 /* What the parts all roles share - the mainloop, the local link, the

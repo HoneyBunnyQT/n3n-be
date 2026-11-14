@@ -81,6 +81,9 @@ int edge_exit_check (struct n3n_runtime_data *eee, time_t now);
 // answer to such a check, which then goes nowhere else
 bool edge_exit_check_take (struct n3n_runtime_data *eee, const uint8_t *frame, size_t len);
 
+// Whether a datagram is such a probe
+bool exit_probe_is (const uint8_t *buf, size_t len);
+
 // At a supernode, what came to its UDP port: true if it was a probe, which
 // it answered then
 bool exit_probe_echo (SOCKET sock, const struct sockaddr *from, socklen_t from_len,

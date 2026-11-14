@@ -378,13 +378,19 @@ void edge_exit_tick (struct n3n_runtime_data *eee, time_t now) {
 
 // ---- at a supernode
 
+bool exit_probe_is (const uint8_t *buf, size_t len) {
+
+    return (len == N3N_EXIT_PROBE_LEN) && !memcmp(buf, N3N_EXIT_PROBE_MAGIC, 16);
+}
+
+
 bool exit_probe_echo (SOCKET sock, const struct sockaddr *from, socklen_t from_len,
                       const uint8_t *buf, size_t len, time_t now) {
 
     static time_t second;
     static int count;
 
-    if((len != N3N_EXIT_PROBE_LEN) || memcmp(buf, N3N_EXIT_PROBE_MAGIC, 16)) {
+    if(!exit_probe_is(buf, len)) {
         return false;
     }
     // not more than so many a second: what comes back is no larger than

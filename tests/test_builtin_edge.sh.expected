@@ -55,6 +55,8 @@ auto_ip_min=0.0.0.0/0
 macaddr=00:00:00:00:00:00
 #peer=
 
+rate_burst=0
+rate_limit=0
 spoofing_protection=false
 tap=false
 

@@ -433,6 +433,22 @@ Add a federated supernode.
 
 Multiple federated supernodes can be specified, each one as a host:port string, which will be resolved if needed.
 
+### supernode.rate_burst
+
+Tokens a source may save up for rate_limit.
+
+How many of the messages rate_limit counts a source may send at once after a quiet while. 0, the default, is four seconds of rate_limit.
+
+Default: `0`
+
+### supernode.rate_limit
+
+Messages per second a source address may send that cost work.
+
+0, the default, is no limit. Counted per source address - an IPv4 address, or the /64 of an IPv6 one, whatever the port - and the same for every source: registrations (REGISTER_SUPER, UNREGISTER_SUPER), queries and pings (QUERY_PEER), new TCP connections, exit probes, and what is dropped as undecryptable or malformed. What edges send to each other through the supernode is not counted, nor what federated supernodes send. A source over its limit is not served at all until it has a token again. Edges behind one NAT share their address's limit. See configure/Supernode.md for values.
+
+Default: `0`
+
 ### supernode.spoofing_protection
 
 Configure spoofing protection.

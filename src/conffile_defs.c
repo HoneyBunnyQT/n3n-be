@@ -681,6 +681,32 @@ static struct n3n_conf_option section_supernode[] = {
                 "a host:port string, which will be resolved if needed.",
     },
     {
+        .name = "rate_burst",
+        .type = n3n_conf_uint32,
+        .offset = offsetof(n2n_edge_conf_t, relay.rate_burst),
+        .desc = "Tokens a source may save up for rate_limit",
+        .help = "How many of the messages rate_limit counts a source may "
+                "send at once after a quiet while.  0, the default, is four "
+                "seconds of rate_limit.",
+    },
+    {
+        .name = "rate_limit",
+        .type = n3n_conf_uint32,
+        .offset = offsetof(n2n_edge_conf_t, relay.rate_limit),
+        .desc = "Messages per second a source address may send that cost work",
+        .help = "0, the default, is no limit.  Counted per source address - "
+                "an IPv4 address, or the /64 of an IPv6 one, whatever the "
+                "port - and the same for every source: registrations "
+                "(REGISTER_SUPER, UNREGISTER_SUPER), queries and pings "
+                "(QUERY_PEER), new TCP connections, exit probes, and what "
+                "is dropped as undecryptable or malformed.  What edges send "
+                "to each other through the supernode is not counted, nor "
+                "what federated supernodes send.  A source over its limit "
+                "is not served at all until it has a token again.  Edges "
+                "behind one NAT share their address's limit.  See "
+                "configure/Supernode.md for values.",
+    },
+    {
         .name = "spoofing_protection",
         .type = n3n_conf_bool,
         .offset = offsetof(n2n_edge_conf_t, relay.spoofing_protection),

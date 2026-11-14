@@ -112,6 +112,64 @@ it has the default:
 federation = myFederation
 ```
 
+## A public supernode: rate limits
+
+A supernode open to anyone - one for testing, say, that takes any
+community - does work for whatever reaches its port: it registers new
+communities and edges, answers pings and queries, accepts TCP connections.
+`supernode.rate_limit` caps that per source address, so that one host
+cannot keep it busy or use up what others may send.  It is off by
+default:
+
+```ini
+[supernode]
+rate_limit = 10       # a second, per source address
+rate_burst = 40       # saved up after a quiet while; 0 is 4 s of the rate
+```
+
+Every source gets the same: a bucket that fills with `rate_limit` tokens a
+second, up to `rate_burst`.  What costs the supernode work before it knows
+the sender takes a token: a registration (REGISTER_SUPER,
+UNREGISTER_SUPER), a query or ping (QUERY_PEER), a new TCP connection, an
+exit probe, and anything it drops as undecryptable or malformed.  A source
+whose bucket is empty is not served at all until it has a token again -
+what it sends is dropped before the supernode even decrypts it.
+
+Not counted: what the edges send each other through the supernode
+(PACKET, REGISTER, PEER_INFO) - relaying is its job, however much there
+is - and what the federated supernodes send, which includes the
+registrations of all their edges.  Its own edge (`supernode.tap`) is not
+counted either.
+
+A source is an IPv4 address, or the /64 of an IPv6 one (a host is given a
+whole /64, so its single addresses would be as many budgets); the port does
+not matter.  So the edges behind one NAT share their address's budget.
+That is little for each: in the lab, two edges registering every 5 s
+(their default is 20 s) took 10 tokens in 23 s at their supernode, start
+included.  `rate_limit = 10` leaves room for dozens of edges behind one
+address, and lets a flooding host have 10 answers a second.
+
+Why answers matter: UDP has no handshake, so a request can carry a forged
+source address, and the answer goes to whoever that is.  A supernode's
+answers are larger than the requests - a ping of 38 bytes gets 74 back, a
+registration of 63 bytes 58 bytes plus 26 for each supernode of the
+federation it lists, up to 44 of them (about 1200 bytes, nineteen times
+the request).  Without a limit, a supernode can be used to send someone
+else that much more traffic than the sender spends; with one, at most the
+rate's worth per forged address.
+
+The limit is not a defence against everything: a flood whose source
+addresses are forged at random gets a budget for each, as each looks like
+a new source.  The table of sources has a fixed size (32768, a megabyte),
+so that such a flood cannot make it grow; when it is full, the sources
+with the fullest buckets are forgotten first - which loses nothing, a full
+bucket being what a new source gets - and the ones being limited last.
+
+The supernode logs every 10 s how much it dropped, and the metrics
+(`/metrics.txt`) have the counters as `n3n_ratelimit_*`: tokens taken,
+messages over the limit, packets dropped unread, sources forgotten for
+others, and entries in use.  Both options take effect on a reload.
+
 ## A supernode that is an edge too
 
 A supernode can also be a member of one community, with a TAP device of
