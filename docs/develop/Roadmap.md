@@ -130,8 +130,8 @@ FEC, which came in between: done but for the few points left in its entry,
 its wire format fixed by the first release that has it.  Since then the
 announcements, Windows (service, tray, Wintun, installer), OpenWrt
 packages, NetworkManager, fewer privileges and pthread always came in
-between, as asked.  Next in line (2026-11-14): rate limits at the
-supernode and the Prometheus endpoint, then a release.  The design of v4
+between, as asked.  Next in line (2026-11-14): the Prometheus endpoint
+(the rate limits at the supernode are done), then a release.  The design of v4
 is written down before any v4 code: [the peer protocol](PeerProtocol.md)
 (2026-10-20).
 
@@ -413,9 +413,39 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       supernode after 9-18 s, direct again 9-19 s after; 10 of 10).  Not
       measured: the way through the supernode itself - v4's path manager
       (2026-10-18)
-- [ ] Rate limits at the supernode against floods of registrations (and
+- [x] Rate limits at the supernode against floods of registrations (and
       of anything else that costs it work before it knows the sender),
-      per source address; moved up from "Far future" (2026-10-18)
+      per source address; moved up from "Far future" (2026-10-18), done
+      2026-11-14: `supernode.rate_limit` (off by default) and
+      `supernode.rate_burst` (0: 4 s of the rate), live on a reload.  A
+      token bucket per source - an IPv4 address, an IPv6 /64, an IPv4
+      address mapped into IPv6 as the IPv4 one, the port not counted -
+      all with the same rate, in a table of a fixed size (32768 entries,
+      1 MB, 4 ways a set, indexed by SipHash-2-4 with a key from the
+      system's entropy; a full set forgets the fullest bucket, so the
+      sources being limited stay), `src/ratelimit.c`.  A token for each
+      REGISTER_SUPER, UNREGISTER_SUPER, QUERY_PEER (pings too), new TCP
+      connection, exit probe, and what is dropped as undecryptable,
+      malformed or of an unknown type; not for what edges send each
+      other, nor what federated supernodes send, nor the local link.  A
+      source out of tokens is dropped before its header is decrypted (a
+      lookup without a lock, for the packet threads).  Counters in the
+      metrics (`n3n_ratelimit_*`), a line in the log every 10 s while it
+      drops.  Why answers count, measured (2026-11-14): a ping of 38
+      bytes gets 74 back, a REGISTER_SUPER of 63 bytes 58 + 26 for each
+      supernode of the federation listed (up to 44: some 1200 bytes,
+      19x) - a reflector for forged source addresses, now at most the
+      rate's worth for each.  `tests-ratelimit` (SipHash's vectors, the
+      buckets, /64 and mapped IPv4, eviction, reload, threads for TSan);
+      netns `sn-ratelimit` (a host flooding a's supernode at 2000/s with
+      pings and registrations of new communities while the frames go:
+      192 of 11222 answered in 6 s at 20/s, burst 80; the edges relayed
+      as before) and `sn-flood` (the same without the limit: all
+      answered, which shows the flood is real).  Left: a cap on the TCP
+      connections open per source (a new one costs a token, an open one
+      nothing); floods from forged addresses at random get a budget for
+      each - only a handshake (v4) tells a real sender; the page does not
+      show it yet
 - [~] Prometheus endpoint for the metrics; moved up from "Far future"
       (2026-10-18).  There is a start (checked 2026-11-14): `/metrics.txt`,
       and `/metrics` for whoever does not ask for HTML, give the counters
@@ -1215,8 +1245,10 @@ release has it - as FEC was; there is no branch for it (see Decisions
 - [ ] iOS (NetworkExtension) on a stable libn3n API, as Android's app
       (`VpnService`, see Next) is on `include/n3n/embed.h`
 - [ ] Peer names in DNS (`laptop.mycommunity`), answered by the peer itself
-- [ ] Relay quotas (rate limits and the Prometheus endpoint: moved to
-      "Next", 2026-10-18)
+- [ ] Relay quotas: how much a community or an edge may have relayed
+      (rate limits and the Prometheus endpoint: moved to "Next",
+      2026-10-18; the rate limits per source, done 2026-11-14, leave
+      relaying alone)
 - [~] Windows on par with Linux.  Done: all traffic through an exit
       peer (`tuntap.route_all`, 2026-10-25, see Next); the edge as a
       service (2026-10-25, see Next); TUN on Wintun with `tun.c` as on
@@ -1473,8 +1505,7 @@ Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
 
 Open, in rough order:
 
-- Rate limits at the supernode, the Prometheus endpoint (a start is
-  there, see Next).
+- The Prometheus endpoint (a start is there, see Next).
 - A release, which fixes FEC's wire format: before it, whether less
   recognisable traffic (Next) wants room in the PACKET; FEC's `auto`
   without reports.
