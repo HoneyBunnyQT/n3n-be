@@ -1489,7 +1489,7 @@ static void render_metrics_text (struct n3n_runtime_data *eee, conn_t *conn) {
 
     // Update the reply buffer after last potential realloc
     conn->reply = conn->request;
-    generate_http_headers(conn, "text/plain", 200);
+    generate_http_headers(conn, "text/plain; version=0.0.4; charset=utf-8", 200);
 }
 
 // The same, and for a browser in the page's style - from that text, in a

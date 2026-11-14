@@ -28,6 +28,11 @@ void n3n_metrics_register (struct n3n_metrics_module *module) {
     registered_metrics = module;
 }
 
+// The text is Prometheus' format 0.0.4 (text/plain; version=0.0.4): each
+// family's "# HELP" and "# TYPE" before its samples, which come together.
+// A "## module=NAME" comment line goes before each module, which the
+// management page (management_page.c) makes its sections of.
+
 static void metric_stringify_uint32 (strbuf_t **buf, const int offset, void *data) {
     if(offset < 0) {
         sb_reprintf(buf, "offset<0");
@@ -41,7 +46,6 @@ static void metric_stringify_uint32 (strbuf_t **buf, const int offset, void *dat
 
 static void metrics_name (strbuf_t **reply, const char *module_name, const char *name) {
     const char *program_prefix = "n3n";
-    // TODO session_name
 
     sb_reprintf(
         reply,
@@ -52,17 +56,95 @@ static void metrics_name (strbuf_t **reply, const char *module_name, const char 
     );
 }
 
+// A label's value, between its quotes: backslash, quote and line feed
+// escaped, as the format wants
+static void metrics_label_value (strbuf_t **reply, const char *v) {
+
+    for(; v && *v; v++) {
+        switch(*v) {
+            case '\\':
+                sb_reprintf(reply, "\\\\");
+                break;
+            case '"':
+                sb_reprintf(reply, "\\\"");
+                break;
+            case '\n':
+                sb_reprintf(reply, "\\n");
+                break;
+            default:
+                sb_reprintf(reply, "%c", *v);
+        }
+    }
+}
+
+// The text of "# HELP": backslash and line feed escaped
+static void metrics_help_text (strbuf_t **reply, const char *v) {
+
+    for(; v && *v; v++) {
+        if(*v == '\\') {
+            sb_reprintf(reply, "\\\\");
+        } else if(*v == '\n') {
+            sb_reprintf(reply, "\\n");
+        } else {
+            sb_reprintf(reply, "%c", *v);
+        }
+    }
+}
+
+void n3n_metrics_render_family (strbuf_t **reply,
+                                const struct n3n_metrics_module *module,
+                                const char *name,
+                                enum n3n_metrics_kind kind,
+                                const char *desc) {
+
+    sb_reprintf(reply, "# HELP ");
+    metrics_name(reply, module->name, name);
+    sb_reprintf(reply, " ");
+    metrics_help_text(reply, desc ? desc : name);
+    sb_reprintf(reply, "\n# TYPE ");
+    metrics_name(reply, module->name, name);
+    sb_reprintf(reply, " %s\n", (kind == n3n_metrics_gauge) ? "gauge" : "counter");
+}
+
+// name{session="...", and the caller's labels follow
+static void metrics_sample_begin (strbuf_t **reply, const struct n3n_metrics_module *module,
+                                  const char *name) {
+
+    metrics_name(reply, module->name, name);
+    sb_reprintf(reply, "{session=\"");
+    metrics_label_value(reply, sessionname);
+    sb_reprintf(reply, "\"");
+}
+
+void n3n_metrics_render_sample (strbuf_t **reply,
+                                const struct n3n_metrics_module *module,
+                                const char *name,
+                                const char *const *labels,
+                                double value) {
+
+    metrics_sample_begin(reply, module, name);
+    for(int i = 0; labels && labels[i]; i += 2) {
+        if(!labels[i + 1]) {
+            continue;
+        }
+        sb_reprintf(reply, ",%s=\"", labels[i]);
+        metrics_label_value(reply, labels[i + 1]);
+        sb_reprintf(reply, "\"");
+    }
+    // whole numbers as such, up to 2^53
+    sb_reprintf(reply, "} %.17g\n", value);
+}
+
 static void metrics_render_uint32 (strbuf_t **reply, struct n3n_metrics_module *module) {
     for(int i = 0; module->items_uint32[i].name; i++) {
-        // TODO:
-        // - " TYPE name type\n"
-        // - " UNIT name type\n"
-        // - " HELP name type\n"
-        metrics_name(reply, module->name, module->items_uint32[i].name);
-        sb_reprintf(reply, "{session=\"%s\"} ", sessionname);
+        const struct n3n_metrics_items_uint32 *item = &module->items_uint32[i];
+
+        n3n_metrics_render_family(reply, module, item->name, item->kind, item->desc);
+        metrics_sample_begin(reply, module, item->name);
+        sb_reprintf(reply, "} ");
         metric_stringify_uint32(
             reply,
-            module->items_uint32[i].offset,
+            item->offset,
             module->data
         );
         sb_reprintf(reply, "\n");
@@ -79,30 +161,24 @@ void n3n_metrics_render_u32tags (
 
     va_list ap;
 
-    metrics_name(reply, module->name, name);
-    sb_reprintf(reply, "{session=\"%s\"", sessionname);
+    metrics_sample_begin(reply, module, name);
 
-    int count = tags;
     va_start(ap, tags);
-    while(count) {
+    for(int count = tags; count; count--) {
         char *tag = va_arg(ap, char *);
         char *val = va_arg(ap, char *);
 
         // Skip empty tags
         if(!tag || !val) {
-            count--;
             continue;
         }
-
-        if(count) {
-            sb_reprintf(reply,",");
-        }
-        sb_reprintf(reply,"%s=\"%s\"", tag, val);
-        count--;
+        sb_reprintf(reply, ",%s=\"", tag);
+        metrics_label_value(reply, val);
+        sb_reprintf(reply, "\"");
     }
     va_end(ap);
 
-    sb_reprintf(reply,"} ");
+    sb_reprintf(reply, "} ");
 
     metric_stringify_uint32(
         reply,
@@ -116,16 +192,9 @@ void n3n_metrics_render_u32tags (
 static void metrics_render_llu32 (strbuf_t **reply, struct n3n_metrics_module *module) {
     const struct n3n_metrics_items_llu32 *info = module->items_llu32;
 
-    if(info->desc) {
-        sb_reprintf(reply, "# HELP ");
-        metrics_name(reply, module->name, info->name);
-        sb_reprintf(reply, " %s\n", info->desc);
-    }
+    n3n_metrics_render_family(reply, module, info->name, info->kind, info->desc);
 
     for(int i = 0; info->items[i].val1; i++) {
-        // TODO:
-        // - " TYPE name type\n"
-        // - " UNIT name type\n"
         n3n_metrics_render_u32tags(
             reply,
             module,
@@ -142,7 +211,6 @@ static void metrics_render_llu32 (strbuf_t **reply, struct n3n_metrics_module *m
 
 void n3n_metrics_render (strbuf_t **reply) {
     sb_zero(*reply);
-    sb_reprintf(reply, "# Still unstable testing format for metric output!\n");
 
     struct n3n_metrics_module *module;
     for(module = registered_metrics; module; module = module->next) {

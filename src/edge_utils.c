@@ -102,6 +102,7 @@ static int edge_init_sockets (struct n3n_runtime_data *eee);
 static struct n3n_metrics_items_uint32 edge_utils_metrics_items1[] = {
     {
         .name = "tx_tuntap_error",
+        .desc = "Frames the device did not take",
         .offset = offsetof(struct n2n_edge_stats, tx_tuntap_error),
     },
     { },
@@ -109,6 +110,7 @@ static struct n3n_metrics_items_uint32 edge_utils_metrics_items1[] = {
 
 static struct n3n_metrics_items_llu32 edge_utils_metrics_items2 = {
     .name = "packets",
+    .desc = "Packets by direction and the way they took",
     .name1 = "direction",
     .name2 = "event",
     .items = {

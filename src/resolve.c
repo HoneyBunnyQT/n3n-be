@@ -69,6 +69,7 @@ static struct n3n_metrics_items_uint32 metrics_items[] = {
         .name = "longest_usec",
         .desc = "Time taken for longest resolve",
         .offset = offsetof(struct metrics, longest_usec),
+        .kind = n3n_metrics_gauge,
     },
     { },
 };

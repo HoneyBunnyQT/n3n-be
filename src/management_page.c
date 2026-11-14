@@ -802,6 +802,46 @@ static const char *last_space (const char *s, size_t len) {
 }
 
 
+// The labels of a sample, from just after its "{" up to end: name=value,
+// the values unescaped (Prometheus' \\, \" and \n), without the session's,
+// which is the page's
+static void metrics_labels (strbuf_t **b, const char *l, const char *end) {
+
+    bool first = true;
+
+    while(l < end && *l != '}') {
+        const char *eq = memchr(l, '=', end - l);
+        char value[256];
+        size_t n = 0;
+
+        if(!eq || (eq + 1 >= end) || (eq[1] != '"')) {
+            return;
+        }
+        const char *v = eq + 2;
+        while(v < end && *v != '"') {
+            char c = *v++;
+            if((c == '\\') && (v < end)) {
+                c = *v++;
+                c = (c == 'n') ? ' ' : c;
+            }
+            if(n < sizeof(value) - 1) {
+                value[n++] = c;
+            }
+        }
+        if((eq - l != 7) || strncmp(l, "session", 7)) {
+            sb_reprintf(b, "%s", first ? "" : " ");
+            html_text(b, l, eq - l + 1);
+            html_text(b, value, n);
+            first = false;
+        }
+        // past the closing quote and a comma
+        l = v + 1;
+        if(l < end && *l == ',') {
+            l++;
+        }
+    }
+}
+
 void mgmt_page_metrics (strbuf_t **b, struct n3n_runtime_data *rt, const char *text) {
 
     bool open = false;
@@ -847,7 +887,8 @@ void mgmt_page_metrics (strbuf_t **b, struct n3n_runtime_data *rt, const char *t
             continue;
         }
 
-        // n3n_MODULE_NAME{session="...",label="value"} VALUE
+        // n3n_MODULE_NAME{session="...",label="value"} VALUE - a value may
+        // hold a } or a space, so the value is after the last space
         size_t name_len = strcspn(s, "{ \n");
         const char *labels = (s[name_len] == '{') ? s + name_len + 1 : NULL;
         const char *close = labels ? memchr(labels, '}', s + len - labels) : NULL;
@@ -863,18 +904,7 @@ void mgmt_page_metrics (strbuf_t **b, struct n3n_runtime_data *rt, const char *t
         html_text(b, n, s + name_len - n);
         sb_reprintf(b, "</td><td class=mono>");
         if(labels && close) {
-            // without the session's, which is the page's
-            bool first = true;
-            for(const char *l = labels; l < close;) {
-                size_t llen = strcspn(l, ",}");
-
-                if(llen && strncmp(l, "session=", 8)) {
-                    sb_reprintf(b, "%s", first ? "" : " ");
-                    html_text(b, l, llen);
-                    first = false;
-                }
-                l += llen + 1;
-            }
+            metrics_labels(b, labels, s + len);
         }
         sb_reprintf(b, "</td><td class=num>");
         if(value) {

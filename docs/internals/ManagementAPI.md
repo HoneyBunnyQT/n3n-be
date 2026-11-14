@@ -180,11 +180,15 @@ The edge of a supernode with `supernode.tap` is asked at `/v1/edge` of the
 supernode's interface (`n3n-be-ctl -r edge ...`); it also shows in the
 supernode's `get_edges`, at `127.0.0.1:0`.
 
-Each daemon also has metrics in the Prometheus text format at `/metrics`,
-for example
+Each daemon also has metrics in Prometheus' text format (0.0.4) at
+`/metrics.txt`, and at `/metrics` for whoever does not ask for HTML - a
+browser gets them as a page.  For example
 ```
 curl --unix-socket /run/n3n-be/edge/mgmt http://x/metrics
 ```
+Every family has its `# HELP` and `# TYPE` (counter or gauge); a
+`## module=NAME` comment line goes before each module's.  The names start
+with `n3n_`, as upstream n3n's, and each sample has the label `session`.
 
 ## Events Stream
 

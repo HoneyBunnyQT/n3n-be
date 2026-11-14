@@ -17,6 +17,13 @@ enum __attribute__((__packed__)) n3n_metrics_items_type {
     n3n_metrics_type_cb,
 };
 
+// What a metric is, as Prometheus' "# TYPE" says: a counter only goes up (or
+// starts again at 0), a gauge is a value of the moment
+enum __attribute__((__packed__)) n3n_metrics_kind {
+    n3n_metrics_counter = 0,
+    n3n_metrics_gauge,
+};
+
 // The simplest type of metrics: everything is the same storage type, there are
 // no custom labels are added to anything and only one instance is possible.
 // The module definition points to an array of items, terminated with an entry
@@ -26,7 +33,7 @@ struct n3n_metrics_items_uint32 {
     const char *name;           // tail of the metrics name
     const char *desc;           // Help text for the metric
     const int offset;           // Offset from the start of the void
-    // const enum foo type - today, they are all counters
+    const enum n3n_metrics_kind kind;   // a counter unless set
     // const enum foo unit - today, they are all unitless
 };
 
@@ -41,8 +48,8 @@ struct n3n_metrics_items_llu32 {
     const char *desc;           // Help text for the metric
     const char *name1;
     const char *name2;
+    const enum n3n_metrics_kind kind;   // a counter unless set
     const struct n3n_metrics_items_llu32_ent items[];
-    // const enum foo type - today, they are all counters
     // const enum foo unit - today, they are all unitless
 };
 
@@ -64,7 +71,27 @@ struct n3n_metrics_module {
 // Register a block of metrics
 void n3n_metrics_register (struct n3n_metrics_module *);
 
-// Helper to assist with rendering during n3n_metrics_type_cb
+// Helpers to assist with rendering during n3n_metrics_type_cb.  Each family
+// (n3n_MODULE_NAME) begins with n3n_metrics_render_family(), its "# HELP"
+// and "# TYPE", and its samples follow it, all of them before the next one.
+void n3n_metrics_render_family (
+    strbuf_t **reply,
+    const struct n3n_metrics_module *module,
+    const char *name,
+    enum n3n_metrics_kind kind,
+    const char *desc
+);
+
+// A sample of a family: the session's label, then labels (pairs of name and
+// value, ended by a NULL name; a NULL value leaves that label out), and value
+void n3n_metrics_render_sample (
+    strbuf_t **reply,
+    const struct n3n_metrics_module *module,
+    const char *name,
+    const char *const *labels,
+    double value
+);
+
 void n3n_metrics_render_u32tags (
     strbuf_t **reply,
     const struct n3n_metrics_module *module,

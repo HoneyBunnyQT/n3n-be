@@ -200,6 +200,9 @@ static time_t listen_pause_until;
 static void metrics_callback (strbuf_t **reply, const struct n3n_metrics_module *module) {
     int slot = 0;
     char buf[16];
+
+    n3n_metrics_render_family(reply, module, "fd_reads", n3n_metrics_counter,
+                              "Reads of each file descriptor the mainloop watches");
     while(slot < fdlist_size) {
         if(fdlist[slot].fd == -1) {
             slot++;
@@ -232,6 +235,8 @@ static struct mallinfo2 metrics_mi;
 
 static void metrics_mallinfo2 (strbuf_t **reply, const struct n3n_metrics_module *module) {
     metrics_mi = mallinfo2();
+
+    n3n_metrics_render_family(reply, module, "bytes", n3n_metrics_gauge, "The heap, as mallinfo2() tells");
 
     n3n_metrics_render_u32tags(
         reply,

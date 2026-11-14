@@ -501,6 +501,7 @@ static const struct n3n_metrics_items_uint32 metrics_rl_items[] = {
         .name = "sources",
         .desc = "entries of the table in use",
         .offset = offsetof(struct n3n_ratelimit_stats, sources),
+        .kind = n3n_metrics_gauge,
     },
     { },
 };

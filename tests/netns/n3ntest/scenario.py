@@ -43,7 +43,7 @@ import sys
 import tempfile
 import time
 
-from . import nat
+from . import nat, promtext
 from .lab import Lab, LabError, describe_exit, run, wait_for
 from .node import (Edge, MgmtError, N2nEdge, N2nSupernode, Supernode,
                    cli_options, stats_delta, write_conf)
@@ -1580,6 +1580,34 @@ class Run:
         if self.check_alive("spray"):
             time.sleep(2 * self.st.register_interval + 2)
 
+    def check_metrics(self):
+        """The metrics of this tree's daemons (/metrics.txt) in
+        Prometheus' text format, strictly (promtext.py)"""
+        daemons = [(name, sn["daemon"]) for name, sn in
+                   sorted(self.supernodes.items())
+                   if "daemon" in sn and name not in self.killed
+                   and not is_other(self.sc.sn_versions.get(name))]
+        daemons += [(name, e["daemon"]) for name, e in
+                    sorted(self.edges.items())
+                    if "daemon" in e and not e.get("on_supernode")
+                    and not is_other(self.sc.sites[name].version)]
+        bad = []
+        families = 0
+        for name, d in daemons:
+            try:
+                _, body = d.mgmt.http("GET", "/metrics.txt")
+            except OSError as e:
+                bad.append("{}: {}".format(name, e))
+                continue
+            problems, fams = promtext.check(
+                body.decode("utf8", errors="replace"))
+            families += len(fams)
+            bad += ["{}: {}".format(name, p) for p in problems[:3]]
+        if daemons:
+            self.check("metrics", not bad,
+                       "; ".join(bad) or "{} families of {} daemons in "
+                       "Prometheus' format".format(families, len(daemons)))
+
     def _metrics(self, name):
         """The metrics of a supernode, as {name: value}, without labels"""
         try:
@@ -2921,6 +2949,7 @@ class Run:
                 if self.check_alive("measurement"):
                     self.check_descriptions("description after")
                     self.check_announcements("announced after")
+                    self.check_metrics()
             if self.sc.flood and self.flood:
                 self.flood_check()
             if self.sc.route_all in ("switch", "reload") and \
