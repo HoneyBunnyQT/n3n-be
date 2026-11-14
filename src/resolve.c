@@ -56,6 +56,19 @@ static struct metrics {
     uint32_t longest_usec;
 } metrics;
 
+// A name resolved, by the resolver thread or the main one, while the main
+// thread may be rendering the metrics: atomic, as metrics.c reads them
+static void resolve_metrics_add (uint64_t elapsed_usec) {
+
+    uint32_t usec = (elapsed_usec > UINT32_MAX) ? UINT32_MAX : (uint32_t)elapsed_usec;
+
+    __atomic_add_fetch(&metrics.count, 1, __ATOMIC_RELAXED);
+    __atomic_add_fetch(&metrics.total_usec, usec, __ATOMIC_RELAXED);
+    if(__atomic_load_n(&metrics.longest_usec, __ATOMIC_RELAXED) < usec) {
+        __atomic_store_n(&metrics.longest_usec, usec, __ATOMIC_RELAXED);
+    }
+}
+
 static struct n3n_metrics_items_uint32 metrics_items[] = {
     {
         .name = "count",
@@ -201,11 +214,7 @@ int supernode2sock (n3n_sock_t *sn, const char *addrIn) {
 
     uint64_t elapsed_usec = elapsed.tv_sec * 1000000 + elapsed.tv_usec;
 
-    metrics.count++;
-    metrics.total_usec += elapsed_usec;
-    if(metrics.longest_usec < elapsed_usec) {
-        metrics.longest_usec = elapsed_usec;
-    }
+    resolve_metrics_add(elapsed_usec);
 
     if(nameerr != 0) {
         traceEvent(
@@ -741,11 +750,7 @@ static void request_pkt_process () {
 
     uint64_t elapsed_usec = elapsed.tv_sec * 1000000 + elapsed.tv_usec;
 
-    metrics.count++;
-    metrics.total_usec += elapsed_usec;
-    if(metrics.longest_usec < elapsed_usec) {
-        metrics.longest_usec = elapsed_usec;
-    }
+    resolve_metrics_add(elapsed_usec);
 
     if(rc != 0) {
         // Since network disconnection events can happen, a failure to resolve
