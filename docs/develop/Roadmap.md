@@ -469,6 +469,22 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       through the community.  netns `metrics-remote`.  Found on the way:
       a peer pending twice (99ac887e, below).  Left: a peer's round trip
       (not measured in v3); TLS, which a proxy in front can do
+- [x] Another device taken for a change of the host's network
+      (2026-11-14, found by `userpw-spoof` failing in CI: 15 PDUs
+      forwarded where 14 are allowed, 12 locally): the edge's netwatch
+      took any interface's address or link coming or going for one - the
+      spoofing edge's TAP device beside b, another edge's or VPN's device,
+      a container's bridge - and registered again everywhere, its peers
+      learning it afresh, a few frames through the supernode meanwhile.
+      Now only the default route (as before) and the address and link of
+      an interface a default route of the main table goes out of count;
+      those interfaces from a dump of the routes at the start, and again
+      after each change of a default route (`src/netwatch.c`).  A new way
+      out still counts by its default route; netns `roam` notices its move
+      as before.  netns `netwatch-other` (a TAP device with an address
+      comes and goes beside a), and `userpw-spoof` checks b; both failed
+      with the old code, now pass, and `userpw-spoof` forwards 5.
+      n3n-be's own (netwatch), not for `fixes`
 - [x] Loss counted long term on traffic that goes anyway (2026-11-14,
       step 1 of measuring loss; asked after FEC's `auto` was found to do
       nothing on one-way traffic): `src/loss_count.h`.  To a peer, the
