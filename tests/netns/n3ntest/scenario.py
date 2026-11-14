@@ -215,7 +215,7 @@ class Scenario:
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
-                 metrics_remote=False, loss_counts=False):
+                 metrics_remote=False, loss_counts=False, other_dev=None):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -377,6 +377,11 @@ class Scenario:
         # (src/loss_count.h) - to the peers on the warm direct path, to the
         # supernodes - stays near nothing
         self.loss_counts = loss_counts
+        # After the warm-up, another TAP device (as another edge's or VPN's)
+        # comes up with an address in this site's edge's namespace, and goes
+        # again: no change of the edge's network, which it is not to take
+        # for one (src/netwatch.c)
+        self.other_dev = other_dev
         # These supernodes take UDP only (connection.bind udp://), no TCP
         self.sn_udp_only = set(sn_udp_only)
         # (site, first, then): after the warm-up, once the site's edge is
@@ -1684,6 +1689,32 @@ class Run:
                            got["right"], len(families),
                            ", " + problems[0] if problems else ""))
 
+    def _net_changes(self, site):
+        """How often an edge took its network for changed, by its log"""
+        try:
+            with open(self.edges[site]["daemon"].proc.log_path,
+                      errors="replace") as f:
+                return sum("the network changed" in line for line in f)
+        except OSError:
+            return 0
+
+    def other_dev_phase(self):
+        """sc.other_dev: another TAP device comes and goes beside the edge"""
+        site = self.sc.other_dev
+        ns = self.edges[site]["ns"]
+        before = self._net_changes(site)
+        run(["ip", "-n", ns, "tuntap", "add", "dev", "other0", "mode", "tap"])
+        run(["ip", "-n", ns, "addr", "add", "10.250.0.1/24", "dev", "other0"])
+        run(["ip", "-n", ns, "link", "set", "other0", "up"])
+        time.sleep(2)
+        run(["ip", "-n", ns, "link", "del", "other0"])
+        time.sleep(2)
+        after = self._net_changes(site)
+        self.check("other device", after == before,
+                   "edge {} took its network for changed {} times while "
+                   "another device came and went".format(
+                       site, after - before))
+
     def _loss_counts(self, site):
         """What an edge counted (loss_count.h): {("peer", mac): (sent,
         answered), ("sn", addr, "reg"|"ping"): (sent, answered)}"""
@@ -2438,6 +2469,7 @@ class Run:
         d = Edge(self.lab, "edge-spoof", b["ns"], self._session("spoof"),
                  self.st.binary("edge", None), sections,
                  wrap=self.st.wrap, overlay_ip="10.99.0.99", mac=a["mac"])
+        changes = self._net_changes("b")
         d.start()
         try:
             # a few rounds of registrations
@@ -2447,6 +2479,12 @@ class Run:
                 refused = any("authentication error" in line for line in f)
         finally:
             d.proc.stop()
+        # its device, beside b's, is no change of b's network
+        time.sleep(1)
+        changes = self._net_changes("b") - changes
+        self.check("spoof: b's network", changes == 0,
+                   "b took its network for changed {} times while the "
+                   "spoofing edge's device came and went".format(changes))
         self.result["spoof"] = {"before": before, "after": after,
                                 "refused": refused}
         self.check("spoof: refused", refused,
@@ -3081,6 +3119,8 @@ class Run:
                 self.tcp_burst_phase()
             if self.sc.spray and self.check_alive("warm-up"):
                 self.spray_phase()
+            if self.sc.other_dev and self.check_alive("warm-up"):
+                self.other_dev_phase()
             if self.sc.flood and self.check_alive("warm-up"):
                 self.flood_start()
             if self.check_alive("warm-up"):

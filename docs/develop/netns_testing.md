@@ -325,6 +325,7 @@ ports from all of it.
 | cgnat-both | easy-changed+easy-kept on both sides | direct |
 | same-lan | both sites 192.168.1.0/24, the edges at the same address | direct |
 | roam | easy-kept / easy-kept, register_interval 20; b moves to another network (its link down, another link and NAT up) while frames flow both ways | direct again; the longest gap each way at most 5s |
+| netwatch-other | easy-kept / easy-kept; after the warm-up another TAP device with an address comes up beside a and goes again (`other_dev`) | direct; a does not take it for a change of its network (no "the network changed" in its log) |
 | roam-nowatch | as roam, with connection.watch_network = false: for comparison | direct again, after up to half the peers' timeout (gap at most 60s) |
 | dual-stack | both edges public, with IPv4 and IPv6; a knows the supernode by IPv6, b by IPv4, and they find each other by multicast over both: each may hear the other from either family (needs IPv6, see `uml.sh`) | direct, the peers kept at one address |
 | hard-hard-v6 | hard-range / hard-range, but each site with routed IPv6 behind its router's firewall, 20 ms slower than IPv4; the edges know the supernode by both, select by round trip (needs IPv6) | direct, over IPv6: registered over IPv4, each edge also tells the supernode its IPv6 address |
@@ -342,7 +343,7 @@ ports from all of it.
 | userpw-relayed | hard-range / hard-range, user/password, each edge at its own supernode | relayed, across the federation |
 | userpw-conf | as userpw-relayed, the community and users in `[community NAME]` sections | relayed, across the federation |
 | userpw-cli | easy-kept / easy-changed, user/password; the community's sections on the command line (`-O "community nettest.cli.user=..."`, `-O community.nettest.cli.key=...`), only the edges' supernodes in the file; then a reload of a, which drops one of them | direct; the reload applies the supernode and the filter rule, nothing set by `-O` changes |
-| userpw-spoof | easy-kept / easy-changed, user/password; then an edge of user b (b's password) comes up with a's MAC (`spoof`) | direct; the other edge refused, the supernodes keep a at its address |
+| userpw-spoof | easy-kept / easy-changed, user/password; then an edge of user b (b's password) comes up with a's MAC (`spoof`) | direct; the other edge refused, the supernodes keep a at its address, and b does not take the other edge's device beside it for a change of its network |
 | userpw-lockout | user/password, a at sn1, b at sn2; then user b's line out of sn1's community file only, sn1 reloads; then back at both (`lockout`) | b refused all over the federation, a stays; b cut off from a (no pings), a with the new header keys, b without; then b back in, and a and b heard directly again before the frames are counted |
 | sn-tap | hard-range / the TAP device of sn2 (`supernode.tap`), the edge at sn2 | relayed |
 | sn-tap-fed | easy-kept at sn1 / the TAP device of sn2 | relayed, across the federation |

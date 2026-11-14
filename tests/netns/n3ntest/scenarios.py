@@ -231,6 +231,13 @@ SCENARIOS = [
         # 20s away, not the harness's 5s
         conf={"connection": {"register_interval": 20}}),
     Scenario(
+        "netwatch-other",
+        "easy NATs, direct; another TAP device with an address comes up "
+        "beside a and goes again (another edge, a VPN): no change of a's "
+        "network, which it does not take for one",
+        Site(["easy-kept"]), Site(["easy-kept"]),
+        "direct", other_dev="a"),
+    Scenario(
         "roam-nowatch",
         "as roam, with connection.watch_network = false: the edges find "
         "each other again only with the next rounds of registration",
