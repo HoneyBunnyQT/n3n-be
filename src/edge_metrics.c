@@ -9,6 +9,7 @@
 #include <n3n/edge.h>           // for edge_is_registered
 #include <n3n/metrics.h>        // for n3n_metrics_render_family, n3n_metrics_render_sample
 #include <n3n/strings.h>        // for macaddr_str, sock_to_cstr
+#include <stddef.h>             // for offsetof
 #include <stdio.h>              // for snprintf
 #include <string.h>             // for memcpy
 #include <time.h>               // for time
@@ -132,6 +133,28 @@ static void render_fec_repairs (struct ctx *c, const struct peer_info *peer, boo
     }
 }
 
+// the long-term counts of the warm direct path, see loss_count.h: only of
+// a peer known directly, the only one REGISTERs go to at its address
+static void render_reg_sent (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    struct peer_labels pl;
+
+    if(known) {
+        n3n_metrics_render_sample(c->reply, c->module, "peer_registers_sent", peer_labels(&pl, c->eee, peer),
+                                  peer->reg_loss.sent);
+    }
+}
+
+static void render_reg_answered (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    struct peer_labels pl;
+
+    if(known) {
+        n3n_metrics_render_sample(c->reply, c->module, "peer_registers_answered", peer_labels(&pl, c->eee, peer),
+                                  peer->reg_loss.answered);
+    }
+}
+
 static void render_last_seen (struct ctx *c, const struct peer_info *peer, bool known) {
 
     struct peer_labels pl;
@@ -184,6 +207,32 @@ static void edge_metrics_cb (strbuf_t **reply, const struct n3n_metrics_module *
         }
     }
 
+    // what got lost to each supernode, long term, while it answered lately
+    // (loss_count.h): a sample is a request and its answer
+    static const struct {
+        const char *name, *desc;
+        size_t offset;
+    } sn_counts[] = {
+        { "supernode_registers_sent", "REGISTER_SUPERs counted (over UDP, while the supernode answered lately)",
+          offsetof(struct peer_info, reg_loss.sent) },
+        { "supernode_registers_answered", "Of those, answered within the window",
+          offsetof(struct peer_info, reg_loss.answered) },
+        { "supernode_pings_sent", "PINGs counted (while the supernode answered lately)",
+          offsetof(struct peer_info, ping_loss.sent) },
+        { "supernode_pings_answered", "Of those, answered within the window",
+          offsetof(struct peer_info, ping_loss.answered) },
+    };
+    for(size_t i = 0; i < sizeof(sn_counts) / sizeof(sn_counts[0]); i++) {
+        n3n_metrics_render_family(reply, module, sn_counts[i].name, n3n_metrics_counter, sn_counts[i].desc);
+        HASH_ITER(hh, eee->client.supernodes, peer, tmp) {
+            uint32_t v;
+            const char *labels[] = { "supernode", sock_to_cstr(sockbuf, &peer->sock), NULL };
+
+            memcpy(&v, (const char *)peer + sn_counts[i].offset, sizeof(v));
+            n3n_metrics_render_sample(reply, module, sn_counts[i].name, labels, v);
+        }
+    }
+
     // the peers: how many by path, then each
     each_peer(&c, count_path);
     n3n_metrics_render_family(reply, module, "peers", n3n_metrics_gauge,
@@ -213,6 +262,13 @@ static void edge_metrics_cb (strbuf_t **reply, const struct n3n_metrics_module *
                                   "Repairs sent with the last group of frames to the peer");
         each_peer(&c, render_fec_repairs);
     }
+
+    n3n_metrics_render_family(reply, module, "peer_registers_sent", n3n_metrics_counter,
+                              "REGISTERs to the peer counted on the warm direct path (loss_count.h)");
+    each_peer(&c, render_reg_sent);
+    n3n_metrics_render_family(reply, module, "peer_registers_answered", n3n_metrics_counter,
+                              "Of those, answered by a REGISTER_ACK within the window");
+    each_peer(&c, render_reg_answered);
 
     n3n_metrics_render_family(reply, module, "peer_last_seen_timestamp_seconds", n3n_metrics_gauge,
                               "When the edge last heard of the peer, in seconds since the epoch");

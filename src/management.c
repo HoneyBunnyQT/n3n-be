@@ -843,6 +843,8 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 "\"time_alloc\":%u,"
                 "\"last_p2p\":%u,"
                 "\"last_sent_query\":%u,"
+                "\"reg_sent\":%u,"
+                "\"reg_answered\":%u,"
                 "%s"
                 "\"last_seen\":%u},",
                 mode,
@@ -866,6 +868,8 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 (uint32_t)peer->time_alloc,
                 (uint32_t)peer->last_p2p,
                 (uint32_t)peer->last_sent_query,
+                peer->reg_loss.sent,
+                peer->reg_loss.answered,
                 fec_str(fec_buf, sizeof(fec_buf), fec, peer->mac_addr),
                 (uint32_t)peer->last_seen
     );
@@ -1101,6 +1105,10 @@ static void jsonrpc_get_supernodes (char *id, struct n3n_runtime_data *eee, conn
                     "\"transports\":\"%s\","
                     "\"load\":%u,"
                     "\"rtt_us\":%u,"
+                    "\"reg_sent\":%u,"
+                    "\"reg_answered\":%u,"
+                    "\"ping_sent\":%u,"
+                    "\"ping_answered\":%u,"
                     "\"selection\":\"%s\","
                     "\"last_seen\":%u,"
                     "\"uptime\":%u},",
@@ -1113,6 +1121,10 @@ static void jsonrpc_get_supernodes (char *id, struct n3n_runtime_data *eee, conn
                     (peer->transports == N3N_TRANSPORT_UDP) ? "udp" : (peer->transports == N3N_TRANSPORT_TCP) ? "tcp" : "udp tcp",
                     peer->sn_load,
                     peer->sn_rtt_us,
+                    peer->reg_loss.sent,
+                    peer->reg_loss.answered,
+                    peer->ping_loss.sent,
+                    peer->ping_loss.answered,
                     sn_selection_criterion_str(eee, sel_buf, peer),
                     (uint32_t)peer->last_seen,
                     (uint32_t)peer->uptime);

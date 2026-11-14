@@ -996,6 +996,7 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
                     scan_tmp->probes_answered = 0;
                     scan_tmp->loss = 0;
                     SHARED_STORE(scan_tmp->lossy, 0);
+                    n3n_loss_reset(&scan_tmp->reg_loss);
                 }
                 scan_tmp->sock = scan->sock;
                 scan_tmp->last_cookie = scan->last_cookie;
@@ -1317,6 +1318,8 @@ static void edge_network_changed (struct n3n_runtime_data *eee, unsigned why, ti
 
     traceEvent(TRACE_NORMAL, "the network changed (%s): registering again",
                netwatch_str(why, buf, sizeof(buf)));
+    // no loss counted while it settles, see loss_count.h
+    eee->client.net_changed_us = n3n_monotonic_us();
 
     // whether the host is an exit may have changed with it
     edge_exit_network_changed(eee, now);
@@ -1404,6 +1407,15 @@ static size_t encode_query_peer (struct n3n_runtime_data *eee, uint8_t *pktbuf, 
 }
 
 
+// A supernode answered lately - an ACK or a PONG within two rounds of
+// PINGs: what is lost to it counts as the line's, see loss_count.h.  One
+// that went away counts so for that long at most.
+#define SN_WARM_US  (2 * SWEEP_TIME * 1000000ULL)
+static bool sn_warm (const struct peer_info *sn, uint64_t now_us) {
+
+    return sn->answered_us && (now_us - sn->answered_us <= SN_WARM_US);
+}
+
 void send_query_peer (struct n3n_runtime_data * eee,
                       const n2n_mac_t dst_mac) {
 
@@ -1460,6 +1472,10 @@ void send_query_peer (struct n3n_runtime_data * eee,
             }
             traceEvent(TRACE_DEBUG, "send PING to this peer");
             edge_sendto_sock(eee, pktbuf, idx, &(peer->sock));
+            if(sn_warm(peer, eee->client.ping_sent_us)
+               && n3n_loss_settled(eee->client.net_changed_us, eee->client.ping_sent_us)) {
+                n3n_loss_sent(&peer->ping_loss, eee->client.ping_sent_us);
+            }
         }
     }
 }
@@ -1520,6 +1536,16 @@ static void register_super_to (struct n3n_runtime_data *eee, struct peer_info *s
     }
 
     edge_sendto_sock(eee, pktbuf, idx, &(sn->sock));
+
+    // counted long term, see loss_count.h: the registration itself (not
+    // the other family's), over UDP, with a supernode that answered lately,
+    // and the regular one - not a retry for one not answered (sn_wait),
+    // which would count an outage over and over
+    uint64_t now_us = n3n_monotonic_us();
+    if(!key_time && !eee->client.tcp && !eee->client.sn_wait && sn_warm(sn, now_us)
+       && n3n_loss_settled(eee->client.net_changed_us, now_us)) {
+        n3n_loss_sent(&sn->reg_loss, now_us);
+    }
 }
 
 
@@ -1714,6 +1740,21 @@ static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *pee
     }
 }
 
+// A REGISTER to a known peer at its address, counted long term where the
+// path is warm (see loss_count.h): the peer heard from directly within half
+// its timeout - not one quiet, which may be at another address by now, nor
+// one being punched to - and the host's network settled
+static void reg_loss_sent (struct n3n_runtime_data *eee, struct peer_info *peer, n2n_cookie_t cookie) {
+
+    uint64_t now_us = n3n_monotonic_us();
+
+    if((cookie == N2N_REGULAR_REG_COOKIE)
+       && ((time(NULL) - SHARED_LOAD(peer->last_p2p)) < (peer->timeout / 2))
+       && n3n_loss_settled(eee->client.net_changed_us, now_us)) {
+        n3n_loss_sent(&peer->reg_loss, now_us);
+    }
+}
+
 static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer) {
 
     if(peer->probes_sent >= P2P_PROBE_ROUND) {
@@ -1761,6 +1802,7 @@ void send_register (struct n3n_runtime_data * eee,
         HASH_FIND_PEER(eee->client.known_peers, peer_mac, peer);
         if(peer && sock_equal(remote_peer, &peer->sock)) {
             probe_sent(eee, peer);
+            reg_loss_sent(eee, peer, cookie);
         }
     }
 }
@@ -2150,6 +2192,9 @@ void edge_rx_register_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
         if(known->probes_answered < UINT16_MAX) {
             known->probes_answered++;
         }
+        if(ra.cookie == N2N_REGULAR_REG_COOKIE) {
+            n3n_loss_answer(&known->reg_loss, n3n_monotonic_us());
+        }
     }
 
     // behind a hard NAT, the port it answered from is worth keeping
@@ -2232,6 +2277,14 @@ void edge_rx_register_super_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c
             traceEvent(TRACE_NORMAL, "Rx REGISTER_SUPER_ACK with wrong or old response to challenge, maybe indicating wrong federation public key (-P)");
         }
         return;
+    }
+
+    // the answer to the registration, see loss_count.h
+    {
+        uint64_t now_us = n3n_monotonic_us();
+
+        n3n_loss_answer(&eee->client.curr_sn->reg_loss, now_us);
+        eee->client.curr_sn->answered_us = now_us;
     }
 
     // the current supernode answers over TCP, see sn_tcp_failed()
@@ -2448,11 +2501,17 @@ void edge_rx_peer_info (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
         skip_add = SN_ADD_SKIP;
         scan = add_sn_to_list_by_mac_or_sock(&(eee->client.supernodes), &c->sender, pi.srcMac, &skip_add);
         if(scan != NULL) {
+            uint64_t now_us = n3n_monotonic_us();
+
             eee->client.sn_pong = 1;
             if((eee->client.probe_sock >= 0) && (c->socket_fd == eee->client.probe_sock)) {
                 // UDP gets through again, see transport_probe()
                 eee->client.probe_ok = true;
+            } else {
+                // the answer to a PING of send_query_peer(), see loss_count.h
+                n3n_loss_answer(&scan->ping_loss, now_us);
             }
+            scan->answered_us = now_us;
             scan->last_seen = c->now;
             scan->uptime = pi.uptime;
             memcpy(scan->version, pi.version, sizeof(n2n_version_t));

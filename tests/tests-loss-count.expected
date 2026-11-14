@@ -1,0 +1,12 @@
+answered after 0.1 s                             sent 1 answered 1
+answered just too late                           sent 2 answered 1
+three close together, the middle one lost        sent 5 answered 3
+then two answers more                            sent 5 answered 4
+an answer to nothing                             sent 5 answered 4
+one unanswered, the next after its window        sent 7 answered 5
+100 apart, every tenth lost                      sent 100 answered 90
+2 a second, every third lost                     sent 300 answered 200
+settled 5 s after a change                       no
+settled 10 s after a change                      yes
+settled without a change                         yes
+reset                                            sent 0 answered 0

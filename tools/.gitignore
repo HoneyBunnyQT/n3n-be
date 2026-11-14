@@ -33,6 +33,7 @@ tests-tun
 tests-sandbox
 tests-route-helper
 tests-ratelimit
+tests-loss-count
 tests-speck
 tests-tf
 tests-auth.exe
@@ -54,6 +55,7 @@ tests-tun.exe
 tests-sandbox.exe
 tests-route-helper.exe
 tests-ratelimit.exe
+tests-loss-count.exe
 tests-speck.exe
 tests-tf.exe
 tests-fec

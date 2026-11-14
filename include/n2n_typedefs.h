@@ -727,6 +727,7 @@ struct n3n_rt_client {
     bool probe_ok;                                                       /**< a supernode answered on it */
     time_t last_probe;
     uint64_t ping_sent_us;                                               /**< when the last PINGs to the supernodes went out (n3n_monotonic_us) */
+    uint64_t net_changed_us;                                             /**< when the host's network last changed (n3n_monotonic_us), 0: not, see loss_count.h */
     n2n_trans_op_t transop;                                              /**< The transop to use when encoding */
     n2n_trans_op_t transop_lzo;                                          /**< The transop for LZO  compression */
     n2n_trans_op_t transop_zstd;                                         /**< The transop for ZSTD compression */

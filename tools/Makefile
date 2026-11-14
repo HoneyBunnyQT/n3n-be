@@ -43,6 +43,7 @@ TESTS+=tests-announce
 TESTS+=tests-sandbox
 TESTS+=tests-route-helper
 TESTS+=tests-ratelimit
+TESTS+=tests-loss-count
 
 .PHONY: all clean install
 all: $(TOOLS) $(TESTS)

@@ -11,6 +11,7 @@ tests-elliptic
 tests-fec
 tests-pdu-in
 tests-ipv6
+tests-loss-count
 tests-mgmt-client
 tests-tun
 tests-peers

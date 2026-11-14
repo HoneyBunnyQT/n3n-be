@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "loss_count.h"     // for n3n_loss_count
 #include "n2n_typedefs.h"
 #include "n3n/ethernet.h"
 #include "uthash.h"
@@ -62,6 +63,10 @@ struct peer_info {
     uint32_t sn_rtt_us;     /* a supernode: the round trip of its last PONG, 0 for none yet; at
                              * a supernode, of the federation: of its REGISTER_SUPER_ACKs, averaged */
     uint64_t reg_sent_us;   /* at a supernode, of the federation: when the last REGISTER_SUPER went */
+    struct n3n_loss_count reg_loss;  /* an edge's peer: REGISTER/ACK on the warm direct path; an edge's
+                                      * supernode: REGISTER_SUPER/ACK - see loss_count.h */
+    struct n3n_loss_count ping_loss; /* an edge's supernode: PING/PONG, see loss_count.h */
+    uint64_t answered_us;   /* an edge's supernode: when it last answered (ACK, PONG), monotonic */
     time_t uptime;
     n2n_version_t version;
 
