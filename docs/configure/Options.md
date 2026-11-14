@@ -177,7 +177,7 @@ Default: `true`
 
 Register again at once when the network changes.
 
-Defaulting to true, the edge notices when an address, a link or the default route of the host changes, or the host wakes up from sleep, and then registers again at once, with the supernode and with its peers, instead of at the next round of registration. Linux only, where it watches netlink; an app embedding the edge can tell it with n3n_edge_network_changed().
+Defaulting to true, the edge notices when the host's way out changes - the default route, or an address or the link of an interface a default route goes out of - or the host wakes up from sleep, and then registers again at once, with the supernode and with its peers, instead of at the next round of registration. Other interfaces coming and going (another edge's or VPN's device, a container's bridge) do not count. Linux only, where it watches netlink; an app embedding the edge can tell it with n3n_edge_network_changed().
 
 Default: `true`
 
