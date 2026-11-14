@@ -32,6 +32,7 @@ tests-ipv6
 tests-tun
 tests-sandbox
 tests-route-helper
+tests-ratelimit
 tests-speck
 tests-tf
 tests-auth.exe
@@ -52,6 +53,7 @@ tests-ipv6.exe
 tests-tun.exe
 tests-sandbox.exe
 tests-route-helper.exe
+tests-ratelimit.exe
 tests-speck.exe
 tests-tf.exe
 tests-fec

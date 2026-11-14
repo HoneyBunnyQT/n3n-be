@@ -42,6 +42,7 @@ TESTS+=tests-mgmt-client
 TESTS+=tests-announce
 TESTS+=tests-sandbox
 TESTS+=tests-route-helper
+TESTS+=tests-ratelimit
 
 .PHONY: all clean install
 all: $(TOOLS) $(TESTS)
