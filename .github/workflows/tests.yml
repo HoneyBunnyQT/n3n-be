@@ -522,7 +522,9 @@ jobs:
     name: Binaries for linux
     needs:
       - test_linux
-    runs-on: ubuntu-latest
+    # 24.04: ubuntu-latest is 26.04 now, whose archive has no cross
+    # compilers for mips and mipsel any more (as netns.yml and quick.yml)
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: true
       matrix:
