@@ -2913,8 +2913,6 @@ class Run:
                 n, sent, deltas, modes = self.measure()
                 received = self.stop_receivers()
                 self.evaluate(n, sent, deltas, modes, received)
-            if self.sc.flood and self.flood:
-                self.flood_check()
                 if self.sc.outage:
                     self.check_span(received, "outage",
                                     self.sc.outage_max_gap)
@@ -2923,6 +2921,8 @@ class Run:
                 if self.check_alive("measurement"):
                     self.check_descriptions("description after")
                     self.check_announcements("announced after")
+            if self.sc.flood and self.flood:
+                self.flood_check()
             if self.sc.route_all in ("switch", "reload") and \
                     self.check_alive("measurement"):
                 self.check_route_all_switch()
