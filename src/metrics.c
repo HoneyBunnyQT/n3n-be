@@ -40,7 +40,8 @@ static void metric_stringify_uint32 (strbuf_t **buf, const int offset, void *dat
     }
     void *valvoid = (char *)data + offset;
     uint32_t *val = (uint32_t *)valvoid;
-    sb_reprintf(buf, "%u", *val);
+    // a counter another thread may be counting on, atomically
+    sb_reprintf(buf, "%u", __atomic_load_n(val, __ATOMIC_RELAXED));
     return;
 }
 
