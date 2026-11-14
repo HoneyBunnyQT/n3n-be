@@ -469,6 +469,30 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       through the community.  netns `metrics-remote`.  Found on the way:
       a peer pending twice (99ac887e, below).  Left: a peer's round trip
       (not measured in v3); TLS, which a proxy in front can do
+- [x] Loss counted long term on traffic that goes anyway (2026-11-14,
+      step 1 of measuring loss; asked after FEC's `auto` was found to do
+      nothing on one-way traffic): `src/loss_count.h`.  To a peer, the
+      REGISTERs on its warm direct path (heard from directly within half
+      its timeout, the regular cookie - not a quiet peer, nor punching)
+      and their ACKs; to each supernode, the regular REGISTER_SUPER (over
+      UDP, not the retries, while it answered within a minute) and the
+      PINGs, and their answers; nothing within 10 s of a network change.
+      Counted in aggregate - an answer credited while counted requests
+      wait and the last went within 3 s - as which request an answer is to
+      cannot be told: a first version, one sample at a time, took the ACKs
+      of the probes in between for answers, and counted 0 of 11 lost on a
+      line losing half (netns `lossy-direct`).  In `get_edges`,
+      `get_supernodes` and the metrics; nothing acts on them yet.  netns:
+      `loss_counts` (easy-easy, fed-split, hard-hard: near nothing lost),
+      `lossy-direct` (56 % of a's round trips to b lost at 30 % each way,
+      none to the supernodes).  Seen on the way: with FEC, which turns the
+      probes off, there are few REGISTERs to a peer at all.  Next, to
+      think over first (2026-11-14): what to make of the counts and when
+      to act - not FEC because an ACK got lost now and then; whether
+      reports (riding along first) or extra probes are worth their cost;
+      the supernode's own count of each edge's registrations.  And: the
+      probe rounds of `p2p_max_loss` still count every REGISTER to a known
+      peer, the ones to a quiet peer too
 - [x] An edge had a new peer pending twice (2026-11-14, found by the
       metrics' check): `register_with_new_peer()` asked the peer for its
       announcement before it added it, and that frame, to a peer not
