@@ -130,8 +130,8 @@ FEC, which came in between: done but for the few points left in its entry,
 its wire format fixed by the first release that has it.  Since then the
 announcements, Windows (service, tray, Wintun, installer), OpenWrt
 packages, NetworkManager, fewer privileges and pthread always came in
-between, as asked.  Next in line (2026-11-14): the Prometheus endpoint
-(the rate limits at the supernode are done), then a release.  The design of v4
+between, as asked.  Next in line (2026-11-14): a release (the rate
+limits at the supernode and the Prometheus endpoint are done).  The design of v4
 is written down before any v4 code: [the peer protocol](PeerProtocol.md)
 (2026-10-20).
 
@@ -446,15 +446,36 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       nothing); floods from forged addresses at random get a budget for
       each - only a handshake (v4) tells a real sender; the page does not
       show it yet
-- [~] Prometheus endpoint for the metrics; moved up from "Far future"
-      (2026-10-18).  There is a start (checked 2026-11-14): `/metrics.txt`,
-      and `/metrics` for whoever does not ask for HTML, give the counters
-      in Prometheus' text format, `n3n_MODULE_NAME{session="..."}`, without
-      the management password (`src/metrics.c`).  Left: it says "Still
-      unstable testing format"; no `# TYPE` lines and only some `# HELP`
-      (counters are not named `_total`); the port listens on localhost
-      only, so a Prometheus elsewhere cannot scrape it; and the edge's
-      per-peer values (round trip, loss, path, FEC) are not in it
+- [x] Prometheus endpoint for the metrics; moved up from "Far future"
+      (2026-10-18), done 2026-11-14 (docs/advanced/Metrics.md).  There
+      was a start: `/metrics.txt`, and `/metrics` for whoever does not
+      ask for HTML, in a format it called unstable, without `# TYPE`, on
+      localhost only, with nothing of the roles' own.  Now: the text
+      format 0.0.4 strictly - each family's `# HELP` and `# TYPE`
+      (counter or gauge), its samples together, labels and help escaped
+      (`src/metrics.c`), checked by `tests/netns/n3ntest/promtext.py` in
+      every netns scenario.  The names stay (`n3n_...`, as upstream's,
+      without `_total`), for what scrapes them already.  An edge's
+      metrics (`src/edge_metrics.c`): registered, each supernode's round
+      trip and load, the peers by path, and for each peer (MAC and name)
+      whether direct, the probes' loss, FEC's loss and repairs, when last
+      heard of; a supernode's: its packets, communities, edges, federated
+      supernodes, TCP connections - no community names anywhere, a name
+      being the key with header encryption; `n3n_build_info`.  For a
+      Prometheus elsewhere `management.metrics_bind` (off by default): a
+      port of its own for `/metrics` only, with the management password
+      (basic authentication), refused with the default one; on Linux it
+      may name an address the device gets later (IP_FREEBIND), to scrape
+      through the community.  netns `metrics-remote`.  Found on the way:
+      a peer pending twice (99ac887e, below).  Left: a peer's round trip
+      (not measured in v3); TLS, which a proxy in front can do
+- [x] An edge had a new peer pending twice (2026-11-14, found by the
+      metrics' check): `register_with_new_peer()` asked the peer for its
+      announcement before it added it, and that frame, to a peer not
+      known yet, added it on its way out - the same MAC twice, listed
+      twice by `get_edges` and the page.  The announcement goes once the
+      peer is pending (99ac887e); sn-tap had it about one run in three.
+      n3n-be's own (the announcements), not for `fixes`
 - [x] Coverage report: `coverage.yml` on every push - the tests built
       with `--coverage`, unit, builtin, integration, the fuzz corpus and
       the netns scenarios; gcovr's summary on the run's page, the HTML
@@ -1496,7 +1517,8 @@ FEC per peer, exits), on Windows the service, the tray, Wintun and the
 installer, OpenWrt packages, NetworkManager and GNOME (experimental),
 fewer privileges (the units' sandbox, Landlock, the route_all helper),
 pthread always with `daemon.threads = 0` as the default, Windows XP
-again, and the supernode's forward buffer (see Next).  CI runs the
+again, the supernode's forward buffer, the rate limits at the supernode
+(`supernode.rate_limit`) and the metrics for Prometheus (see Next).  CI runs the
 tests, the netns scenarios, the sanitizers, fuzzing, interop and Windows
 on every push.
 
@@ -1505,7 +1527,6 @@ Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
 
 Open, in rough order:
 
-- The Prometheus endpoint (a start is there, see Next).
 - A release, which fixes FEC's wire format: before it, whether less
   recognisable traffic (Next) wants room in the PACKET; FEC's `auto`
   without reports.
