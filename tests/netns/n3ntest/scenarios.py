@@ -35,7 +35,7 @@ SCENARIOS = [
         "easy-easy",
         "both behind a port keeping NAT",
         Site(["easy-kept"]), Site(["easy-kept"]),
-        "direct", tags=["quick"]),
+        "direct", tags=["quick"], loss_counts=True),
     Scenario(
         "easy-changed",
         "port keeping NAT and a carrier NAT with one public port",
@@ -51,7 +51,7 @@ SCENARIOS = [
         "each edge knows only its own supernode of the federation",
         Site(["easy-kept"], supernodes=["sn1"]),
         Site(["easy-changed"], supernodes=["sn2"]),
-        "direct", tags=["quick"]),
+        "direct", tags=["quick"], loss_counts=True),
     Scenario(
         "easy-hard",
         "easy NAT guesses the port of a peer behind a hard NAT",
@@ -90,7 +90,7 @@ SCENARIOS = [
         "hard-hard",
         "hard NAT on both sides stays relayed",
         Site(["hard-range"]), Site(["hard-range"]),
-        "relayed", tags=["quick"]),
+        "relayed", tags=["quick"], loss_counts=True),
     Scenario(
         "easy-wide",
         "a NAT with random ports from the whole range stays relayed",

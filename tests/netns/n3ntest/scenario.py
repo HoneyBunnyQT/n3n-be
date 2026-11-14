@@ -215,7 +215,7 @@ class Scenario:
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
-                 metrics_remote=False):
+                 metrics_remote=False, loss_counts=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -373,6 +373,10 @@ class Scenario:
         # are scraped from the "internet" as a Prometheus elsewhere would:
         # only with the management password, only /metrics
         self.metrics_remote = metrics_remote
+        # On a clean line, what the edges count as lost long term
+        # (src/loss_count.h) - to the peers on the warm direct path, to the
+        # supernodes - stays near nothing
+        self.loss_counts = loss_counts
         # These supernodes take UDP only (connection.bind udp://), no TCP
         self.sn_udp_only = set(sn_udp_only)
         # (site, first, then): after the warm-up, once the site's edge is
@@ -1680,6 +1684,44 @@ class Run:
                            got["right"], len(families),
                            ", " + problems[0] if problems else ""))
 
+    def _loss_counts(self, site):
+        """What an edge counted (loss_count.h): {("peer", mac): (sent,
+        answered), ("sn", addr, "reg"|"ping"): (sent, answered)}"""
+        d = self.edges[site]["daemon"]
+        out = {}
+        for row in d.mgmt.try_call("get_edges") or []:
+            if row.get("mode") in ("p2p", "pSp") and "reg_sent" in row:
+                out[("peer", row.get("macaddr"))] = (row["reg_sent"],
+                                                     row["reg_answered"])
+        for row in d.mgmt.try_call("get_supernodes") or []:
+            for kind in ("reg", "ping"):
+                if kind + "_sent" in row:
+                    out[("sn", row.get("sockaddr"), kind)] = (
+                        row[kind + "_sent"], row[kind + "_answered"])
+        return out
+
+    def check_loss_counts(self):
+        """sc.loss_counts: on the lab's clean lines, what the edges count as
+        lost long term stays near nothing - at most one sample in ten, or
+        one where there are few"""
+        bad, seen = [], 0
+        for site in sorted(self.edges):
+            e = self.edges[site]
+            if "daemon" not in e or e.get("on_supernode") \
+                    or is_other(self.sc.sites[site].version):
+                continue
+            for key, (sent, answered) in sorted(self._loss_counts(site)
+                                                .items()):
+                seen += sent
+                lost = sent - answered
+                if lost > max(1, sent // 10):
+                    bad.append("{} {}: {} of {} lost".format(
+                        site, "/".join(str(k) for k in key), lost, sent))
+        self.result["loss_counts"] = {"samples": seen, "bad": bad}
+        self.check("loss counts", not bad and seen > 0,
+                   "; ".join(bad) or "{} samples, as good as none lost"
+                   .format(seen))
+
     def _metrics(self, name):
         """The metrics of a supernode, as {name: value}, without labels"""
         try:
@@ -2001,7 +2043,9 @@ class Run:
                               "({!r})".format(peer))
         trickle = [self.sender(s, d, FLOW_HOLD, 0, 20)
                    for s, d in self.sc.directions()]
+        counts = None
         try:
+            before = self._loss_counts("a")
             self.lab.nft(self.edges["a"]["ns"],
                          LOSSY.format(peer=peer, pct=self.sc.lossy), "lossy")
             for want, tag in (("pSp", "lossy"), ("p2p", "lossy: back")):
@@ -2021,11 +2065,41 @@ class Run:
                                                           took))
                 if not ok or want == "p2p":
                     break
+                counts = self._loss_counts("a")
                 run(["nft", "delete", "table", "inet", "lossy"],
                     ns=self.edges["a"]["ns"])
         finally:
             for p in trickle:
                 p.stop()
+        if counts is not None:
+            self.check_lossy_counts(before, counts)
+
+    def check_lossy_counts(self, before, after):
+        """What a counted while its direct path to b lost sc.lossy percent
+        each way: the round trips to b about 1 - (1 - p)^2 lost (wide
+        bounds: a few dozen samples), none to the supernodes, whose way
+        stayed clean"""
+        def delta(key):
+            s0, a0 = before.get(key, (0, 0))
+            s1, a1 = after.get(key, (0, 0))
+            return s1 - s0, a1 - a0
+        sent, answered = delta(("peer", self.edges["b"]["mac"]))
+        p = self.sc.lossy / 100.0
+        want = 1 - (1 - p) ** 2
+        got = (sent - answered) / sent if sent else 0
+        self.result["lossy_counts"] = {"sent": sent, "answered": answered}
+        self.check("lossy: counted", sent >= 10 and
+                   want / 2 <= got <= min(1.0, want * 1.6),
+                   "{} of {} round trips to b lost ({:.0%}, about {:.0%} "
+                   "expected)".format(sent - answered, sent, got, want))
+        sn_lost = []
+        for key in after:
+            if key[0] == "sn":
+                s, a = delta(key)
+                if s - a > 1:
+                    sn_lost.append("{}: {} of {}".format(key[1:], s - a, s))
+        self.check("lossy: supernodes clean", not sn_lost,
+                   "; ".join(sn_lost) or "nothing lost to the supernodes")
 
     def _fec_stats(self, name):
         """An edge's FEC counters: copies and repairs sent, frames undone,
@@ -3024,6 +3098,8 @@ class Run:
                     self.check_metrics()
                     if self.sc.metrics_remote:
                         self.check_metrics_remote()
+                    if self.sc.loss_counts:
+                        self.check_loss_counts()
             if self.sc.flood and self.flood:
                 self.flood_check()
             if self.sc.route_all in ("switch", "reload") and \

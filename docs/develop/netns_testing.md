@@ -303,16 +303,16 @@ ports from all of it.
 
 | scenario | NAT a / b | expected |
 |----------|-----------|----------|
-| easy-easy | easy-kept / easy-kept | direct |
+| easy-easy | easy-kept / easy-kept | direct; what the edges count as lost long term (`loss_counts`, src/loss_count.h) near nothing |
 | easy-changed | easy-kept / easy-changed | direct |
 | public-easy | none / easy-changed | direct |
-| fed-split | easy-kept / easy-changed, each edge knowing only one supernode | direct |
+| fed-split | easy-kept / easy-changed, each edge knowing only one supernode | direct; lost long term near nothing |
 | easy-hard | easy-kept / hard-range | direct, after guessing |
 | hard-easy | hard-range / easy-changed | direct, after guessing |
 | easy-hard-a2b, -b2a | as easy-hard, traffic one way only | direct |
 | easy-hard-pool | as easy-hard, a guessing 16 ports a round | direct, as one of b's 32 sockets is met |
 | cgnat-hard-ttl | as easy-hard-pool, b behind easy-kept and hard-range, punch_ttl=3 | direct |
-| hard-hard | hard-range / hard-range | relayed |
+| hard-hard | hard-range / hard-range | relayed; lost long term near nothing |
 | easy-wide | easy-kept / hard-wide | relayed |
 | no-punch | as easy-hard, with punch_ports=0 | relayed - or direct by luck, which passes too (`direct_ok`): the hard side's own REGISTERs may hit the port the easy NAT keeps for it |
 | several | several / easy-kept | relayed |
@@ -350,7 +350,7 @@ ports from all of it.
 | sn-tap-failover | easy-kept at sn1 (`supernode_selection=mac`) / the TAP device of sn2, sn1 killed | relayed, a moves to sn2 |
 | tcp-fallback | easy-kept without UDP (`block_udp`) / public | relayed, a over TCP by `tcp_fallback` |
 | tcp-fallback-back | as tcp-fallback, then UDP let through again (`unblock_udp`) | direct, a back on UDP |
-| lossy-direct | easy NATs, direct; then the direct path loses 30% each way, the supernode's clean (`lossy`) | through the supernode within 60s, direct again within 60s of the loss stopping |
+| lossy-direct | easy NATs, direct; then the direct path loses 30% each way, the supernode's clean (`lossy`) | through the supernode within 60s, direct again within 60s of the loss stopping; meanwhile a counted about half its round trips to b lost (1 - 0.7²), none to the supernodes |
 | lossy-direct-threads | as lossy-direct, the edges with packet threads | the same |
 | fec-lossy | easy NATs, direct, `community.fec` auto, `connection.udp_gso` false (the loss per datagram); then the direct path loses 10% each way, and the edges stay on it, `p2p_max_loss` being auto, 0 with FEC (`fec_loss`) | of 400 pings, at most a third as many lost as without (some 19%), and frames undone at both edges; of 2000 frames of 1200 bytes one way, 99% arrive (without, 90%) |
 | fec-lossy-threads | as fec-lossy, the edges with packet threads, `p2p_max_loss` 0 given | the same |
