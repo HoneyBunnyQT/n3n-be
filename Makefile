@@ -481,7 +481,9 @@ options.check: apps
 	    | diff -u docs/configure/Options.md -
 
 # To generate coverage information, run configure with
-# CFLAGS="-fprofile-arcs -ftest-coverage" LDFLAGS="--coverage"
+# CFLAGS="-fprofile-arcs -ftest-coverage -fprofile-update=atomic"
+# LDFLAGS="--coverage" (atomic, as the daemons and some tests run threads,
+# whose counts would race and come out negative, which gcovr refuses)
 # and run the desired tests.  Ensure that package gcovr is installed
 # and then run "make cover"
 .PHONY: cover

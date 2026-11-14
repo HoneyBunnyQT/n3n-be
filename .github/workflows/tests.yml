@@ -95,7 +95,10 @@ jobs:
 
       - name: Run the real configure step
         run: |
-          export CFLAGS="-fprofile-arcs -ftest-coverage"
+          # atomic: unit tests run threads (tests-ratelimit), whose counts
+          # would race, and gcov then reads negative ones, which gcovr
+          # refuses (as coverage.yml)
+          export CFLAGS="-fprofile-arcs -ftest-coverage -fprofile-update=atomic"
           export LDFLAGS="--coverage"
           ./configure
         shell: bash
