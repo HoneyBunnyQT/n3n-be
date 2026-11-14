@@ -214,7 +214,7 @@ class Scenario:
                  tcp_burst=0, spray=0, sn_nofile=None, sn_udp_only=(),
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
-                 fec_loss=0, load=0, exit=None):
+                 fec_loss=0, load=0, exit=None, flood=0):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -362,6 +362,12 @@ class Scenario:
         # the edges without NAT: the daemons are to stay up, and the
         # frames to go through after it
         self.spray = spray
+        # A host on the internet floods the supernode a is at, from the
+        # warm-up's end until the measured flow is through, at this many
+        # PDUs a second: pings and registrations of new communities, which
+        # cost the supernode work and are answered (with sn_conf's
+        # supernode.rate_limit, only as far as that lets it)
+        self.flood = flood
         # These supernodes take UDP only (connection.bind udp://), no TCP
         self.sn_udp_only = set(sn_udp_only)
         # (site, first, then): after the warm-up, once the site's edge is
@@ -505,6 +511,7 @@ class Run:
             "traffic": scenario.traffic,
         }
         self.t0 = time.monotonic()
+        self.flood = None               # sc.flood under way, see flood_start()
 
     def log(self, msg):
         self.log_fn("[{} {:5.1f}s] {}".format(
@@ -1572,6 +1579,132 @@ class Run:
                    "{} mutated PDUs sent".format(sent))
         if self.check_alive("spray"):
             time.sleep(2 * self.st.register_interval + 2)
+
+    def _metrics(self, name):
+        """The metrics of a supernode, as {name: value}, without labels"""
+        try:
+            _, body = self.supernodes[name]["daemon"].mgmt.http(
+                "GET", "/metrics.txt")
+        except OSError:
+            return {}
+        out = {}
+        for line in body.decode("utf8", errors="replace").splitlines():
+            m = re.match(r"^(\w+)(\{[^}]*\})? (\d+)$", line)
+            if m:
+                out[m.group(1)] = int(m.group(3))
+        return out
+
+    # the flooder: pings and REGISTER_SUPERs of new communities, in turns,
+    # at a rate, until a file is there; then what it sent and what came
+    # back, and over how many seconds
+    FLOOD_SCRIPT = (
+        "import os, random, socket, struct, sys, time\n"
+        "host, port, rate, stop, out = sys.argv[1], int(sys.argv[2]), "
+        "int(sys.argv[3]), sys.argv[4], sys.argv[5]\n"
+        "def common(pc, comm):\n"
+        "    return struct.pack('>BBH', 3, 2, pc) + comm.ljust(20, b'\\0')\n"
+        "def ping():\n"
+        "    return common(11, b'flood') + os.urandom(6) + bytes(6) "
+        "+ bytes(2)\n"
+        "def reg():\n"
+        "    comm = b'fl%08x' % random.getrandbits(32)\n"
+        "    return (common(5, comm) + struct.pack('>I', 1) + b'\\x02' "
+        "+ os.urandom(5) + bytes(5) + bytes(16) + bytes(4) + bytes(4))\n"
+        "s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)\n"
+        "s.setblocking(False)\n"
+        "sent = got = 0\n"
+        "start = time.monotonic()\n"
+        "while not os.path.exists(stop) and time.monotonic() - start < 300:\n"
+        "    due = int((time.monotonic() - start) * rate)\n"
+        "    while sent < due:\n"
+        "        try:\n"
+        "            s.sendto(reg() if sent % 2 else ping(), (host, port))\n"
+        "        except BlockingIOError:\n"
+        "            break\n"
+        "        sent += 1\n"
+        "    try:\n"
+        "        while True:\n"
+        "            s.recv(4000)\n"
+        "            got += 1\n"
+        "    except BlockingIOError:\n"
+        "        pass\n"
+        "    time.sleep(0.002)\n"
+        "end = time.monotonic() + 1\n"
+        "while time.monotonic() < end:\n"
+        "    try:\n"
+        "        s.recv(4000)\n"
+        "        got += 1\n"
+        "    except BlockingIOError:\n"
+        "        time.sleep(0.01)\n"
+        "open(out, 'w').write('%d %d %.1f' % (sent, got, "
+        "end - 1 - start))\n")
+
+    def flood_start(self):
+        """sc.flood: the flooder at the supernode a is at, from the
+        "internet" namespace, an address of its own"""
+        at = self.edges["a"]["daemon"].current_supernode() or ""
+        target = [n for n, sn in self.supernodes.items()
+                  if at.startswith(sn["ip"] + ":")]
+        if not target:
+            raise LabError("flood: edge a is at no known supernode "
+                           "({!r})".format(at))
+        name = target[0]
+        before = self._metrics(name)
+        uptime = time.monotonic() - self.t0
+        self.log("flood: {} tokens taken at {} in the {:.0f} s before it "
+                 "(the edges'; federated supernodes take none)".format(
+                     before.get("n3n_ratelimit_taken", 0), name, uptime))
+        self.flood = {"target": name, "before": before,
+                      "stop": os.path.join(self.workdir, "flood.stop"),
+                      "out": os.path.join(self.workdir, "flood.out")}
+        self.flood["proc"] = self.lab.spawn(
+            "flood", self.inet,
+            [sys.executable, "-c", self.FLOOD_SCRIPT,
+             self.supernodes[name]["ip"], str(SN_PORT), str(self.sc.flood),
+             self.flood["stop"], self.flood["out"]])
+        # under way before the frames
+        time.sleep(2)
+
+    def flood_check(self):
+        """What the flooder got: with a rate limit, its burst and the rate
+        at most; the rest dropped by the limit; the supernode up"""
+        f = self.flood
+        with open(f["stop"], "w"):
+            pass
+        if not wait_for(lambda: not f["proc"].alive(), 30):
+            f["proc"].stop()
+        try:
+            with open(f["out"]) as fh:
+                sent, got, seconds = fh.read().split()
+            sent, got, seconds = int(sent), int(got), float(seconds)
+        except (OSError, ValueError):
+            return self.check("flood", False, "the flooder told nothing")
+        after = self._metrics(f["target"])
+
+        def delta(key):
+            return after.get(key, 0) - f["before"].get(key, 0)
+        dropped = delta("n3n_ratelimit_limited") + \
+            delta("n3n_ratelimit_blocked")
+        self.result["flood"] = {"supernode": f["target"], "sent": sent,
+                                "answered": got, "seconds": seconds,
+                                "dropped": dropped}
+        if not self.check_alive("flood"):
+            return
+        rate = int(self.sc.sn_conf.get("supernode", {}).get("rate_limit", 0))
+        if not rate:
+            return self.check("flood", got > sent // 2,
+                              "{} of {} answered in {:.0f} s, without a "
+                              "limit".format(got, sent, seconds))
+        burst = int(self.sc.sn_conf["supernode"].get("rate_burst", 0)) or \
+            4 * rate
+        most = burst + rate * (seconds + 1)
+        self.check("flood: limited", got <= most,
+                   "{} of {} answered in {:.0f} s, at most {:.0f} allowed "
+                   "(burst {}, {} a second)".format(
+                       got, sent, seconds, most, burst, rate))
+        self.check("flood: dropped", dropped >= (sent - most) // 2,
+                   "{} dropped by the limit at {}".format(dropped,
+                                                          f["target"]))
 
     # a filter rule the reload adds: it drops ICMP only, so the frames
     # measured (UDP) pass
@@ -2774,10 +2907,14 @@ class Run:
                 self.tcp_burst_phase()
             if self.sc.spray and self.check_alive("warm-up"):
                 self.spray_phase()
+            if self.sc.flood and self.check_alive("warm-up"):
+                self.flood_start()
             if self.check_alive("warm-up"):
                 n, sent, deltas, modes = self.measure()
                 received = self.stop_receivers()
                 self.evaluate(n, sent, deltas, modes, received)
+            if self.sc.flood and self.flood:
+                self.flood_check()
                 if self.sc.outage:
                     self.check_span(received, "outage",
                                     self.sc.outage_max_gap)

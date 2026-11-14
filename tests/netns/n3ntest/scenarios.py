@@ -542,6 +542,28 @@ SCENARIOS = [
         Site(["hard-range"]), Site(["hard-range"]),
         "relayed", tcp_burst=1100, sn_nofile=1024),
     Scenario(
+        "sn-ratelimit",
+        "as hard-hard, the supernodes with supernode.rate_limit = 20, and "
+        "a host on the internet flooding the supernode of a with pings "
+        "and registrations of new communities (2000/s) while the frames "
+        "go: it gets its burst and the rate, the edges stay relayed",
+        Site(["hard-range"]), Site(["hard-range"]),
+        "relayed", sn_conf={"supernode": {"rate_limit": 20}}, flood=2000),
+    Scenario(
+        "sn-ratelimit-threads",
+        "as sn-ratelimit, the supernodes with packet threads, which look "
+        "up the sources out of tokens without a lock",
+        Site(["hard-range"]), Site(["hard-range"]),
+        "relayed", sn_conf={"supernode": {"rate_limit": 20},
+                            "daemon": {"threads": 3}}, flood=2000),
+    Scenario(
+        "sn-flood",
+        "as sn-ratelimit without the limit: the flood is answered, the "
+        "edges stay relayed all the same (what the limit is measured "
+        "against)",
+        Site(["hard-range"]), Site(["hard-range"]),
+        "relayed", flood=2000),
+    Scenario(
         "spray",
         "mutated PDUs of the community at the supernodes, over UDP and "
         "TCP, and at b (no NAT) for 20s (fuzz-spray): all stay up, the "

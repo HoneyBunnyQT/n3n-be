@@ -363,6 +363,9 @@ ports from all of it.
 | tcp-learned-refused | as tcp-learned with four supernodes (`sn_count`), a knowing sn3 only, sn2 and sn4 UDP only; over TCP at sn3, which then gets killed | a goes round the learned ones, marks those that refuse it UDP only, once each and no other (`marked`), and ends at sn1 over TCP |
 | sn-tcp-burst | hard-range / hard-range, 300 TCP connections to a's supernode at once, held while the frames go (`tcp_burst`) | relayed; the supernode takes all of them (its own sockets, not what waits in the kernel's queue) |
 | sn-tcp-1100 | as sn-tcp-burst with 1100 connections, the supernodes started with a soft limit of 1024 open files (`sn_nofile`), as under systemd | relayed; all taken: epoll, and the limit raised to the hard one |
+| sn-ratelimit | hard-range / hard-range, the supernodes with `supernode.rate_limit = 20`; a host on the "internet" (the bridge's namespace, an address of its own) floods a's supernode at 2000/s with pings and registrations of new communities from the warm-up's end until the frames are through (`flood`) | relayed; the flooder answered no more than the burst (80) and 20 a second, the rest dropped by the limit (`n3n_ratelimit_*` in the metrics) |
+| sn-ratelimit-threads | as sn-ratelimit, the supernodes with packet threads (`daemon.threads = 3`), which look up the sources out of tokens without a lock | the same |
+| sn-flood | as sn-ratelimit without the limit | relayed; more than half of the flood answered - what the limit is measured against, and that the flood is real |
 | tun-tap | easy-kept with `tuntap.type=tun` / easy-changed with a TAP device | direct, the TUN edge building the frames |
 | tun-tun | hard-range / hard-range, both with `tuntap.type=tun` | relayed |
 | ipv6-tap | easy-kept / easy-changed, both `tuntap.address6 = auto` (IPv6 inside the tunnel), ping each way | direct; the kernels' neighbour discovery passes without `filter.allow_multicast` |
