@@ -82,7 +82,23 @@ one of them, by `connection.supernode_selection`:
 
 The edge reconsiders with each registration, with some reluctance to
 move, so that it does not jump between supernodes of about the same
-load or distance.
+load or distance.  A ping of the current supernode lost on the way is no
+reason to move: it keeps what its last answer said.
+
+One more thing counts, whatever the strategy: what gets lost on the way
+to each supernode, long term (see
+[Metrics](../advanced/Metrics.md#what-the-counts-say)).  Where the way to
+the one the strategy chooses is lossy within the hour, another one that
+answers and is measurably better - the top of its range of loss below
+the bottom of the first one's - goes first, the best of those by the
+strategy; not one merely not measured yet.  Where the loss is the edge's
+own line's, all of them lose, none is better, and nothing changes.  As
+the loss ages out of the hour, and the others are measured as well, the
+first one goes first again once it is no longer measurably worse.  The
+other supernodes are measured by the pings alone, two a minute: a way
+that loses a few percent takes a while to tell, one that loses much,
+minutes.  The edge says so in its log ("... that one first", "... first
+again").
 
 ### IPv4 and IPv6
 

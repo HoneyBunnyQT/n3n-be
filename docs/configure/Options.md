@@ -249,7 +249,7 @@ Default: `0`
 
 How to select a supernode.
 
-There are multiple strategies available for how to select the current supernode. Default is to select the supernode with lowest reported load ('load'). Also available are 'rtt' to select the lowest measured round trip time and 'mac' to select the lowest MAC address. Any of them counts IPv4 half again as much as IPv6, see Federation.md
+There are multiple strategies available for how to select the current supernode. Default is to select the supernode with lowest reported load ('load'). Also available are 'rtt' to select the lowest measured round trip time and 'mac' to select the lowest MAC address. Any of them counts IPv4 half again as much as IPv6, and puts one whose way is lossy within the hour behind another one measurably better, see Federation.md
 
 Default: `load`
 

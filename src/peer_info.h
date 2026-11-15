@@ -70,6 +70,7 @@ struct peer_info {
     uint64_t answered_us;   /* an edge's supernode: when it last answered (ACK, PONG), monotonic */
     uint8_t loss_class;     /* an edge's peer or supernode: the class of its way last logged, see edge_tick_loss() */
     uint8_t way_class;      /* and the one it last had, for the event "way" */
+    uint8_t sn_first;       /* an edge's supernode: to go first in the next sort, see sn_sort() */
     time_t uptime;
     n2n_version_t version;
 

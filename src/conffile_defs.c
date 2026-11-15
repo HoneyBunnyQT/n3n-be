@@ -454,8 +454,9 @@ static struct n3n_conf_option section_connection[] = {
                 "with lowest reported load ('load').  Also "
                 "available are 'rtt' to select the lowest measured round trip "
                 "time and 'mac' to select the lowest MAC address.  Any "
-                "of them counts IPv4 half again as much as IPv6, see "
-                "Federation.md",
+                "of them counts IPv4 half again as much as IPv6, and puts "
+                "one whose way is lossy within the hour behind another "
+                "one measurably better, see Federation.md",
     },
     {
         .name = "tos",

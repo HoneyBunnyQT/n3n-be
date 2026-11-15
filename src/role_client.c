@@ -108,6 +108,8 @@ static void note_nat (struct n3n_runtime_data *eee, const n3n_sock_t *sn, const 
 
 // The cookie of a REGISTER through the supernode, with the hint for the peer
 // how the NAT maps the socket that reaches the supernode, and so the peer
+static void sn_sort (struct n3n_runtime_data *eee);
+
 static n2n_cookie_t forwarded_reg_cookie (const struct n3n_runtime_data *eee) {
 
     return N2N_FORWARDED_REG_COOKIE | nat_view_hint(&eee->client.nat[eee->client.curr_sn->sock.family == AF_INET6]);
@@ -148,7 +150,7 @@ void edge_supernodes_changed (struct n3n_runtime_data *eee, bool curr_gone) {
     if(!curr_gone && eee->client.curr_sn) {
         return;
     }
-    sn_selection_sort(&(eee->client.supernodes), !eee->client.sn_other_family);
+    sn_sort(eee);
     eee->client.curr_sn = supernode_first(eee);
     traceEvent(TRACE_NORMAL, "now registering with supernode [%s]",
                peer_info_get_hostname(eee->client.curr_sn));
@@ -1417,6 +1419,72 @@ static bool sn_warm (const struct peer_info *sn, uint64_t now_us) {
     return sn->answered_us && (now_us - sn->answered_us <= SN_WARM_US);
 }
 
+// For the sort below: the one marked first, the others as they are -
+// HASH_SORT is a merge sort, which keeps their order
+static int sn_marked_first (struct peer_info *a, struct peer_info *b) {
+
+    return (int)b->sn_first - (int)a->sn_first;
+}
+
+
+// The supernodes in the order to choose from (sn_selection_sort()), with
+// what the long-term counts say of the ways to them (loss_count.h): where
+// the way to the first one is lossy within the hour, another one that
+// answers lately and is measurably better - the top of its 95 % interval
+// below the bottom of the first one's - goes first, the best of them by
+// the criterion of connection.supernode_selection.  Not one merely not
+// measured yet.  Where the loss is the edge's own line's, all of them
+// lose, none is better, and nothing changes; and the first one goes first
+// again once it is no longer measurably worse - as its loss ages out of
+// the hour, and the others are measured too.  Over UDP, where they are
+// told apart; of the same family as the first, which may be first for it.
+static void sn_sort (struct n3n_runtime_data *eee) {
+
+    struct peer_info *first, *scan, *tmp, *better = NULL;
+    struct n3n_loss_eval fe, e;
+    uint64_t now_us = n3n_monotonic_us();
+    n3n_sock_str_t sockbuf1, sockbuf2;
+
+    sn_selection_sort(&(eee->client.supernodes), !eee->client.sn_other_family);
+    first = supernode_first(eee);
+    if(!first || eee->client.tcp) {
+        return;
+    }
+    edge_loss_eval_sn(first, &fe);
+    if(fe.class == N3N_LOSS_LOSSY) {
+        HASH_ITER(hh, eee->client.supernodes, scan, tmp) {
+            if((scan == first) || (scan->sock.family != first->sock.family) || !sn_warm(scan, now_us)
+               || !sn_has_transport(scan, false)) {
+                continue;
+            }
+            edge_loss_eval_sn(scan, &e);
+            if(n3n_loss_better(&e, &fe)) {
+                better = scan;
+                break;
+            }
+        }
+    }
+    if(!better) {
+        if(eee->client.sn_passed.family && sock_equal(&eee->client.sn_passed, &first->sock)) {
+            traceEvent(TRACE_NORMAL, "supernode %s first again: no other one is measurably better now "
+                       "(%.1f %% lost within the hour)", sock_to_cstr(sockbuf1, &first->sock), 100 * fe.ratio);
+        }
+        memset(&eee->client.sn_passed, 0, sizeof(eee->client.sn_passed));
+        return;
+    }
+    if(!eee->client.sn_passed.family || !sock_equal(&eee->client.sn_passed, &first->sock)) {
+        edge_loss_eval_sn(better, &e);
+        traceEvent(TRACE_NORMAL, "supernode %s loses %.0f %% within the hour (%.1f to %.1f %%), %s at most "
+                   "%.1f %%: that one first", sock_to_cstr(sockbuf1, &first->sock), 100 * fe.ratio,
+                   100 * fe.lower, 100 * fe.upper, sock_to_cstr(sockbuf2, &better->sock), 100 * e.upper);
+        eee->client.sn_passed = first->sock;
+    }
+    better->sn_first = 1;
+    HASH_SORT(eee->client.supernodes, sn_marked_first);
+    better->sn_first = 0;
+}
+
+
 void send_query_peer (struct n3n_runtime_data * eee,
                       const n2n_mac_t dst_mac) {
 
@@ -1632,7 +1700,7 @@ void sort_supernodes (struct n3n_runtime_data *eee, time_t now) {
 
     if(!eee->client.sn_wait) {
         // sort supernodes in ascending order of their selection_criterion fields
-        sn_selection_sort(&(eee->client.supernodes), !eee->client.sn_other_family);
+        sn_sort(eee);
     }
 
     // over TCP the edge stays where it is registered: no PONGs tell the
@@ -2016,7 +2084,7 @@ void update_supernode_reg (struct n3n_runtime_data * eee, time_t now) {
         if(eee->client.curr_sn) {
             eee->client.curr_sn->selection_criterion = sn_selection_criterion_bad();
         }
-        sn_selection_sort(&(eee->client.supernodes), !eee->client.sn_other_family);
+        sn_sort(eee);
         eee->client.curr_sn = eee->client.tcp ? supernode_next_tcp(eee, eee->client.curr_sn) : supernode_first(eee);
         traceEvent(
             TRACE_WARNING,
