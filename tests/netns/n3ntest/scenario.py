@@ -1731,6 +1731,19 @@ class Run:
                         row[kind + "_sent"], row[kind + "_answered"])
         return out
 
+    def _ways(self, site):
+        """What an edge makes of its counts (the "way" of loss_count.h's
+        evaluation): {("peer", mac) | ("sn", addr): way}"""
+        d = self.edges[site]["daemon"]
+        out = {}
+        for row in d.mgmt.try_call("get_edges") or []:
+            if "way" in row:
+                out[("peer", row.get("macaddr"))] = row["way"]
+        for row in d.mgmt.try_call("get_supernodes") or []:
+            if "way" in row:
+                out[("sn", row.get("sockaddr"))] = row["way"]
+        return out
+
     def check_loss_counts(self):
         """sc.loss_counts: on the lab's clean lines, what the edges count as
         lost long term stays near nothing - at most one sample in ten, or
@@ -1748,6 +1761,12 @@ class Run:
                 if lost > max(1, sent // 10):
                     bad.append("{} {}: {} of {} lost".format(
                         site, "/".join(str(k) for k in key), lost, sent))
+            # nor do they ever call a way lossy
+            for key, way in sorted(self._ways(site).items()):
+                if way.get("class") == "lossy":
+                    bad.append("{} {}: lossy ({} of {})".format(
+                        site, "/".join(str(k) for k in key),
+                        way.get("lost"), way.get("samples")))
         self.result["loss_counts"] = {"samples": seen, "bad": bad}
         self.check("loss counts", not bad and seen > 0,
                    "; ".join(bad) or "{} samples, as good as none lost"
@@ -2074,7 +2093,7 @@ class Run:
                               "({!r})".format(peer))
         trickle = [self.sender(s, d, FLOW_HOLD, 0, 20)
                    for s, d in self.sc.directions()]
-        counts = None
+        counts, ways = None, {}
         try:
             before = self._loss_counts("a")
             self.lab.nft(self.edges["a"]["ns"],
@@ -2097,15 +2116,16 @@ class Run:
                 if not ok or want == "p2p":
                     break
                 counts = self._loss_counts("a")
+                ways = self._ways("a")
                 run(["nft", "delete", "table", "inet", "lossy"],
                     ns=self.edges["a"]["ns"])
         finally:
             for p in trickle:
                 p.stop()
         if counts is not None:
-            self.check_lossy_counts(before, counts)
+            self.check_lossy_counts(before, counts, ways)
 
-    def check_lossy_counts(self, before, after):
+    def check_lossy_counts(self, before, after, ways):
         """What a counted while its direct path to b lost sc.lossy percent
         each way: the round trips to b about 1 - (1 - p)^2 lost (wide
         bounds: a few dozen samples), none to the supernodes, whose way
@@ -2131,6 +2151,22 @@ class Run:
                     sn_lost.append("{}: {} of {}".format(key[1:], s - a, s))
         self.check("lossy: supernodes clean", not sn_lost,
                    "; ".join(sn_lost) or "nothing lost to the supernodes")
+        # and what the edge makes of it: the way to b lossy - with fewer
+        # samples than it takes to tell, at least not clean - the ways to
+        # the supernodes not
+        way = ways.get(("peer", self.edges["b"]["mac"]), {})
+        self.result["lossy_way"] = way
+        want = ("lossy",) if way.get("samples", 0) >= 30 else \
+            ("lossy", "unknown", "unclear")
+        self.check("lossy: way", way.get("class") in want,
+                   "{} ({} of {} lost, {:.0%} to {:.0%})".format(
+                       way.get("class"), way.get("lost"), way.get("samples"),
+                       way.get("lower", 0), way.get("upper", 1)))
+        sn_lossy = [str(k[1]) for k, w in ways.items()
+                    if k[0] == "sn" and w.get("class") == "lossy"]
+        self.check("lossy: supernode ways", not sn_lossy,
+                   ", ".join(sn_lossy) + " lossy" if sn_lossy else
+                   "none lossy")
 
     def _fec_stats(self, name):
         """An edge's FEC counters: copies and repairs sent, frames undone,
