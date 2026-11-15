@@ -102,6 +102,7 @@ enum n3n_event_topic {
     N3N_EVENT_DEBUG = 0,
     N3N_EVENT_TEST = 1,
     N3N_EVENT_PEER = 2,
+    N3N_EVENT_WAY = 3,
 };
 
 #define N3N_EVENT_PEER_PURGE    1

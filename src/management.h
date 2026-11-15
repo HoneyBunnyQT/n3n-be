@@ -30,6 +30,14 @@ struct n3n_runtime_data;
 #endif
 
 void mgmt_event_post (const enum n3n_event_topic topic, const int data0, const void *data1);
+
+// The event "way" (N3N_EVENT_WAY): the class of the way to a peer or a
+// supernode changed, see edge_tick_loss(); data0 the class before
+struct mgmt_event_way {
+    const struct peer_info *peer;
+    const struct n3n_loss_eval *eval;
+    bool supernode;
+};
 bool mgmt_api_handler (struct n3n_runtime_data *, conn_t *);
 
 // A connection of management.metrics_bind: GET /metrics with the

@@ -1801,7 +1801,15 @@ void edge_loss_eval_sn (const struct peer_info *sn, struct n3n_loss_eval *e) {
 
 // A way that became lossy, or clean again after it was lossy: a line in the
 // log.  Not from unknown or unclear to clean and back, which says little.
+// Each change of its class, those too: the event "way", for who listens.
 static void loss_log (struct peer_info *p, const struct n3n_loss_eval *e, const char *what, const char *who) {
+
+    if(e->class != p->way_class) {
+        struct mgmt_event_way ev = { .peer = p, .eval = e, .supernode = !strcmp(what, "supernode") };
+
+        mgmt_event_post(N3N_EVENT_WAY, p->way_class, &ev);
+        p->way_class = (uint8_t)e->class;
+    }
 
     if((e->class == N3N_LOSS_LOSSY) && (p->loss_class != N3N_LOSS_LOSSY)) {
         traceEvent(TRACE_NORMAL, "the way to %s %s loses %.1f %% (%.1f to %.1f %%, %u samples within the "

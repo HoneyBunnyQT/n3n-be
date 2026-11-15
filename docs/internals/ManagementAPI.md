@@ -213,6 +213,15 @@ Note that this is for debugging of events!
 
 A list of event topics is returned by the JsonRPC method "help.events"
 
+| Topic | What |
+|-------|------|
+| `peer` | a peer added, changed, gone: `action` (`purge`, `clear`, `p2p_add`, `p2p_changed`, `p2p_expired`), `macaddr`, `age`, `sockaddr` |
+| `way` | the edge: the way to a peer or a supernode taken for another class, as the long-term counts say (see [Metrics](../advanced/Metrics.md#what-the-counts-say)), when it looks at them, every 30 seconds: `kind` (`peer`, `supernode`), `macaddr`, `sockaddr`, `from` and `to` (`unknown`, `clean`, `unclear`, `lossy`), `samples`, `lost`, `loss`, `lower`, `upper` - e.g. `{"event":"way","kind":"peer","macaddr":"02:00:00:99:00:02","sockaddr":"203.0.113.12:41000","from":"unknown","to":"lossy","samples":62,"lost":14,"loss":0.2258,"lower":0.1400,"upper":0.3433}` |
+| `test` | what `post.test` sends |
+| `debug` | all of them |
+
+`curl --no-buffer http://localhost:5644/events/way` follows one.
+
 ## Authentication
 
 Some API requests will make global changes to the running daemon and may

@@ -68,6 +68,7 @@ struct peer_info {
     struct n3n_loss_count ping_loss; /* an edge's supernode: PING/PONG, see loss_count.h */
     uint64_t answered_us;   /* an edge's supernode: when it last answered (ACK, PONG), monotonic */
     uint8_t loss_class;     /* an edge's peer or supernode: the class of its way last logged, see edge_tick_loss() */
+    uint8_t way_class;      /* and the one it last had, for the event "way" */
     time_t uptime;
     n2n_version_t version;
 

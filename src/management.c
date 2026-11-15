@@ -206,11 +206,43 @@ static void event_peer (strbuf_t *buf, enum n3n_event_topic topic, int data0, co
     // TODO: a generic truncation watcher for these buffers
 }
 
+// The class of the way to a peer or a supernode changed: what the
+// long-term counts say of it now (loss_count.h), and before
+static void event_way (strbuf_t *buf, enum n3n_event_topic topic, int data0, const void *data1) {
+
+    const struct mgmt_event_way *w = data1;
+    const struct n3n_loss_eval *e = w->eval;
+    macstr_t mac_buf;
+    n3n_sock_str_t sockbuf;
+
+    sb_printf(
+        buf,
+        "\x1e{"
+        "\"event\":\"way\","
+        "\"kind\":\"%s\","
+        "\"macaddr\":\"%s\","
+        "\"sockaddr\":\"%s\","
+        "\"from\":\"%s\","
+        "\"to\":\"%s\","
+        "\"samples\":%u,"
+        "\"lost\":%u,"
+        "\"loss\":%.4f,"
+        "\"lower\":%.4f,"
+        "\"upper\":%.4f}\n",
+        w->supernode ? "supernode" : "peer",
+        is_null_mac(w->peer->mac_addr) ? "" : macaddr_str(mac_buf, w->peer->mac_addr),
+        sock_to_cstr(sockbuf, &w->peer->sock),
+        n3n_loss_class_str((enum n3n_loss_class)data0),
+        n3n_loss_class_str(e->class),
+        e->samples, e->lost, e->ratio, e->lower, e->upper);
+}
+
 /* Current subscriber for each event topic */
 static SOCKET mgmt_event_subscribers[] = {
     [N3N_EVENT_DEBUG] = -1,
     [N3N_EVENT_TEST] = -1,
     [N3N_EVENT_PEER] = -1,
+    [N3N_EVENT_WAY] = -1,
 };
 
 struct mgmt_event {
@@ -234,6 +266,11 @@ static const struct mgmt_event mgmt_events[] = {
         .topic = "peer",
         .desc = "Changes to peer list",
         .func = event_peer,
+    },
+    [N3N_EVENT_WAY] = {
+        .topic = "way",
+        .desc = "The way to a peer or a supernode taken for another class: clean, unclear, lossy",
+        .func = event_way,
     },
 };
 
@@ -307,7 +344,7 @@ void mgmt_event_post (const enum n3n_event_topic topic, int data0, const void *d
         return;
     }
 
-    char buf_space[200];
+    char buf_space[400];
     strbuf_t *buf;
     STRBUF_INIT(buf, buf_space);
 
