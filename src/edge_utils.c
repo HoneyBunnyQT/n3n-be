@@ -1553,6 +1553,7 @@ static void edge_register_ticks (struct n3n_runtime_data *rt) {
     mainloop_register_tick_rt(edge_tick_dhcp, IFACE_UPDATE_INTERVAL, rt);
     mainloop_register_tick_rt(edge_tick_supernodes, 0, rt);
     mainloop_register_tick_rt(edge_tick_network, 0, rt);
+    mainloop_register_tick_rt(edge_tick_loss, N3N_LOSS_TICK_S, rt);
 }
 
 

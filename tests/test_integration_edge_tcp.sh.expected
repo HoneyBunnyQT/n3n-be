@@ -83,7 +83,17 @@
         "tcp_sockaddr": "127.0.0.1:7654",
         "transports": "udp tcp",
         "uptime": 0,
-        "version": ""
+        "version": "",
+        "way": {
+            "class": "unknown",
+            "loss": 0.0,
+            "lost": 0,
+            "lower": 0.0,
+            "rtt_min_us": 0,
+            "rtt_us": 0,
+            "samples": 0,
+            "upper": 1.0
+        }
     }
 ]
 

@@ -92,6 +92,11 @@ Of an edge:
 | `n3n_edge_peer_registers_sent`, `n3n_edge_peer_registers_answered` | counter | `peer`, `name` | REGISTERs to the peer counted on its warm direct path, and the ACKs credited to them (see below) |
 | `n3n_edge_supernode_registers_sent`, `n3n_edge_supernode_registers_answered` | counter | `supernode` | REGISTER_SUPERs counted, and the ACKs credited to them |
 | `n3n_edge_supernode_pings_sent`, `n3n_edge_supernode_pings_answered` | counter | `supernode` | PINGs counted, and the PONGs credited to them |
+| `n3n_edge_peer_way_loss_ratio` | gauge | `peer`, `name`, `bound` | what those counts say of the direct path within the hour: the share lost (`bound="estimate"`) and its 95 % interval (`lower`, `upper`), see below |
+| `n3n_edge_peer_way_samples` | gauge | `peer`, `name` | the round trips that tells of |
+| `n3n_edge_peer_way_state` | gauge | `peer`, `name`, `state` | 1 for what the path is taken for: `unknown`, `clean`, `unclear` or `lossy` |
+| `n3n_edge_peer_rtt_seconds` | gauge | `peer`, `name`, `stat` | the round trip of the REGISTERs to the peer answered while no other waited: `smoothed` (1/8) and `min` |
+| `n3n_edge_supernode_way_loss_ratio`, `n3n_edge_supernode_way_samples`, `n3n_edge_supernode_way_state` | gauge | `supernode`, ... | the same of the way to each supernode, its registrations and pings together |
 
 `peer` is the peer's MAC address, `name` the name it announced
 (`connection.name`) or else its description.  A peer is a series of its
@@ -132,7 +137,7 @@ Only what is the line's counts:
   retries for one not answered, which would count an outage over and over
 - not within 10 s after the host's network changed
 
-The counts are only counted: nothing acts on them yet.  How many there
+Nothing acts on the counts yet.  How many there
 are depends on the traffic: to a peer, REGISTERs go mostly as the probes
 of `connection.p2p_max_loss` - twice a second while frames go to it - so
 with `community.fec`, which turns those off by default, there are few
@@ -146,6 +151,34 @@ line from one losing a few percent, over tens of minutes.
 1 - increase(n3n_edge_supernode_pings_answered[1h])
   / increase(n3n_edge_supernode_pings_sent[1h])
 ```
+
+### What the counts say
+
+Every 5 minutes the edge takes a snapshot of each count, and judges each
+way - the direct path to a peer, the way to a supernode (registrations
+and pings together) - by the last hour of them, twelve snapshots, or by
+as long as it has counted (`n3n_loss_eval()`): how many round trips, how
+many of them lost, and for the share lost its 95 % confidence interval
+(Wilson's, which holds for few samples and for none lost).  Those still
+waiting for an answer count neither way.  A way is
+
+- `unknown` with fewer than 30 round trips: too few to tell
+- `lossy` where even the interval's lower bound is 2 % or more
+- `clean` where even its upper bound is below 2 %
+- `unclear` else: some lost, too few to be sure
+
+So an ACK lost now and then does not make a line lossy: 1 of 20 is
+unknown, 1 of 100 unclear (0.2 to 5.5 %), 3 of 300 still unclear (0.3 to
+2.9 %), 10 of 200 lossy (2.7 to 9.0 %).  A line that loses a few percent
+takes an hour of a supernode's some 300 round trips to tell; one losing
+10 % and more, minutes of a peer's probes.  The edge says so in its log as a way
+becomes lossy, and as it is clean again after.  The class, the numbers
+and the round trip are in `get_edges` and `get_supernodes` (`way`), on
+the status page (the column `line`, the numbers in its title) and in the
+metrics above.  Nothing acts on them yet.
+
+The round trip comes from the answers that can only be to one request,
+no other one waiting: on a lossy line, few.
 
 There are no community names in the metrics, nor anything else that a
 header-encrypted community hides: with header encryption, the community's

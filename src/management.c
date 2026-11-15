@@ -760,6 +760,18 @@ static void jsonrpc_get_communities (char *id, struct n3n_runtime_data *eee, con
     jsonrpc_result_tail(conn, 200);
 }
 
+// What the long-term counts say of a way (loss_count.h), as "way":{...},
+static const char *way_str (char *buf, size_t size, const struct n3n_loss_eval *e,
+                            uint32_t rtt_us, uint32_t rtt_min_us) {
+
+    snprintf(buf, size,
+             "\"way\":{\"class\":\"%s\",\"samples\":%u,\"lost\":%u,\"loss\":%.4f,"
+             "\"lower\":%.4f,\"upper\":%.4f,\"rtt_us\":%u,\"rtt_min_us\":%u},",
+             n3n_loss_class_str(e->class), e->samples, e->lost, e->ratio, e->lower, e->upper,
+             rtt_us, rtt_min_us);
+    return buf;
+}
+
 // What the forward error correction keeps of the peer, as "fec":{...}, -
 // nothing where it keeps nothing (fec.h, struct n3n_fec_info)
 static const char *fec_str (char *buf, size_t size, struct n3n_fec *fec, const n2n_mac_t mac) {
@@ -821,6 +833,15 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
     char fec_buf[200];
     char announce_buf[JSON_STR_SIZE(N3N_NAME_SIZE) + 120];
     const struct nat_peer *np = nat_peer_find(nat_peers, peer->mac_addr, false);
+    char way[200] = "";
+
+    // an edge's peer: what the long-term counts say of the way to it
+    if(strcmp(mode, "sn")) {
+        struct n3n_loss_eval e;
+
+        edge_loss_eval_peer(peer, &e);
+        way_str(way, sizeof(way), &e, peer->reg_loss.rtt_us, peer->reg_loss.rtt_min_us);
+    }
 
     sb_reprintf(reply,
                 "{"
@@ -846,6 +867,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 "\"reg_sent\":%u,"
                 "\"reg_answered\":%u,"
                 "%s"
+                "%s"
                 "\"last_seen\":%u},",
                 mode,
                 json_str(name, community, N2N_COMMUNITY_SIZE),
@@ -870,6 +892,7 @@ static void jsonrpc_get_edges_row (strbuf_t **reply, struct peer_info *peer, con
                 (uint32_t)peer->last_sent_query,
                 peer->reg_loss.sent,
                 peer->reg_loss.answered,
+                way,
                 fec_str(fec_buf, sizeof(fec_buf), fec, peer->mac_addr),
                 (uint32_t)peer->last_seen
     );
@@ -1086,6 +1109,10 @@ static void jsonrpc_get_supernodes (char *id, struct n3n_runtime_data *eee, conn
     sb_reprintf(&conn->request, "[");
 
     HASH_ITER(hh, eee->client.supernodes, peer, tmpPeer) {
+        struct n3n_loss_eval e;
+        char way[200];
+
+        edge_loss_eval_sn(peer, &e);
 
         /*
          * TODO:
@@ -1109,6 +1136,7 @@ static void jsonrpc_get_supernodes (char *id, struct n3n_runtime_data *eee, conn
                     "\"reg_answered\":%u,"
                     "\"ping_sent\":%u,"
                     "\"ping_answered\":%u,"
+                    "%s"
                     "\"selection\":\"%s\","
                     "\"last_seen\":%u,"
                     "\"uptime\":%u},",
@@ -1125,6 +1153,7 @@ static void jsonrpc_get_supernodes (char *id, struct n3n_runtime_data *eee, conn
                     peer->reg_loss.answered,
                     peer->ping_loss.sent,
                     peer->ping_loss.answered,
+                    way_str(way, sizeof(way), &e, peer->reg_loss.rtt_us, peer->reg_loss.rtt_min_us),
                     sn_selection_criterion_str(eee, sel_buf, peer),
                     (uint32_t)peer->last_seen,
                     (uint32_t)peer->uptime);

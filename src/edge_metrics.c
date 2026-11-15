@@ -155,6 +155,71 @@ static void render_reg_answered (struct ctx *c, const struct peer_info *peer, bo
     }
 }
 
+// A sample with the peer's labels and one more
+static void render_peer_more (struct ctx *c, const char *name, const struct peer_info *peer,
+                              const char *label, const char *value, double v) {
+
+    struct peer_labels pl;
+    const char *const *base = peer_labels(&pl, c->eee, peer);
+    const char *labels[] = { base[0], base[1], base[2], base[3], label, value, NULL };
+
+    n3n_metrics_render_sample(c->reply, c->module, name, labels, v);
+}
+
+static const enum n3n_loss_class way_classes[] = {
+    N3N_LOSS_UNKNOWN, N3N_LOSS_CLEAN, N3N_LOSS_UNCLEAR, N3N_LOSS_LOSSY
+};
+
+// what the long-term counts say of the way to a peer known directly
+static void render_way_loss (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    struct n3n_loss_eval e;
+
+    if(!known) {
+        return;
+    }
+    edge_loss_eval_peer(peer, &e);
+    if(e.samples) {
+        render_peer_more(c, "peer_way_loss_ratio", peer, "bound", "estimate", e.ratio);
+        render_peer_more(c, "peer_way_loss_ratio", peer, "bound", "lower", e.lower);
+        render_peer_more(c, "peer_way_loss_ratio", peer, "bound", "upper", e.upper);
+    }
+}
+
+static void render_way_samples (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    struct peer_labels pl;
+    struct n3n_loss_eval e;
+
+    if(known) {
+        edge_loss_eval_peer(peer, &e);
+        n3n_metrics_render_sample(c->reply, c->module, "peer_way_samples", peer_labels(&pl, c->eee, peer),
+                                  e.samples);
+    }
+}
+
+static void render_way_state (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    struct n3n_loss_eval e;
+
+    if(!known) {
+        return;
+    }
+    edge_loss_eval_peer(peer, &e);
+    for(size_t i = 0; i < sizeof(way_classes) / sizeof(way_classes[0]); i++) {
+        render_peer_more(c, "peer_way_state", peer, "state", n3n_loss_class_str(way_classes[i]),
+                         e.class == way_classes[i]);
+    }
+}
+
+static void render_rtt (struct ctx *c, const struct peer_info *peer, bool known) {
+
+    if(known && peer->reg_loss.rtt_us) {
+        render_peer_more(c, "peer_rtt_seconds", peer, "stat", "smoothed", peer->reg_loss.rtt_us / 1e6);
+        render_peer_more(c, "peer_rtt_seconds", peer, "stat", "min", peer->reg_loss.rtt_min_us / 1e6);
+    }
+}
+
 static void render_last_seen (struct ctx *c, const struct peer_info *peer, bool known) {
 
     struct peer_labels pl;
@@ -233,6 +298,48 @@ static void edge_metrics_cb (strbuf_t **reply, const struct n3n_metrics_module *
         }
     }
 
+    // what those say of the way to each supernode, within the hour
+    n3n_metrics_render_family(reply, module, "supernode_way_loss_ratio", n3n_metrics_gauge,
+                              "Of the registrations and pings to the supernode within the hour, the share "
+                              "lost, and its 95 % interval (loss_count.h)");
+    HASH_ITER(hh, eee->client.supernodes, peer, tmp) {
+        struct n3n_loss_eval e;
+        const char *sn = sock_to_cstr(sockbuf, &peer->sock);
+        const char *est[] = { "supernode", sn, "bound", "estimate", NULL };
+        const char *lo[] = { "supernode", sn, "bound", "lower", NULL };
+        const char *hi[] = { "supernode", sn, "bound", "upper", NULL };
+
+        edge_loss_eval_sn(peer, &e);
+        if(e.samples) {
+            n3n_metrics_render_sample(reply, module, "supernode_way_loss_ratio", est, e.ratio);
+            n3n_metrics_render_sample(reply, module, "supernode_way_loss_ratio", lo, e.lower);
+            n3n_metrics_render_sample(reply, module, "supernode_way_loss_ratio", hi, e.upper);
+        }
+    }
+    n3n_metrics_render_family(reply, module, "supernode_way_samples", n3n_metrics_gauge,
+                              "The registrations and pings to the supernode counted within the hour");
+    HASH_ITER(hh, eee->client.supernodes, peer, tmp) {
+        struct n3n_loss_eval e;
+        const char *labels[] = { "supernode", sock_to_cstr(sockbuf, &peer->sock), NULL };
+
+        edge_loss_eval_sn(peer, &e);
+        n3n_metrics_render_sample(reply, module, "supernode_way_samples", labels, e.samples);
+    }
+    n3n_metrics_render_family(reply, module, "supernode_way_state", n3n_metrics_gauge,
+                              "1 for what the way to the supernode is taken for: unknown, clean, unclear "
+                              "or lossy");
+    HASH_ITER(hh, eee->client.supernodes, peer, tmp) {
+        struct n3n_loss_eval e;
+        const char *sn = sock_to_cstr(sockbuf, &peer->sock);
+
+        edge_loss_eval_sn(peer, &e);
+        for(size_t i = 0; i < sizeof(way_classes) / sizeof(way_classes[0]); i++) {
+            const char *labels[] = { "supernode", sn, "state", n3n_loss_class_str(way_classes[i]), NULL };
+            n3n_metrics_render_sample(reply, module, "supernode_way_state", labels,
+                                      e.class == way_classes[i]);
+        }
+    }
+
     // the peers: how many by path, then each
     each_peer(&c, count_path);
     n3n_metrics_render_family(reply, module, "peers", n3n_metrics_gauge,
@@ -269,6 +376,21 @@ static void edge_metrics_cb (strbuf_t **reply, const struct n3n_metrics_module *
     n3n_metrics_render_family(reply, module, "peer_registers_answered", n3n_metrics_counter,
                               "Of those, answered by a REGISTER_ACK within the window");
     each_peer(&c, render_reg_answered);
+
+    n3n_metrics_render_family(reply, module, "peer_way_loss_ratio", n3n_metrics_gauge,
+                              "Of the round trips on the direct path to the peer within the hour, the "
+                              "share lost, and its 95 % interval (loss_count.h)");
+    each_peer(&c, render_way_loss);
+    n3n_metrics_render_family(reply, module, "peer_way_samples", n3n_metrics_gauge,
+                              "The round trips on the direct path to the peer counted within the hour");
+    each_peer(&c, render_way_samples);
+    n3n_metrics_render_family(reply, module, "peer_way_state", n3n_metrics_gauge,
+                              "1 for what the direct path to the peer is taken for: unknown, clean, "
+                              "unclear or lossy");
+    each_peer(&c, render_way_state);
+    n3n_metrics_render_family(reply, module, "peer_rtt_seconds", n3n_metrics_gauge,
+                              "The round trip of the REGISTERs to the peer, smoothed and the shortest");
+    each_peer(&c, render_rtt);
 
     n3n_metrics_render_family(reply, module, "peer_last_seen_timestamp_seconds", n3n_metrics_gauge,
                               "When the edge last heard of the peer, in seconds since the epoch");

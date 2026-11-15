@@ -14,6 +14,7 @@
 #include <stdint.h>
 #include <time.h>
 #include "n2n_typedefs.h"
+#include "loss_count.h"   // for n3n_loss_eval
 #include "pdu_in.h"
 
 // Registrations with the supernodes and the peers
@@ -54,6 +55,17 @@ static inline uint32_t p2p_max_loss (const n2n_edge_conf_t *conf) {
 #define P2P_PROBE_ROUND     20      /* probes */
 #define P2P_PROBE_US        500000
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer);
+
+// What the long-term counts say of the way to a peer known directly (its
+// REGISTERs and ACKs) and to a supernode (its registrations and pings
+// together), see loss_count.h
+void edge_loss_eval_peer (const struct peer_info *peer, struct n3n_loss_eval *e);
+void edge_loss_eval_sn (const struct peer_info *sn, struct n3n_loss_eval *e);
+
+// Every N3N_LOSS_TICK_S: the snapshots of the counts when due, and a line
+// in the log where a way became lossy, or clean again
+#define N3N_LOSS_TICK_S     30
+void edge_tick_loss (struct n3n_runtime_data *eee, time_t now);
 bool is_link_local (const n3n_sock_t *sock);
 int peer_way_rank (const n3n_sock_t *sock);
 // the host's network changed (NETWATCH_* of netwatch.h); from any thread

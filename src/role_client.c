@@ -1763,6 +1763,70 @@ static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer) {
     peer->probes_sent++;
 }
 
+void edge_loss_eval_peer (const struct peer_info *peer, struct n3n_loss_eval *e) {
+
+    const struct n3n_loss_count *counts[] = { &peer->reg_loss };
+
+    n3n_loss_eval(counts, 1, n3n_monotonic_us(), e);
+}
+
+
+void edge_loss_eval_sn (const struct peer_info *sn, struct n3n_loss_eval *e) {
+
+    const struct n3n_loss_count *counts[] = { &sn->reg_loss, &sn->ping_loss };
+
+    n3n_loss_eval(counts, 2, n3n_monotonic_us(), e);
+}
+
+
+// A way that became lossy, or clean again after it was lossy: a line in the
+// log.  Not from unknown or unclear to clean and back, which says little.
+static void loss_log (struct peer_info *p, const struct n3n_loss_eval *e, const char *what, const char *who) {
+
+    if((e->class == N3N_LOSS_LOSSY) && (p->loss_class != N3N_LOSS_LOSSY)) {
+        traceEvent(TRACE_NORMAL, "the way to %s %s loses %.1f %% (%.1f to %.1f %%, %u samples within the "
+                   "hour)", what, who, 100 * e->ratio, 100 * e->lower, 100 * e->upper, e->samples);
+        p->loss_class = N3N_LOSS_LOSSY;
+    } else if((e->class == N3N_LOSS_CLEAN) && (p->loss_class == N3N_LOSS_LOSSY)) {
+        traceEvent(TRACE_NORMAL, "the way to %s %s is clean again (%.1f %% lost, %u samples within the hour)",
+                   what, who, 100 * e->ratio, e->samples);
+        p->loss_class = N3N_LOSS_CLEAN;
+    }
+}
+
+
+void edge_tick_loss (struct n3n_runtime_data *eee, time_t now) {
+
+    struct peer_info *p, *tmp;
+    struct n3n_loss_eval e;
+    bool snapshot = false;
+    macstr_t mac_buf;
+    n3n_sock_str_t sockbuf;
+
+    if(!eee->client.loss_snapshot) {
+        eee->client.loss_snapshot = now;
+    } else if(now - eee->client.loss_snapshot >= N3N_LOSS_SNAP_S) {
+        eee->client.loss_snapshot = now;
+        snapshot = true;
+    }
+    HASH_ITER(hh, eee->client.known_peers, p, tmp) {
+        if(snapshot) {
+            n3n_loss_snapshot(&p->reg_loss);
+        }
+        edge_loss_eval_peer(p, &e);
+        loss_log(p, &e, "peer", macaddr_str(mac_buf, p->mac_addr));
+    }
+    HASH_ITER(hh, eee->client.supernodes, p, tmp) {
+        if(snapshot) {
+            n3n_loss_snapshot(&p->reg_loss);
+            n3n_loss_snapshot(&p->ping_loss);
+        }
+        edge_loss_eval_sn(p, &e);
+        loss_log(p, &e, "supernode", sock_to_cstr(sockbuf, &p->sock));
+    }
+}
+
+
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer) {
 
     send_register(eee, &(peer->sock), peer->mac_addr, N2N_REGULAR_REG_COOKIE);

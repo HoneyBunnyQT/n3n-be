@@ -354,6 +354,36 @@ static void route_all_line (strbuf_t **b, struct n3n_runtime_data *eee) {
 }
 
 
+// A cell of what the long-term counts say of a way (loss_count.h): its
+// class, lossy with the share lost; the numbers in its title
+static const char *way_cell (char *buf, size_t size, const struct n3n_loss_eval *e, uint32_t rtt_us) {
+
+    char rtt[48] = "";
+
+    if(rtt_us) {
+        snprintf(rtt, sizeof(rtt), ", round trip %u.%u ms", rtt_us / 1000, (rtt_us % 1000) / 100);
+    }
+    if(e->class == N3N_LOSS_UNKNOWN) {
+        snprintf(buf, size, "<td><span class=dim title=\"%u round trips within the hour: too few to "
+                 "tell%s\">&ndash;</span></td>", e->samples, rtt);
+        return buf;
+    }
+    char what[24];
+
+    if(e->class == N3N_LOSS_LOSSY) {
+        // the share lost in the badge too
+        snprintf(what, sizeof(what), "lossy %.0f %%", 100 * e->ratio);
+    } else {
+        snprintf(what, sizeof(what), "%s", n3n_loss_class_str(e->class));
+    }
+    snprintf(buf, size, "<td><span class=\"b %s\" title=\"%u of %u round trips lost within the hour, "
+             "%.1f %% (95 %%: %.1f to %.1f %%)%s\">%s</span></td>",
+             (e->class == N3N_LOSS_LOSSY) ? "warn" : (e->class == N3N_LOSS_CLEAN) ? "ok" : "dim",
+             e->lost, e->samples, 100 * e->ratio, 100 * e->lower, 100 * e->upper, rtt, what);
+    return buf;
+}
+
+
 // The cells after an edge's peer's path: what is lost on the way - with
 // FEC, of the PACKETs to the peer, as it tells; else of the probes of
 // p2p_max_loss, where it probes - and whether FEC repairs now: "FEC"
@@ -363,18 +393,22 @@ static const char *peer_cells (char *buf, size_t size, const struct n3n_runtime_
                                const struct peer_info *peer) {
 
     struct n3n_fec_info fi;
+    struct n3n_loss_eval e;
     bool fec = eee->conf.community.fec;
     bool known = fec && !n3n_fec_peer_info(eee->client.fec, peer->mac_addr, &fi);
+    char way[400];
     int used;
 
+    edge_loss_eval_peer(peer, &e);
+    way_cell(way, sizeof(way), &e, peer->reg_loss.rtt_us);
     if(known && (fi.loss >= 0)) {
         used = snprintf(buf, size, "<td class=num title=\"of the PACKETs to the peer, as it tells; "
-                        "from it: %d %%\"><span class=n>%d %%</span></td>", fi.rx_loss, fi.loss);
+                        "from it: %d %%\"><span class=n>%d %%</span></td>%s", fi.rx_loss, fi.loss, way);
     } else if(!fec && p2p_max_loss(&eee->conf)) {
-        used = snprintf(buf, size, "<td class=num title=\"of the REGISTERs to the peer, unanswered\">"
-                        "<span class=n>%u %%</span></td>", peer->loss);
+        used = snprintf(buf, size, "<td class=num title=\"of the REGISTERs to the peer, unanswered, "
+                        "in the last round\"><span class=n>%u %%</span></td>%s", peer->loss, way);
     } else {
-        used = snprintf(buf, size, "<td class=num></td>");
+        used = snprintf(buf, size, "<td class=num></td>%s", way);
     }
     if((used < 0) || ((size_t)used >= size)) {
         return "";
@@ -476,7 +510,7 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
     bool exits = !own_of_supernode && route_all_switchable();
     uint32_t exit = route_all_exit();
     char tail[256];
-    int cols = (fec ? 9 : 8) + exits;
+    int cols = (fec ? 10 : 9) + exits;
     bool dots = false;
 
     // the peers that announce themselves as exits: checked through them
@@ -485,7 +519,8 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         edge_exit_check(eee, now);
     }
     sb_reprintf(b, "<h3>Peers</h3><div class=scroll><table>"
-                "<tr><th>path</th><th class=num>lost</th>%s<th>name</th><th>address</th><th>MAC</th>"
+                "<tr><th>path</th><th class=num>lost</th><th title=\"the direct path, within the hour\">line</th>"
+                "%s<th>name</th><th>address</th><th>MAC</th>"
                 "<th>socket</th><th>NAT</th><th>last seen</th>%s</tr>\n",
                 fec ? "<th>FEC</th>" : "", exits ? "<th>exit peer</th>" : "");
     rows = 0;
@@ -493,7 +528,7 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
         if(rows++ < PAGE_ROWS_MAX) {
             // through the supernode where the direct path loses too many,
             // see peer_probe()
-            char cells[256];
+            char cells[768];
             bool lossy = peer->lossy && p2p_max_loss(&eee->conf);
             dots |= peer_row(b, peer, lossy ? "via supernode" : "direct", lossy ? "b p warn" : "b p ok",
                              peer_cells(cells, sizeof(cells), eee, peer), NULL, false, eee->client.nat_peers,
@@ -505,7 +540,8 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
             continue;
         }
         if(rows++ < PAGE_ROWS_MAX) {
-            dots |= peer_row(b, peer, "via supernode", "b p warn", fec ? "<td></td><td></td>" : "<td></td>",
+            dots |= peer_row(b, peer, "via supernode", "b p warn",
+                             fec ? "<td></td><td></td><td></td>" : "<td></td><td></td>",
                              NULL, false, eee->client.nat_peers, eee->client.announce,
                              exits ? exit_cell(tail, sizeof(tail), peer, exit) : NULL, now);
         }
@@ -527,7 +563,8 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
 
         sb_reprintf(b, "<h3>Supernodes</h3><div class=scroll><table>"
                     "<tr><th></th><th>socket</th><th>TCP</th><th>over</th><th class=num>load</th>"
-                    "<th class=num>round trip</th><th>version</th><th>last seen</th></tr>\n");
+                    "<th class=num>round trip</th><th title=\"registrations and pings, within the hour\">line</th>"
+                    "<th>version</th><th>last seen</th></tr>\n");
         rows = 0;
         HASH_ITER(hh, eee->client.supernodes, peer, tmp) {
             n3n_sock_str_t tcpbuf;
@@ -541,17 +578,22 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
                         sock_to_cstr(tcpbuf, peer->tcp_hostname ? &peer->tcp_sock : &peer->sock),
                         (peer->transports == N3N_TRANSPORT_UDP) ? "UDP" :
                         (peer->transports == N3N_TRANSPORT_TCP) ? "TCP" : "UDP, TCP");
+            struct n3n_loss_eval e;
+            char way[400];
+
+            edge_loss_eval_sn(peer, &e);
+            way_cell(way, sizeof(way), &e, 0);
             sb_reprintf(b, "<td class=num>");
             if(peer->sn_rtt_us) {
-                sb_reprintf(b, "%u</td><td class=num>%u.%u ms</td><td>", peer->sn_load,
-                            peer->sn_rtt_us / 1000, (peer->sn_rtt_us % 1000) / 100);
+                sb_reprintf(b, "%u</td><td class=num>%u.%u ms</td>%s<td>", peer->sn_load,
+                            peer->sn_rtt_us / 1000, (peer->sn_rtt_us % 1000) / 100, way);
             } else {
-                sb_reprintf(b, "</td><td class=num></td><td>");
+                sb_reprintf(b, "</td><td class=num></td>%s<td>", way);
             }
             html_text(b, version, sizeof(version));
             sb_reprintf(b, "</td><td><span class=t>%s</span></td></tr>\n", ago(when, sizeof(when), now, peer->last_seen));
         }
-        row_more(b, 8, rows - PAGE_ROWS_MAX);
+        row_more(b, 9, rows - PAGE_ROWS_MAX);
         sb_reprintf(b, "</table></div>\n");
     }
 
