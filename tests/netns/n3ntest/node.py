@@ -12,6 +12,8 @@ import re
 import socket
 import subprocess
 import sys
+import threading
+import time
 
 from .lab import wait_for
 
@@ -127,6 +129,74 @@ class Mgmt:
             return r.status, r.read()
         finally:
             conn.close()
+
+
+class Events:
+    """A daemon's stream of an event topic (GET /events/TOPIC, records as
+    RFC 7464 has them), read in a thread of its own: the records as they
+    came.  One subscriber a topic: another one takes it over."""
+
+    def __init__(self, mgmt, topic, timeout=3.0):
+        self.records = []
+        self.lock = threading.Lock()
+        self.closed = False
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(timeout)
+        self.sock.connect(mgmt.path)
+        self.sock.sendall("GET /events/{} HTTP/1.1\r\nHost: n3n\r\n\r\n"
+                          .format(topic).encode())
+        self.sock.settimeout(0.5)
+        self.thread = threading.Thread(target=self._read, daemon=True)
+        self.thread.start()
+
+    def _read(self):
+        buf = b""
+        while not self.closed:
+            try:
+                data = self.sock.recv(4096)
+            except socket.timeout:
+                continue
+            except OSError:
+                break
+            if not data:
+                break
+            buf += data
+            # a record: 0x1e, the JSON, a newline; the HTTP head before
+            # the first one is none
+            while b"\x1e" in buf:
+                start = buf.index(b"\x1e")
+                end = buf.find(b"\n", start)
+                if end < 0:
+                    break
+                try:
+                    record = json.loads(buf[start + 1:end].decode(
+                        "utf8", errors="replace"))
+                except ValueError:
+                    record = None
+                buf = buf[end + 1:]
+                if isinstance(record, dict):
+                    with self.lock:
+                        self.records.append(record)
+
+    def wait(self, match, timeout):
+        """The first record that match(record) takes, within timeout
+        seconds; None"""
+        until = time.monotonic() + timeout
+        while True:
+            with self.lock:
+                for r in self.records:
+                    if match(r):
+                        return r
+            if time.monotonic() >= until:
+                return None
+            time.sleep(0.5)
+
+    def close(self):
+        self.closed = True
+        try:
+            self.sock.close()
+        except OSError:
+            pass
 
 
 def packetstats(mgmt):

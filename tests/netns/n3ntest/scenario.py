@@ -45,7 +45,7 @@ import time
 
 from . import nat, promtext
 from .lab import Lab, LabError, describe_exit, run, wait_for
-from .node import (Edge, MgmtError, N2nEdge, N2nSupernode, Supernode,
+from .node import (Edge, Events, MgmtError, N2nEdge, N2nSupernode, Supernode,
                    cli_options, stats_delta, write_conf)
 
 INET_NET = "203.0.113.{}"
@@ -2154,7 +2154,13 @@ class Run:
                               "({!r})".format(peer))
         trickle = [self.sender(s, d, FLOW_HOLD, 0, 20)
                    for s, d in self.sc.directions()]
-        counts, ways = None, {}
+        counts, ways, page = None, {}, b""
+        # what a says of its ways as they change (the event "way")
+        try:
+            events = Events(self.edges["a"]["daemon"].mgmt, "way")
+        except OSError as e:
+            events = None
+            self.check("lossy: event", False, "no subscription: {}".format(e))
         try:
             before = self._loss_counts("a")
             self.lab.nft(self.edges["a"]["ns"],
@@ -2176,8 +2182,17 @@ class Run:
                                                           took))
                 if not ok or want == "p2p":
                     break
+                # the loss on until a has round trips enough to tell (30,
+                # loss_count.h) - the probes go on through the supernode
+                mac = self.edges["b"]["mac"]
+                wait_for(lambda: self._ways("a").get(("peer", mac), {})
+                         .get("samples", 0) >= 30 or None, 20, interval=0.5)
                 counts = self._loss_counts("a")
                 ways = self._ways("a")
+                try:
+                    _, page = self.edges["a"]["daemon"].mgmt.http("GET", "/")
+                except OSError:
+                    page = b""
                 run(["nft", "delete", "table", "inet", "lossy"],
                     ns=self.edges["a"]["ns"])
         finally:
@@ -2185,6 +2200,39 @@ class Run:
                 p.stop()
         if counts is not None:
             self.check_lossy_counts(before, counts, ways)
+            self.check_lossy_shown(ways, page, events)
+        if events:
+            events.close()
+
+    def check_lossy_shown(self, ways, page, events):
+        """Where a took its way to b for lossy: the page says so on a line
+        of its own, and the event "way" told it, at the next evaluation
+        (every 30s, N3N_LOSS_TICK_S)"""
+        way = ways.get(("peer", self.edges["b"]["mac"]), {})
+        if way.get("class") != "lossy":
+            return
+        text = page.decode("utf8", errors="replace")
+        with open(os.path.join(self.workdir, "page-a-lossy.html"), "w") as f:
+            f.write(text)
+        # b by its address in the community
+        want = "the way to the peer {} loses".format(
+            self.edges["b"]["overlay"])
+        self.check("lossy: page", want in text,
+                   "a line says so" if want in text else
+                   "no line \"{}\"".format(want))
+        if not events:
+            return
+        mac = self.edges["b"]["mac"].lower()
+        got = events.wait(lambda r: r.get("event") == "way" and
+                          r.get("kind") == "peer" and
+                          r.get("macaddr", "").lower() == mac and
+                          r.get("to") == "lossy", 35)
+        self.result["lossy_event"] = got
+        self.check("lossy: event", got is not None,
+                   "{} -> lossy, {} of {}".format(got.get("from"),
+                                                   got.get("lost"),
+                                                   got.get("samples"))
+                   if got else "none for b within 35s")
 
     def check_lossy_counts(self, before, after, ways):
         """What a counted while its direct path to b lost sc.lossy percent
