@@ -540,7 +540,25 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       as its comment said, else it is lost as one.  Next: the first
       actions to take on it (which supernode, FEC's gate), and the probe
       rounds of `p2p_max_loss` still counting the REGISTERs to a quiet
-      peer.  n3n-be's own, not for `fixes`
+      peer (done, below).  n3n-be's own, not for `fixes`
+- [x] The probes of `p2p_max_loss` only on a warm path (2026-11-15): a
+      round counted every REGISTER to a known peer at its address, also
+      to one gone quiet - which, while no supernode answers, the edge
+      keeps and sends to at its last address, probing it twice a second.
+      Cut off from each other in an outage, both edges took the other for
+      a lossy line (35 %) and went through the supernode for 30 s once it
+      was back.  Now a probe is a regular REGISTER while the peer was
+      heard from directly within half its timeout, as for the long-term
+      counts; to one gone quiet, the round so far is dropped, and an ACK
+      counts only while a probe of the round waits for one.  With a
+      supernode answering, a quiet peer gets a refresh or two and is
+      looked up anew - pending, no probes - so it shows only in an
+      outage.  netns `sn-outage-quiet` (failed with the old code); the
+      lossy line is still found while the path is warm: a round of 20
+      probes takes 10 s, half a peer's timeout.  Punching was not counted
+      before either (pending peers; the port cookie; the pool's sockets),
+      now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
+      easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
 - [x] An edge had a new peer pending twice (2026-11-14, found by the
       metrics' check): `register_with_new_peer()` asked the peer for its
       announcement before it added it, and that frame, to a peer not
