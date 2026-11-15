@@ -559,6 +559,17 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       before either (pending peers; the port cookie; the pool's sockets),
       now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
       easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
+- [x] One lost PONG no reason to leave the supernode (2026-11-15, found
+      while trying the lossy supernode in the lab): before each round of
+      PINGs, the current supernode's selection criterion became "good",
+      a placeholder far above any measure; where its PONG was lost and
+      another one's came, that one went first, and the next sort had the
+      edge register there - and back after the next PONG.  Now the
+      current one keeps what its last PONG said ("good" only before it
+      answered one); one that does not answer at all is left as its
+      registrations go unanswered, as before.  netns `sn-pong-lost`
+      (its PONGs dropped by the packet type, once a regular round
+      measured it; failed with the old code).  On `fixes` (c728b1b1)
 - [x] A lossy direct path back only after two clean rounds where it is
       lossy within the hour (2026-11-15, the first action on the
       evaluation): a peer through the supernode for `p2p_max_loss` went
