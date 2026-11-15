@@ -133,6 +133,17 @@ LOSSY = """table inet lossy {{
 }}
 """
 
+# the answers to a's pings from a supernode lost - its PEER_INFOs, by the
+# packet type in the low 5 bits of the flags, after version and ttl -,
+# its REGISTER_SUPER_ACKs not, see pong_lost_phase()
+SN_PONGS_LOST = """table inet pong {{
+    chain input {{
+        type filter hook input priority 0; policy accept;
+        ip saddr {sn} udp sport {port} @th,88,8 & 0x1f == 10 drop
+    }}
+}}
+"""
+
 # a's way to b cut, both ways, see outage_phase()
 QUIET = """table inet quiet {{
     chain output {{
@@ -228,7 +239,8 @@ class Scenario:
                  udp_lost=None, sn_count=2, marked=(), inner6=False,
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
-                 metrics_remote=False, loss_counts=False, other_dev=None):
+                 metrics_remote=False, loss_counts=False, other_dev=None,
+                 pong_lost=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -260,6 +272,10 @@ class Scenario:
         # (at site a): the edges are to send through the supernode, and
         # once the loss stops, directly again (connection.p2p_max_loss)
         self.lossy = lossy
+        # After the warm-up, the answers to a's pings from the supernode it
+        # is registered at are lost for a while, its registrations not: a
+        # stays there, see pong_lost_phase()
+        self.pong_lost = pong_lost
         # After the warm-up, the direct path between the edges loses this
         # many percent each way (at site a), and the edges stay on it: of
         # pings over it, with community.fec in conf, those lost alone are
@@ -2207,6 +2223,50 @@ class Run:
         if events:
             events.close()
 
+    # pong_lost_phase(): how long the PONGs are lost - over two sorts of
+    # the supernodes (SWEEP_TIME, 30s)
+    PONG_LOST_FOR = 75
+
+    def pong_lost_phase(self):
+        """The answers to a's pings from its supernode are lost for a
+        while, its registrations get through: no reason to leave it - a
+        PONG lost on the way had the edge register elsewhere at the next
+        sort of the supernodes, as any other one that answered went first"""
+        a = self.edges["a"]["daemon"]
+
+        # once a regular round of PINGs measured a's supernode (its
+        # "selection" in get_supernodes): before, after the start, it has
+        # nothing to keep
+        def measured():
+            for row in a.mgmt.try_call("get_supernodes") or []:
+                if row.get("current") and row.get("selection"):
+                    return row.get("sockaddr")
+            return None
+        cur = wait_for(measured, 70, interval=1) or ""
+        ip = cur.rsplit(":", 1)[0]
+        if not ip or ":" in ip:
+            return self.check("pong lost", False, "no IPv4 supernode of a "
+                              "measured ({!r})".format(cur))
+        self.lab.nft(self.edges["a"]["ns"],
+                     SN_PONGS_LOST.format(sn=ip, port=cur.rsplit(":", 1)[1]),
+                     "pong")
+        seen = set()
+        try:
+            until = time.monotonic() + self.PONG_LOST_FOR
+            while time.monotonic() < until:
+                seen.add(a.current_supernode())
+                time.sleep(1)
+        finally:
+            run(["nft", "delete", "table", "inet", "pong"],
+                ns=self.edges["a"]["ns"])
+        seen.discard(None)
+        self.result["pong_lost"] = {"at": cur, "seen": sorted(seen)}
+        detail = "at {} too".format(", ".join(sorted(seen - {cur})))
+        if seen == {cur}:
+            detail = "at {} for {}s, its PONGs lost".format(
+                cur, self.PONG_LOST_FOR)
+        self.check("pong lost: stays", seen == {cur}, detail)
+
     def check_lossy_back(self, ways, log, log_from):
         """Where a took its way to b for lossy within the hour, b's frames
         went the direct way again only after two rounds of probes in a row
@@ -3268,6 +3328,8 @@ class Run:
                 self.udp_lost_phase()
             if self.sc.lossy and self.check_alive("warm-up"):
                 self.lossy_phase()
+            if self.sc.pong_lost and self.check_alive("warm-up"):
+                self.pong_lost_phase()
             if self.sc.fec_loss and self.check_alive("warm-up"):
                 self.fec_phase()
             if self.sc.load and self.check_alive("warm-up"):

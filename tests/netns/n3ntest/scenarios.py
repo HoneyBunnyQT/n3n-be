@@ -691,6 +691,15 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", lossy=30),
     Scenario(
+        "sn-pong-lost",
+        "edges behind easy NATs, direct; then the answers to a's pings from "
+        "its supernode are lost for 75s, its registrations not: a stays "
+        "there - one PONG lost had it register at the other supernode at "
+        "the next sort",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", pong_lost=True),
+    Scenario(
         "lossy-direct-threads",
         "as lossy-direct, the edges with packet threads, which ask the main "
         "thread for the probes",
