@@ -1740,23 +1740,43 @@ static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *pee
     }
 }
 
+// Whether the direct path to a known peer is warm: the peer heard from
+// directly within half its timeout.  Only there an unanswered REGISTER is
+// the path's loss - not to a peer gone quiet, which may be at another
+// address by now, or behind a NAT that forgot us, nor to one being punched
+// to.
+static bool path_warm (const struct peer_info *peer) {
+
+    return (time(NULL) - SHARED_LOAD(peer->last_p2p)) < (peer->timeout / 2);
+}
+
 // A REGISTER to a known peer at its address, counted long term where the
-// path is warm (see loss_count.h): the peer heard from directly within half
-// its timeout - not one quiet, which may be at another address by now, nor
-// one being punched to - and the host's network settled
+// path is warm (see loss_count.h) and the host's network settled
 static void reg_loss_sent (struct n3n_runtime_data *eee, struct peer_info *peer, n2n_cookie_t cookie) {
 
     uint64_t now_us = n3n_monotonic_us();
 
-    if((cookie == N2N_REGULAR_REG_COOKIE)
-       && ((time(NULL) - SHARED_LOAD(peer->last_p2p)) < (peer->timeout / 2))
+    if((cookie == N2N_REGULAR_REG_COOKIE) && path_warm(peer)
        && n3n_loss_settled(eee->client.net_changed_us, now_us)) {
         n3n_loss_sent(&peer->reg_loss, now_us);
     }
 }
 
-static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer) {
+// A REGISTER to a known peer at its address: a probe of the direct path,
+// where it is warm.  To a quiet peer - while no supernode answers, the edge
+// keeps it and sends to its last address, probing it twice a second - it
+// is none, and the round so far is stale: it starts anew once the peer is
+// heard from again.
+static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer, n2n_cookie_t cookie) {
 
+    if(cookie != N2N_REGULAR_REG_COOKIE) {
+        return;
+    }
+    if(!path_warm(peer)) {
+        peer->probes_sent = 0;
+        peer->probes_answered = 0;
+        return;
+    }
     if(peer->probes_sent >= P2P_PROBE_ROUND) {
         probe_round_end(eee, peer);
     }
@@ -1865,7 +1885,7 @@ void send_register (struct n3n_runtime_data * eee,
         struct peer_info *peer;
         HASH_FIND_PEER(eee->client.known_peers, peer_mac, peer);
         if(peer && sock_equal(remote_peer, &peer->sock)) {
-            probe_sent(eee, peer);
+            probe_sent(eee, peer, cookie);
             reg_loss_sent(eee, peer, cookie);
         }
     }
@@ -2252,11 +2272,11 @@ void edge_rx_register_ack (struct n3n_runtime_data *eee, struct pdu_ctx *c) {
     HASH_FIND_PEER(eee->client.known_peers, ra.srcMac, known);
     if(known && sock_equal(&known->sock, &c->sender)) {
         SHARED_STORE(known->last_p2p, c->now);
-        // and the answer to a probe of the path
-        if(known->probes_answered < UINT16_MAX) {
-            known->probes_answered++;
-        }
+        // and the answer to a probe of the path, one each at most
         if(ra.cookie == N2N_REGULAR_REG_COOKIE) {
+            if(known->probes_answered < known->probes_sent) {
+                known->probes_answered++;
+            }
             n3n_loss_answer(&known->reg_loss, n3n_monotonic_us());
         }
     }

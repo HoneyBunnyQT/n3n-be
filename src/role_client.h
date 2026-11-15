@@ -35,7 +35,9 @@ void send_register (struct n3n_runtime_data * eee,
                     const n2n_cookie_t cookie);
 
 // The direct path to a known peer, measured: each REGISTER sent to the
-// peer at its address is a probe, each REGISTER_ACK from there an answer.
+// peer at its address is a probe, each REGISTER_ACK from there an answer -
+// the regular ones, while the path is warm (the peer heard from directly
+// within half its timeout; to one gone quiet, a REGISTER is no probe).
 // After a round of probes, the share unanswered is the path's loss; at
 // connection.p2p_max_loss or more, the peer's frames go through the
 // supernode (find_peer_destination()), and back the direct way at a

@@ -341,7 +341,10 @@ static struct n3n_conf_option section_connection[] = {
                 "many percent of 20 or more go unanswered, the peer's frames "
                 "go through the supernode - as long as one answers - and back "
                 "the direct way once at most a quarter as many are lost; the "
-                "edge goes on asking meanwhile.  0 keeps a direct path however "
+                "edge goes on asking meanwhile.  Only while the peer was heard "
+                "from directly within half its timeout: what a peer gone "
+                "quiet leaves unanswered says nothing of the path.  0 keeps a "
+                "direct path however "
                 "bad it gets.  auto, the default, is 20 - or 0 with "
                 "community.fec, which then repairs what the direct path "
                 "loses.  See docs/advanced/NatTraversal.md",

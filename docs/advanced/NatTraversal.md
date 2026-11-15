@@ -260,7 +260,12 @@ the supernode's data centre was clean.
 
 So while frames go to a peer directly, the edge sends it a REGISTER twice a
 second, and counts the REGISTER_ACKs that come back from the peer's
-address; every REGISTER to the peer there counts, also the regular ones.
+address; every REGISTER to the peer there counts, also the regular ones -
+while the peer was heard from directly within half its timeout (10
+seconds by default).  A peer gone quiet, which the edge keeps while no
+supernode answers and sends to at its last address, may be gone, or
+behind a NAT that forgot the edge: what it leaves unanswered says nothing
+of the path, and the round starts anew once it is heard from again.
 After 20 of them, the share that went unanswered is the loss of the direct
 path, which `n3n-be-ctl get_edges` shows (`loss`, in percent) and the
 management page (`lost`).  With `connection.p2p_max_loss`
