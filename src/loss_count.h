@@ -108,6 +108,11 @@ struct n3n_loss_eval {
 void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
                     struct n3n_loss_eval *e);
 
+// Whether way a is measurably better than way b: the top of a's interval
+// below the bottom of b's - better with 95 % confidence, not merely not
+// measured yet (no samples: never)
+bool n3n_loss_better (const struct n3n_loss_eval *a, const struct n3n_loss_eval *b);
+
 // "unknown", "clean", "unclear" or "lossy"
 const char *n3n_loss_class_str (enum n3n_loss_class class);
 

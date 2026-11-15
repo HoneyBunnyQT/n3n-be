@@ -169,6 +169,12 @@ void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t 
 }
 
 
+bool n3n_loss_better (const struct n3n_loss_eval *a, const struct n3n_loss_eval *b) {
+
+    return a->samples && b->samples && (a->upper < b->lower);
+}
+
+
 const char *n3n_loss_class_str (enum n3n_loss_class class) {
 
     switch(class) {

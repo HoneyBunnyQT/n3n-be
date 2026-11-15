@@ -16,6 +16,8 @@
  *   - the round trip of an answer that can only be to one request
  *   - the evaluation: Wilson's interval, the classes, the window of an
  *     hour of snapshots, several counts together
+ *   - one way measurably better than another: the top of its interval
+ *     below the bottom of the other's
  */
 
 #include <stdio.h>            // for printf
@@ -197,5 +199,42 @@ int main (void) {
     n3n_loss_eval(both, 2, 4000 * S + N3N_LOSS_WINDOW_US, &v);
     printf("%-34s %4u %3u %s\n", "  the one waiting then lost", v.samples, v.lost,
            n3n_loss_class_str(v.class));
+
+    // measurably better: a supernode's way losing some 30 %, others
+    // measured by their pings alone
+    struct {
+        const char *what;
+        uint32_t sent, answered;
+    } other[] = {
+        { "0 of 0", 0, 0 },
+        { "0 of 8", 8, 8 },
+        { "0 of 16", 16, 16 },
+        { "0 of 30", 30, 30 },
+        { "3 of 30", 30, 27 },
+        { "10 of 30", 30, 20 },
+    }, lossy[] = {
+        { "15 of 47", 47, 32 },
+        { "3 of 30", 30, 27 },
+    };
+    for(size_t i = 0; i < sizeof(lossy) / sizeof(lossy[0]); i++) {
+        struct n3n_loss_count l = {0};
+        const struct n3n_loss_count *lc[] = { &l };
+        struct n3n_loss_eval le;
+
+        l.sent = lossy[i].sent;
+        l.answered = lossy[i].answered;
+        n3n_loss_eval(lc, 1, 0, &le);
+        for(size_t j = 0; j < sizeof(other) / sizeof(other[0]); j++) {
+            struct n3n_loss_count o = {0};
+            const struct n3n_loss_count *oc[] = { &o };
+            struct n3n_loss_eval oe;
+
+            o.sent = other[j].sent;
+            o.answered = other[j].answered;
+            n3n_loss_eval(oc, 1, 0, &oe);
+            printf("%-8s better than %-8s %s (top %.3f, bottom %.3f)\n", other[j].what, lossy[i].what,
+                   n3n_loss_better(&oe, &le) ? "yes" : "no ", oe.upper, le.lower);
+        }
+    }
     return 0;
 }

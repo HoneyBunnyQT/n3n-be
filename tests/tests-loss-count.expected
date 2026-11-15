@@ -25,3 +25,15 @@ a bad hour, then a clean one        600   0 clean
 reset: counted anew                  10  10 unknown
 registrations and pings             300   2 unclear
   the one waiting then lost         301   3 unclear
+0 of 0   better than 15 of 47 no  (top 1.000, bottom 0.204)
+0 of 8   better than 15 of 47 no  (top 0.324, bottom 0.204)
+0 of 16  better than 15 of 47 yes (top 0.194, bottom 0.204)
+0 of 30  better than 15 of 47 yes (top 0.114, bottom 0.204)
+3 of 30  better than 15 of 47 no  (top 0.256, bottom 0.204)
+10 of 30 better than 15 of 47 no  (top 0.512, bottom 0.204)
+0 of 0   better than 3 of 30  no  (top 1.000, bottom 0.035)
+0 of 8   better than 3 of 30  no  (top 0.324, bottom 0.035)
+0 of 16  better than 3 of 30  no  (top 0.194, bottom 0.035)
+0 of 30  better than 3 of 30  no  (top 0.114, bottom 0.035)
+3 of 30  better than 3 of 30  no  (top 0.256, bottom 0.035)
+10 of 30 better than 3 of 30  no  (top 0.512, bottom 0.035)
