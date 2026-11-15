@@ -8,12 +8,13 @@
  * once registered, with a white dot while all traffic goes through an exit
  * peer, an amber ring when it runs but does not answer -, and its menu
  * connects and disconnects (starts and stops the service), routes all
- * traffic through one of the peers or none, opens the web page and the
- * log, installs the service, gets Wintun - wintun.dll from wintun.net, for
- * an adapter without a TAP driver to install, see n3n-wintun.c -, imports
- * a configuration - from a file, or from a QR code that Windows' Camera
- * app reads and copies (one sealed with a PIN too, see qr_seal.h) - or
- * opens it in Notepad, and starts the tray with Windows.
+ * traffic through one of the peers or none - or a peer by its address, in a
+ * box of its own, kept for the next start if asked -, opens the web page
+ * and the log, installs the service, gets Wintun - wintun.dll from
+ * wintun.net, for an adapter without a TAP driver to install, see
+ * n3n-wintun.c -, imports a configuration - from a file, or from a QR code
+ * that Windows' Camera app reads and copies (one sealed with a PIN too, see
+ * qr_seal.h) - or opens it in Notepad, and starts the tray with Windows.
  *
  * It runs as the user, not as an administrator: a client of the management
  * API (mgmt_client.h) on the edge's port, with the port and password that
@@ -21,8 +22,9 @@
  * service manager, where that install lets this user start and stop the
  * service (see n3n-service.c).  What needs an administrator - installing,
  * getting Wintun, the log, the configuration ("service import", "service
- * edit") - asks Windows to elevate: the configuration holds the community's
- * key, and who is no administrator can neither read it nor change it.
+ * edit", "service exit") - asks Windows to elevate: the configuration holds
+ * the community's key, and who is no administrator can neither read it nor
+ * change it.
  */
 
 #ifndef _WIN32_WINNT
@@ -74,6 +76,7 @@ enum {
     CMD_HELP_LOCAL,
     CMD_HELP_ONLINE,
     CMD_AUTOSTART,
+    CMD_EXIT_OTHER,
     CMD_QUIT,
     CMD_EXIT_PEER,              // and the peers after it
 };
@@ -91,6 +94,7 @@ enum phase {
 
 struct peer {
     char addr[16];
+    wchar_t name[N3N_NAME_SIZE + 1];
     wchar_t label[160];
     bool exit;                  // it announced itself as an exit to the internet
     bool confirmed;             // and the edge's check through it went through
@@ -281,6 +285,7 @@ static void peers (struct snapshot *s, int port, const char *password) {
         p->exit = mc_json_num(exit, 0) > 0;
         p->confirmed = p->exit && check && !strcmp(check, "ok");
         widen(desc ? desc : "", wdesc, N3N_NAME_SIZE + 1);
+        wcscpy(p->name, wdesc);
         if(wdesc[0]) {
             swprintf(label, 160, L"%ls (%hs)", wdesc, p->addr);
         } else {
@@ -1340,6 +1345,252 @@ static void show_note (const wchar_t *msg) {
 }
 
 
+// ---- an exit peer by its address
+
+// An IPv4 address as typed: four numbers of 0 to 255, with dots between
+static bool ipv4_text (const char *s) {
+
+    unsigned a, b, c, d;
+    char rest;
+
+    return *s && (strspn(s, "0123456789.") == strlen(s))
+           && (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &rest) == 4)
+           && (a < 256) && (b < 256) && (c < 256) && (d < 256);
+}
+
+
+static uint32_t ipv4_of (const char *s) {
+
+    unsigned a = 0, b = 0, c = 0, d = 0;
+
+    sscanf(s, "%u.%u.%u.%u", &a, &b, &c, &d);
+    return ((uint32_t)a << 24) | ((uint32_t)b << 16) | ((uint32_t)c << 8) | d;
+}
+
+
+// Whether addr is in the community's network, as the edge's own address
+// with its prefix (get_info's ip4addr) tells; true where that is not known
+static bool in_community (const char *own, const char *addr) {
+
+    char host[24];
+    const char *slash = strchr(own, '/');
+    unsigned bits = slash ? (unsigned)atoi(slash + 1) : 24;
+
+    snprintf(host, sizeof(host), "%.*s", (int)strcspn(own, "/"), own);
+    if(!ipv4_text(host) || (bits > 32)) {
+        return true;
+    }
+    uint32_t mask = bits ? 0xffffffffu << (32 - bits) : 0;
+    return (ipv4_of(host) & mask) == (ipv4_of(addr) & mask);
+}
+
+
+#define EXIT_COMBO 101
+#define EXIT_KEEP  102
+
+struct exit_choice {
+    const struct snapshot *s;
+    char addr[16];              // "" for none
+    bool keep;
+};
+
+static INT_PTR CALLBACK exit_proc (HWND d, UINT msg, WPARAM wp, LPARAM lp) {
+
+    struct exit_choice *c = (struct exit_choice *)GetWindowLongPtrW(d, DWLP_USER);
+    wchar_t item[200];
+    char text[200], own[24], *t;
+
+    switch(msg) {
+        case WM_INITDIALOG:
+            c = (struct exit_choice *)lp;
+            SetWindowLongPtrW(d, DWLP_USER, lp);
+            // the peers the edge knows, exits first: chosen, the address
+            // leads, which is what counts
+            for(int i = 0; i < c->s->npeers; i++) {
+                const struct peer *p = &c->s->peers[i];
+
+                swprintf(item, 200, L"%hs   %ls%ls", p->addr, p->name,
+                         !p->exit ? L"" : p->confirmed ? L" - exit, checked" : L" - exit");
+                SendDlgItemMessageW(d, EXIT_COMBO, CB_ADDSTRING, 0, (LPARAM)item);
+            }
+            SetDlgItemTextA(d, EXIT_COMBO, c->s->gateway);
+            SetForegroundWindow(d);
+            SetFocus(GetDlgItem(d, EXIT_COMBO));
+            return FALSE;
+        case WM_COMMAND:
+            if(LOWORD(wp) == IDCANCEL) {
+                EndDialog(d, IDCANCEL);
+                return TRUE;
+            }
+            if(LOWORD(wp) != IDOK) {
+                break;
+            }
+            GetDlgItemTextA(d, EXIT_COMBO, text, sizeof(text));
+            t = text + strspn(text, " \t");
+            t[strcspn(t, " \t")] = '\0';
+            snprintf(own, sizeof(own), "%.*s", (int)strcspn(c->s->ip4addr, "/"), c->s->ip4addr);
+            if(*t && !ipv4_text(t)) {
+                MessageBoxW(d, L"That is no IPv4 address: four numbers of 0 to 255, with dots between them, "
+                            L"as 10.99.0.5 - or nothing, for no exit peer.", L"n3n-be", MB_OK | MB_ICONWARNING);
+                SetFocus(GetDlgItem(d, EXIT_COMBO));
+                return TRUE;
+            }
+            if(*t && !strcmp(t, own)) {
+                MessageBoxW(d, L"That is this edge's own address.", L"n3n-be", MB_OK | MB_ICONWARNING);
+                SetFocus(GetDlgItem(d, EXIT_COMBO));
+                return TRUE;
+            }
+            if(*t && !in_community(c->s->ip4addr, t)) {
+                swprintf(item, 200, L"%hs is not in the community's network (%hs).  Take it all the same?",
+                         t, c->s->ip4addr);
+                if(MessageBoxW(d, item, L"n3n-be", MB_YESNO | MB_DEFBUTTON2 | MB_ICONQUESTION) != IDYES) {
+                    SetFocus(GetDlgItem(d, EXIT_COMBO));
+                    return TRUE;
+                }
+            }
+            snprintf(c->addr, sizeof(c->addr), "%s", t);
+            c->keep = IsDlgButtonChecked(d, EXIT_KEEP) == BST_CHECKED;
+            EndDialog(d, IDOK);
+            return TRUE;
+    }
+    return FALSE;
+}
+
+
+// Keeping it in the configuration: "service exit" under way, its output in
+// out, for a box if it is not kept
+struct keep {
+    HANDLE process;
+    char addr[16];
+    wchar_t out[MAX_PATH];
+};
+
+static DWORD WINAPI after_keep (LPVOID arg) {
+
+    struct keep *k = arg;
+    DWORD code = 1;
+    wchar_t *said, *text;
+
+    WaitForSingleObject(k->process, INFINITE);
+    GetExitCodeProcess(k->process, &code);
+    CloseHandle(k->process);
+    said = read_text(k->out);
+    DeleteFileW(k->out);
+    if(code) {
+        const wchar_t *head = L"It is not kept for the next start.\n\n";
+
+        text = malloc((wcslen(head) + (said ? wcslen(said) : 0) + 1) * sizeof(wchar_t));
+        if(text) {
+            wcscpy(text, head);
+            wcscat(text, said ? said : L"");
+            MessageBoxW(NULL, text, L"n3n-be", MB_OK | MB_ICONWARNING | MB_SETFOREGROUND);
+            free(text);
+        }
+    } else if(k->addr[0]) {
+        note(L"%hs is the exit peer also after a restart", k->addr);
+    } else {
+        note(L"no exit peer also after a restart");
+    }
+    free(said);
+    free(k);
+    return 0;
+}
+
+// "n3n-be.exe edge service exit ADDRESS|none SESSION", elevated and hidden
+static void keep_exit (const char *addr) {
+
+    wchar_t exe[MAX_PATH], tmp[MAX_PATH], cmd[3 * MAX_PATH + 120];
+    struct keep *k = calloc(1, sizeof(*k));
+    HANDLE t;
+
+    if(!k) {
+        return;
+    }
+    if(!program(exe, MAX_PATH)) {
+        note(L"n3n-be.exe is not next to n3n-be-tray.exe");
+        free(k);
+        return;
+    }
+    snprintf(k->addr, sizeof(k->addr), "%s", addr);
+    GetTempPathW(MAX_PATH - 40, tmp);
+    swprintf(k->out, MAX_PATH, L"%lsn3n-be-exit-%lu.txt", tmp, (unsigned long)GetCurrentProcessId());
+    // cmd takes off the outer quotes
+    swprintf(cmd, 3 * MAX_PATH + 120, L"/c \"\"%ls\" edge service exit %hs %hs > \"%ls\" 2>&1\"",
+             exe, addr[0] ? addr : "none", session, k->out);
+    run_elevated(L"cmd.exe", cmd, SW_HIDE, &k->process);
+    if(!k->process) {
+        // not allowed
+        free(k);
+        return;
+    }
+    if((t = CreateThread(NULL, 0, after_keep, k, 0, NULL))) {
+        CloseHandle(t);
+    } else {
+        CloseHandle(k->process);
+        free(k);
+    }
+}
+
+// "Other address...": a box with the address to type - or one of the peers
+// the edge knows to choose, as the Android app has them below its field -,
+// and whether to keep it for the next start.  An exit peer the edge has
+// not met yet is not among them: it learns that a peer is an exit from its
+// announcement, when they first talk (announce.h).
+static void exit_other (const struct snapshot *s) {
+
+    static WORD buf[1024];
+    struct exit_choice c = { .s = s };
+    DLGTEMPLATE *t;
+    WORD *p;
+
+    memset(buf, 0, sizeof(buf));
+    t = (DLGTEMPLATE *)(((ULONG_PTR)buf + 3) & ~(ULONG_PTR)3);
+    t->style = DS_MODALFRAME | DS_CENTER | DS_SETFONT | WS_POPUP | WS_CAPTION | WS_SYSMENU;
+    t->cdit = 5;
+    t->cx = 240;
+    t->cy = 96;
+    p = (WORD *)(t + 1);
+    *p++ = 0;                   // no menu
+    *p++ = 0;                   // the dialog class
+    wcscpy((wchar_t *)p, L"n3n-be: the exit peer");
+    p += wcslen((wchar_t *)p) + 1;
+    *p++ = 9;
+    wcscpy((wchar_t *)p, L"Segoe UI");
+    p += wcslen((wchar_t *)p) + 1;
+    p = control(p, SS_LEFT, 8, 8, 224, 26, 0xFFFF, 0x0082,
+                L"All traffic through the peer at this address in the community: type it, or choose "
+                L"one the edge knows.  Nothing: directly, without an exit peer.");
+    // a combo box: the field, and the list below it when opened
+    p = control(p, CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP, 8, 38, 224, 120, EXIT_COMBO, 0x0085,
+                L"");
+    p = control(p, BS_AUTOCHECKBOX | WS_TABSTOP, 8, 56, 224, 12, EXIT_KEEP, 0x0080,
+                L"&Keep it after a restart (as an administrator)");
+    p = control(p, BS_DEFPUSHBUTTON | WS_TABSTOP, 128, 76, 50, 14, IDOK, 0x0080, L"OK");
+    control(p, BS_PUSHBUTTON | WS_TABSTOP, 182, 76, 50, 14, IDCANCEL, 0x0080, L"Cancel");
+    if(DialogBoxIndirectParamW(GetModuleHandleW(NULL), t, NULL, exit_proc, (LPARAM)&c) != IDOK) {
+        return;
+    }
+
+    // the edge running now, at once - as a peer chosen in the menu
+    char *addr = _strdup(c.addr);
+    HANDLE th;
+
+    if(addr && !InterlockedExchange(&acting, 1)) {
+        if((th = CreateThread(NULL, 0, set_gateway, addr, 0, NULL))) {
+            CloseHandle(th);
+            addr = NULL;
+        } else {
+            InterlockedExchange(&acting, 0);
+        }
+    }
+    free(addr);
+    // and the next start
+    if(c.keep) {
+        keep_exit(c.addr);
+    }
+}
+
+
 // ---- the menu
 
 static void menu (int x, int y) {
@@ -1388,6 +1639,9 @@ static void menu (int x, int y) {
     if(!s->npeers && !s->gateway[0]) {
         AppendMenuW(exits, MF_STRING | MF_GRAYED, 0, L"no peers yet");
     }
+    // one not seen yet, by its address
+    AppendMenuW(exits, MF_SEPARATOR, 0, NULL);
+    AppendMenuW(exits, MF_STRING | busy, CMD_EXIT_OTHER, L"&Other address...");
     AppendMenuW(m, MF_POPUP | (s->answers ? 0 : MF_GRAYED), (UINT_PTR)exits, L"&Route all traffic through");
     AppendMenuW(m, MF_STRING | (s->answers ? 0 : MF_GRAYED), CMD_PAGE, L"Open the &web page");
     if(s->installed) {
@@ -1434,6 +1688,9 @@ static void menu (int x, int y) {
         case CMD_CONNECT:
         case CMD_DISCONNECT:
             start_stop(cmd == CMD_CONNECT);
+            break;
+        case CMD_EXIT_OTHER:
+            exit_other(s);
             break;
         case CMD_PAGE:
             open_page();

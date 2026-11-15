@@ -252,7 +252,17 @@ in, not as an administrator, as a client of the service's management port.
   Peers](../advanced/Announcements.md#checking-an-exit-yourself)).  One
   of them sends all traffic through it, "None: directly" ends that
   (`set_gateway`, with the password below).  It takes `tuntap.dns` as it
-  is.
+  is.  That lasts while the edge runs.
+- An exit the edge has not met yet is not among them: it learns that a
+  peer is an exit from its announcement, which goes when they first talk,
+  through whichever supernode - so it may take a while.  "Other
+  address..." at the end of the list takes the exit peer's address in a
+  box of its own: typed, or chosen from the peers the edge knows (the
+  address leads each line).  Nothing there is "directly".  With "Keep it
+  after a restart" checked, it also goes into the configuration
+  (`tuntap.route_all` and `tuntap.gateway`, or `route_all = false` for
+  none), as administrator - `n3n-be edge service exit ADDRESS|none`,
+  which checks it as an import does and does not start the service anew.
 - "Open the web page", "Show the log" (in an administrator's Notepad, as
   the log is for administrators only), and "Start with Windows" (the
   tray, at login: `HKCU\...\Run`).
