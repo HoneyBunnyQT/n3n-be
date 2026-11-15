@@ -2155,6 +2155,8 @@ class Run:
         trickle = [self.sender(s, d, FLOW_HOLD, 0, 20)
                    for s, d in self.sc.directions()]
         counts, ways, page = None, {}, b""
+        a_log = self.edges["a"]["daemon"].proc.log_path
+        log_from = os.path.getsize(a_log)
         # what a says of its ways as they change (the event "way")
         try:
             events = Events(self.edges["a"]["daemon"].mgmt, "way")
@@ -2201,8 +2203,28 @@ class Run:
         if counts is not None:
             self.check_lossy_counts(before, counts, ways)
             self.check_lossy_shown(ways, page, events)
+            self.check_lossy_back(ways, a_log, log_from)
         if events:
             events.close()
+
+    def check_lossy_back(self, ways, log, log_from):
+        """Where a took its way to b for lossy within the hour, b's frames
+        went the direct way again only after two rounds of probes in a row
+        that lost little, not one (probe_round_end())"""
+        way = ways.get(("peer", self.edges["b"]["mac"]), {})
+        if way.get("class") != "lossy":
+            return
+        mac = self.edges["b"]["mac"].lower()
+        with open(log, errors="replace") as f:
+            f.seek(log_from)
+            lines = [line.strip() for line in f if mac in line.lower()]
+        more = [line for line in lines if "one round more" in line]
+        back = [line for line in lines if "direct again" in line]
+        ok = bool(more) and bool(back) and "second round in a row" in back[0]
+        self.result["lossy_back_log"] = more[:1] + back[:1]
+        self.check("lossy: back after two rounds", ok,
+                   back[0].split("] ", 1)[-1] if back else
+                   "no \"direct again\" in a's log")
 
     def check_lossy_shown(self, ways, page, events):
         """Where a took its way to b for lossy: the page says so on a line

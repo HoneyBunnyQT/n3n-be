@@ -996,6 +996,7 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
                     scan_tmp->probes_answered = 0;
                     scan_tmp->loss = 0;
                     SHARED_STORE(scan_tmp->lossy, 0);
+                    scan_tmp->clean_rounds = 0;
                     n3n_loss_reset(&scan_tmp->reg_loss);
                 }
                 scan_tmp->sock = scan->sock;
@@ -1717,7 +1718,10 @@ size_t encode_register_pkt (struct n3n_runtime_data * eee,
 
 // The end of a round of probes of the direct path to a peer: its loss, and
 // whether its frames go through the supernode, see role_client.h.  An ACK
-// late for its round counts in the next one.
+// late for its round counts in the next one.  Back the direct way after a
+// round that lost little - after two in a row where the long-term counts
+// take the path for lossy (loss_count.h): a line that loses within the
+// hour may well have a good round now and then.
 static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *peer) {
 
     macstr_t mac_buf;
@@ -1731,12 +1735,31 @@ static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *pee
 
     if(!peer->lossy && max && (peer->loss >= max)) {
         SHARED_STORE(peer->lossy, 1);
+        peer->clean_rounds = 0;
         traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path, through the supernode",
                    macaddr_str(mac_buf, peer->mac_addr), peer->loss);
     } else if(peer->lossy && (!max || (peer->loss <= max / 4))) {
+        struct n3n_loss_eval e;
+        unsigned want = 1;
+
+        if(max) {
+            edge_loss_eval_peer(peer, &e);
+            want = (e.class == N3N_LOSS_LOSSY) ? 2 : 1;
+        }
+        if(++peer->clean_rounds < want) {
+            traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path, but it is lossy within the hour "
+                       "(%.0f %%): one round more through the supernode", macaddr_str(mac_buf, peer->mac_addr),
+                       peer->loss, 100 * e.ratio);
+            return;
+        }
         SHARED_STORE(peer->lossy, 0);
-        traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path, direct again",
-                   macaddr_str(mac_buf, peer->mac_addr), peer->loss);
+        peer->clean_rounds = 0;
+        traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path%s, direct again",
+                   macaddr_str(mac_buf, peer->mac_addr), peer->loss,
+                   (want > 1) ? ", the second round in a row" : "");
+    } else if(peer->lossy) {
+        // not little enough: the rounds in a row start anew
+        peer->clean_rounds = 0;
     }
 }
 

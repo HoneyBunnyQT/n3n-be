@@ -273,7 +273,11 @@ percent or more lost (20 by default, see below), the peer's frames go through th
 supernode - as long as one answers - while the edge keeps asking the peer
 directly, and back the direct way once a round loses at most a quarter as
 many (5 percent by default): as an edge on TCP goes back to UDP once UDP
-gets through.  Such a peer shows as `pSp` in `get_edges`.  A switch takes a
+gets through.  Where the edge's long-term counts take the path for lossy
+within the hour (see [Metrics](Metrics.md#what-the-counts-say)), it takes
+two such rounds in a row: a line that loses now and then may well have a
+good round, and a switch back and forth costs more than one round through
+the supernode.  Such a peer shows as `pSp` in `get_edges`.  A switch takes a
 round or two, 10 to 20 seconds; `connection.p2p_max_loss = 0` keeps a
 direct path however bad it gets.
 
