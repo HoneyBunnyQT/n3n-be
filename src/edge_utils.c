@@ -1952,9 +1952,17 @@ static void sort_supernodes (struct n3n_runtime_data *eee, time_t now) {
     }
 
     HASH_ITER(hh, eee->supernodes, scan, tmp) {
-        if(scan == eee->curr_sn)
-            scan->selection_criterion = sn_selection_criterion_good();
-        else
+        if(scan == eee->curr_sn) {
+            // it keeps what its last PONG said: with "good" for it, any
+            // other supernode that answers goes before it when its own PONG
+            // is lost, and one PONG lost on the way had the edge register
+            // elsewhere at the next sort - and back after the one after.
+            // A supernode that does not answer at all is left as its
+            // registrations go unanswered (sup_attempts).  "good" only
+            // before it answered a PING.
+            if(scan->selection_criterion >= sn_selection_criterion_good())
+                scan->selection_criterion = sn_selection_criterion_good();
+        } else
             scan->selection_criterion = sn_selection_criterion_default();
     }
     sn_selection_criterion_common_data_default(eee);
