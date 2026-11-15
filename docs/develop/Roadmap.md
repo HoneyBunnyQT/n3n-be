@@ -559,6 +559,22 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       before either (pending peers; the port cookie; the pool's sockets),
       now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
       easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
+- [x] What the loss counts say, shown smaller and told (2026-11-15, the
+      first of the steps on the evaluation): the page's `line` a dot -
+      green clean, a ring unclear, amber with the share lost lossy,
+      nothing for too few round trips (characters, for a text browser
+      too) -, the numbers in its title; where a way is lossy, a line of
+      its own among the edge's (`Line`: the first of them, how many
+      more).  The management event `way` on each change of a way's class
+      (`from`, `to`, the numbers), for scripts, as the log has a line only
+      for lossy and clean again.  netns `lossy-direct(-threads)`: the
+      loss kept up until a has 30 round trips to b, enough to tell -
+      a's way to b lossy every time now, the page's line (b by its
+      address: the first version had it in host order, 2.0.99.10) and
+      the event within 35 s.  Next, as proposed: a lossy supernode
+      behind the others when choosing one; a second clean round before a
+      lossy path goes direct again; later, maybe, the own line's loss
+      for FEC.  n3n-be's own, not for `fixes`
 - [x] The tray app: an exit peer by its address (2026-11-15): an exit
       the Windows edge has not met yet is not in "Route all traffic
       through" - it learns that a peer is an exit from its announcement,
