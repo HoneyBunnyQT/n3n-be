@@ -509,6 +509,38 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       the supernode's own count of each edge's registrations.  And: the
       probe rounds of `p2p_max_loss` still count every REGISTER to a known
       peer, the ones to a quiet peer too
+- [x] What the loss counts say (2026-11-15, step 2 of measuring loss,
+      an evaluation that does not act): every 5 minutes a snapshot of
+      each count; each way - the direct path to a peer, the way to a
+      supernode, its registrations and pings together - judged by the
+      last hour of them (`n3n_loss_eval()`): round trips, lost, the share
+      with its 95 % interval (Wilson, no libm), and a class: `unknown`
+      under 30 round trips, `lossy` where the lower bound is 2 % or more,
+      `clean` where the upper one is below, `unclear` else - so an ACK
+      lost now and then is no lossy line.  The round trip of the answers
+      that can only be to one request (none other waiting), smoothed and
+      the shortest.  In `get_edges` and `get_supernodes` (`way`), the
+      metrics (`n3n_edge_peer_way_*`, `n3n_edge_supernode_way_*`,
+      `n3n_edge_peer_rtt_seconds`), the page (column `line`, the numbers
+      in its tooltip) and the log (a way becoming lossy, and clean again
+      after).  netns: `loss_counts` also asks that no way is lossy on the
+      clean lines; `lossy-direct` that the way to b is (`lossy: way`,
+      lossy with 30 round trips or more, 10 of 39 at 15-41 %), the
+      supernodes' not.  On the way, two bugs: the counts of step 1 let
+      the requests waiting for an answer run out only after 3 s without
+      a request, which with probes twice a second was never - lost ones
+      waited on, took the answers of later ones, and the round trip of
+      "one waiting" was of other requests (2 us seen); now each request
+      waits within its own 3 s (the times of up to 8 kept), an answer
+      goes to the latest.  And a GSO run the firewall refused (EPERM) went
+      again datagram by datagram, each with another chance: in
+      `lossy-direct` a's REGISTERs, joined with frames, were lost some
+      3 % of the time instead of 30 (26-39 % of round trips lost instead
+      of 51); now only EINVAL and EIO send a run's datagrams one by one,
+      as its comment said, else it is lost as one.  Next: the first
+      actions to take on it (which supernode, FEC's gate), and the probe
+      rounds of `p2p_max_loss` still counting the REGISTERs to a quiet
+      peer.  n3n-be's own, not for `fixes`
 - [x] An edge had a new peer pending twice (2026-11-14, found by the
       metrics' check): `register_with_new_peer()` asked the peer for its
       announcement before it added it, and that frame, to a peer not
