@@ -559,6 +559,21 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       before either (pending peers; the port cookie; the pool's sockets),
       now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
       easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
+- [x] The tray app: an exit peer by its address (2026-11-15): an exit
+      the Windows edge has not met yet is not in "Route all traffic
+      through" - it learns that a peer is an exit from its announcement,
+      which goes when they first talk, so it may take a while (and more
+      announcements would cost every edge).  "Other address..." takes it
+      in a box of its own, as the Android app's field: an editable combo
+      box, typed or chosen from the peers the edge knows, checked (IPv4,
+      not its own, a question where outside the community's network), set
+      at once with `set_gateway`; "Keep it after a restart" also runs
+      `n3n-be edge service exit ADDRESS|none` as administrator, which sets
+      `[tuntap] route_all` and `gateway` in the configuration in place of
+      their lines before, checks it as an import does, and does not start
+      the service anew.  Tried with Wine (the subcommand on a
+      configuration, the box under Xvfb), not on a Windows itself.
+      n3n-be's own, not for `fixes`
 - [x] An edge had a new peer pending twice (2026-11-14, found by the
       metrics' check): `register_with_new_peer()` asked the peer for its
       announcement before it added it, and that frame, to a peer not
