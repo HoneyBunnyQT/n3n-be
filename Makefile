@@ -159,6 +159,7 @@ OBJS=\
 	src/json.o \
 	src/local_link.o \
 	src/logging.o \
+	src/loss_count.o \
 	src/mainloop.o \
 	src/management.o \
 	src/management_page.o \

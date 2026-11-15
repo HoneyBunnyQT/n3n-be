@@ -116,9 +116,11 @@ An edge counts what gets lost on traffic that goes anyway, without
 sending anything for it: the REGISTERs to a peer and their ACKs, the
 REGISTER_SUPERs to its supernode and their ACKs, the PINGs to the
 supernodes and their PONGs (`src/loss_count.h`).  A pair - one there, one
-back - is lost when no answer comes within 3 s, so what is counted is the
-loss of both ways together.  Which request an answer belongs to cannot be
-told; over many it does not matter, as each gets one answer at most.
+back - is lost when no answer comes within 3 s of the request, so what is
+counted is the loss of both ways together.  Which request an answer
+belongs to cannot be told; it is credited to the latest one still
+waiting, and over many it does not matter, as each gets one answer at
+most.
 
 Only what is the line's counts:
 

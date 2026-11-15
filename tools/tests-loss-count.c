@@ -6,12 +6,14 @@
  *
  *   - a request answered within the window counts as answered
  *   - one answered late, or not at all, counts as lost
- *   - requests close together each count; answers are credited while
- *     some are unanswered, one each at most, so a lost one stays lost
+ *   - requests close together each count; answers are credited to the
+ *     latest one waiting, one each at most, so a lost one stays lost
  *     however many answers its neighbours get
  *   - an answer to nothing counted, or after the window, counts for nothing
+ *   - requests going on without a pause: each one's window is its own
  *   - nothing counts while the network settles after a change
  *   - a reset counts anew
+ *   - the round trip of an answer that can only be to one request
  */
 
 #include <stdio.h>            // for printf
@@ -81,6 +83,31 @@ int main (void) {
     }
     show("2 a second, every third lost", &f);
 
+    // as a lossy direct path: two a second all along, every other one
+    // lost - those waiting are only the ones of the last 3 s, the others
+    // lost; no round trip, as another one always waits
+    struct n3n_loss_count g = {0};
+    for(int i = 0; i < 100; i++) {
+        uint64_t t = 2000 * S + (uint64_t)i * S / 2;
+        n3n_loss_sent(&g, t);
+        if(i % 2) {
+            n3n_loss_answer(&g, t + 30000);
+        }
+    }
+    printf("%-48s sent %u answered %u waiting %u\n", "2 a second without a pause, every other lost",
+           g.sent, g.answered, g.waiting);
+    printf("%-48s %u us\n", "  round trip", g.rtt_min_us);
+
+    // more at once than are kept: the oldest lost
+    struct n3n_loss_count m = {0};
+    for(int i = 0; i < N3N_LOSS_WAITING + 2; i++) {
+        n3n_loss_sent(&m, 3000 * S + (uint64_t)i * 1000);
+    }
+    for(int i = 0; i < N3N_LOSS_WAITING + 2; i++) {
+        n3n_loss_answer(&m, 3000 * S + S / 10 + (uint64_t)i * 1000);
+    }
+    show("10 at once, 10 answers", &m);
+
     printf("%-48s %s\n", "settled 5 s after a change",
            n3n_loss_settled(100 * S, 105 * S) ? "yes" : "no");
     printf("%-48s %s\n", "settled 10 s after a change",
@@ -90,5 +117,18 @@ int main (void) {
 
     n3n_loss_reset(&d);
     show("reset", &d);
+
+    // round trips: of answers to one waiting request only
+    struct n3n_loss_count r = {0};
+    n3n_loss_sent(&r, 10 * S);
+    n3n_loss_answer(&r, 10 * S + 80000);
+    n3n_loss_sent(&r, 11 * S);
+    n3n_loss_answer(&r, 11 * S + 40000);
+    n3n_loss_sent(&r, 12 * S);
+    n3n_loss_sent(&r, 12 * S + 10000);
+    n3n_loss_answer(&r, 12 * S + 500000);
+    printf("%-48s %u us, shortest %u us\n", "round trip 80 ms, 40 ms, one unclear",
+           r.rtt_us, r.rtt_min_us);
+
     return 0;
 }

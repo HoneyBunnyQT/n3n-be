@@ -7,15 +7,15 @@
  * REGISTER_SUPER to the supernode and its ACK, a PING to a supernode and
  * its PONG.  Only counted; what to make of it is for others to decide.
  *
- * Every request that is to count is counted, and an answer is credited
- * while counted ones are still unanswered and the last of them went within
- * N3N_LOSS_WINDOW_US.  Which request an answer is to cannot be told (the
- * REGISTERs to a peer go twice a second while frames go, with the same
- * cookie), and need not: each gets one answer at most, so over many the
- * share answered is the share that came back, of a packet there and one
- * back - loss is 1 - answered / sent, of both ways together.  Those
- * unanswered when the window runs out are lost, an answer after that
- * counts for nothing.
+ * Every request that is to count is counted, and its time kept while it
+ * waits for an answer, N3N_LOSS_WINDOW_US at most.  Which request an answer
+ * is to cannot be told (the REGISTERs to a peer go twice a second while
+ * frames go, with the same cookie), and need not: an answer is credited to
+ * the latest one still waiting, each gets one answer at most, so over many
+ * the share answered is the share that came back, of a packet there and
+ * one back - loss is 1 - answered / sent, of both ways together.  Those
+ * still unanswered when their window runs out are lost, an answer with
+ * none waiting counts for nothing.
  *
  * The callers count only where a loss is the line's: on a path that is
  * warm - the peer heard from directly within half its timeout, the
@@ -27,7 +27,7 @@
 #define N3N_LOSS_COUNT_H
 
 #include <stdbool.h>    // for bool
-#include <stdint.h>     // for uint32_t, uint64_t
+#include <stdint.h>     // for uint32_t, uint64_t, UINT32_MAX
 #include <string.h>     // for memset
 
 // how long an answer may take: a supernode holds the answer to a
@@ -38,33 +38,27 @@
 // NATs and routes in between may still be settling
 #define N3N_LOSS_SETTLE_US      (10 * 1000000ULL)
 
+// how many requests may wait for an answer at once: more than go within
+// the window (two a second to a peer); beyond, the oldest counts as lost
+#define N3N_LOSS_WAITING        8
+
 struct n3n_loss_count {
     uint32_t sent;              // requests counted
     uint32_t answered;          // answers credited to them
-    uint32_t pending;           // counted ones not answered yet
-    uint64_t last_us;           // when the last counted one went, 0: none
+    // when the ones waiting for an answer went, the oldest first
+    uint64_t waiting_us[N3N_LOSS_WAITING];
+    uint8_t waiting;
+    // the round trip of answers that could only be to one request (no
+    // other one waiting): smoothed (1/8) and the shortest, 0 for none yet
+    uint32_t rtt_us;
+    uint32_t rtt_min_us;
 };
 
 // A request that is to count went at now_us
-static inline void n3n_loss_sent (struct n3n_loss_count *c, uint64_t now_us) {
-
-    // those still unanswered from before the window are lost
-    if(c->last_us && (now_us - c->last_us >= N3N_LOSS_WINDOW_US)) {
-        c->pending = 0;
-    }
-    c->last_us = now_us ? now_us : 1;
-    c->sent++;
-    c->pending++;
-}
+void n3n_loss_sent (struct n3n_loss_count *c, uint64_t now_us);
 
 // An answer came at now_us
-static inline void n3n_loss_answer (struct n3n_loss_count *c, uint64_t now_us) {
-
-    if(c->pending && (now_us - c->last_us < N3N_LOSS_WINDOW_US)) {
-        c->answered++;
-        c->pending--;
-    }
-}
+void n3n_loss_answer (struct n3n_loss_count *c, uint64_t now_us);
 
 // Another path (the peer moved): counted anew
 static inline void n3n_loss_reset (struct n3n_loss_count *c) {
