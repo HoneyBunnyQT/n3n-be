@@ -2228,11 +2228,11 @@ class Run:
                           r.get("macaddr", "").lower() == mac and
                           r.get("to") == "lossy", 35)
         self.result["lossy_event"] = got
-        self.check("lossy: event", got is not None,
-                   "{} -> lossy, {} of {}".format(got.get("from"),
-                                                   got.get("lost"),
-                                                   got.get("samples"))
-                   if got else "none for b within 35s")
+        said = "none for b within 35s"
+        if got:
+            said = "{} -> lossy, {} of {}".format(
+                got.get("from"), got.get("lost"), got.get("samples"))
+        self.check("lossy: event", got is not None, said)
 
     def check_lossy_counts(self, before, after, ways):
         """What a counted while its direct path to b lost sc.lossy percent
