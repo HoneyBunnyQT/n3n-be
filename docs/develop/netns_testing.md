@@ -50,7 +50,8 @@ run at once (`-j`, 4 by default): the quick ones take about half a minute,
 all of them a few minutes (the outage ones run 90 seconds without
 supernodes).  The scenarios tagged `limits` show what n3n cannot do (yet):
 they fail, and a run without names leaves them out (`run.py @limits` runs
-them).
+them).  So it does with those tagged `slow`, which take many minutes - the
+long-term counts of loss need their samples (`run.py @slow`).
 
 The daemons run in their own sandbox (`daemon.sandbox`, Landlock), as
 they would anywhere, so that the scenarios show what it lets through.
@@ -379,6 +380,7 @@ ports from all of it.
 | reload | easy-kept / easy-changed; a's configuration loses the supernode a is at and gets another description and a filter rule, then SIGHUP | a applies all three while it runs, and nothing else changes, moves to the other supernode, and b sees its new description at once; direct |
 | sn-tap-reload | easy-kept / the TAP device of sn2; sn2's configuration gets another description and a filter rule for its edge, then SIGHUP (`reload` naming the site) | relayed; sn2's edge takes both, a sees its new description at once |
 | sn-pong-lost | easy-kept / easy-changed; once a's supernode is measured by a regular round of PINGs, its PONGs to a are lost for 75s (a firewall rule on the packet type), its registrations not | a stays at that supernode: one PONG lost had it register at the other one at the next sort |
+| sn-lossy | easy-kept / easy-changed, registering every 40s; once a's supernode is measured, its PONGs to a are lost, its registrations not - about half of a's round trips to it (slow, some 11 minutes) | a's way to it lossy within the hour (30 round trips), the other supernode measurably better (the top of its range below the bottom of the first one's, some 17 pings answered): a goes there ("... that one first" in its log) after some 10 minutes, and stays two sorts and more |
 | sn-outage | easy-kept / easy-changed; both supernodes killed while frames flow both ways, for 90s (longer than the registrations live) | direct throughout, the longest gap each way at most 3s |
 | sn-outage-idle | as sn-outage, the frames stopping for 40s 10s into it | direct again at once (gap at most 3s): the edges keep their idle peers while no supernode answers |
 | sn-outage-quiet | as sn-outage, the frames stopping 10s into it and a and b cut off from each other; 25s later frames again, still cut off, for 16s | each sends to the other's last address meanwhile, unanswered, and takes it for no lossy line (no "lost on the direct path" in their logs); direct again once no longer cut off (gap at most 25s) |

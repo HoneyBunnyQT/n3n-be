@@ -135,8 +135,8 @@ LOSSY = """table inet lossy {{
 
 # the answers to a's pings from a supernode lost - its PEER_INFOs, by the
 # packet type in the low 5 bits of the flags, after version and ttl -,
-# its REGISTER_SUPER_ACKs not, see pong_lost_phase()
-SN_PONGS_LOST = """table inet pong {{
+# its REGISTER_SUPER_ACKs not, see pong_lost_phase() and sn_lossy_phase()
+SN_PONGS_LOST = """table inet {table} {{
     chain input {{
         type filter hook input priority 0; policy accept;
         ip saddr {sn} udp sport {port} @th,88,8 & 0x1f == 10 drop
@@ -240,7 +240,7 @@ class Scenario:
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
                  metrics_remote=False, loss_counts=False, other_dev=None,
-                 pong_lost=False):
+                 pong_lost=False, sn_lossy=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -276,6 +276,12 @@ class Scenario:
         # is registered at are lost for a while, its registrations not: a
         # stays there, see pong_lost_phase()
         self.pong_lost = pong_lost
+        # After the warm-up, the answers to a's pings from the supernode it
+        # is registered at are lost, the other one's not: once the
+        # long-term counts take that way for lossy and the other one for
+        # measurably better, a goes there, see sn_lossy_phase() (minutes:
+        # tag it slow)
+        self.sn_lossy = sn_lossy
         # After the warm-up, the direct path between the edges loses this
         # many percent each way (at site a), and the edges stay on it: of
         # pings over it, with community.fec in conf, those lost alone are
@@ -2223,6 +2229,18 @@ class Run:
         if events:
             events.close()
 
+    def _measured_supernode(self, a):
+        """The supernode edge a is registered at, once a regular round of
+        PINGs measured it (its "selection" in get_supernodes): before,
+        after the start, it is ranked by a placeholder only, and any other
+        one that answers goes before it; "" for none within 70s"""
+        def measured():
+            for row in a.mgmt.try_call("get_supernodes") or []:
+                if row.get("current") and row.get("selection"):
+                    return row.get("sockaddr")
+            return None
+        return wait_for(measured, 70, interval=1) or ""
+
     # pong_lost_phase(): how long the PONGs are lost - over two sorts of
     # the supernodes (SWEEP_TIME, 30s)
     PONG_LOST_FOR = 75
@@ -2233,22 +2251,14 @@ class Run:
         PONG lost on the way had the edge register elsewhere at the next
         sort of the supernodes, as any other one that answered went first"""
         a = self.edges["a"]["daemon"]
-
-        # once a regular round of PINGs measured a's supernode (its
-        # "selection" in get_supernodes): before, after the start, it has
-        # nothing to keep
-        def measured():
-            for row in a.mgmt.try_call("get_supernodes") or []:
-                if row.get("current") and row.get("selection"):
-                    return row.get("sockaddr")
-            return None
-        cur = wait_for(measured, 70, interval=1) or ""
+        cur = self._measured_supernode(a)
         ip = cur.rsplit(":", 1)[0]
         if not ip or ":" in ip:
             return self.check("pong lost", False, "no IPv4 supernode of a "
                               "measured ({!r})".format(cur))
         self.lab.nft(self.edges["a"]["ns"],
-                     SN_PONGS_LOST.format(sn=ip, port=cur.rsplit(":", 1)[1]),
+                     SN_PONGS_LOST.format(table="pong", sn=ip,
+                                          port=cur.rsplit(":", 1)[1]),
                      "pong")
         seen = set()
         try:
@@ -2266,6 +2276,67 @@ class Run:
             detail = "at {} for {}s, its PONGs lost".format(
                 cur, self.PONG_LOST_FOR)
         self.check("pong lost: stays", seen == {cur}, detail)
+    # sn_lossy_phase(): how long a may take to pass its supernode over -
+    # 30 round trips to it to tell (a registration every 40s, a ping every
+    # 30 to 40s; with the registrations getting through, about half of
+    # them lost), and pings enough to the other one to tell it better
+    # (n3n_loss_better(), some 10 to 16 pings) -, some 12 to 15 minutes;
+    # and how long a is to stay at the other one then: two sorts of the
+    # supernodes (SWEEP_TIME)
+    SN_LOSSY_WAIT = 1200
+    SN_LOSSY_STAY = 65
+
+    def sn_lossy_phase(self):
+        """The answers to a's pings from its supernode are lost, its
+        registrations get through - so that the edge's own failover, after
+        three registrations unanswered, does not move it first: a lossy
+        line would set that off long before 30 round trips tell (loss_count.h).
+        About half of the round trips lost: a passes that supernode over
+        for the other one, measurably better, and stays there"""
+        a = self.edges["a"]["daemon"]
+        cur = self._measured_supernode(a)
+        ip = cur.rsplit(":", 1)[0]
+        if not ip or ":" in ip:
+            return self.check("sn lossy", False, "no IPv4 supernode of a "
+                              "measured ({!r})".format(cur))
+        with open(a.proc.log_path, errors="replace") as f:
+            f.seek(0, 2)
+            log_from = f.tell()
+        self.lab.nft(self.edges["a"]["ns"],
+                     SN_PONGS_LOST.format(table="lossy", sn=ip,
+                                          port=cur.rsplit(":", 1)[1]),
+                     "lossy")
+        said = []
+
+        def passed():
+            if not self.check_alive_quiet():
+                return "dead"
+            with open(a.proc.log_path, errors="replace") as f:
+                f.seek(log_from)
+                said[:] = [line.strip() for line in f
+                           if "that one first" in line]
+            return "ok" if said else None
+        t = time.monotonic()
+        try:
+            ok = wait_for(passed, self.SN_LOSSY_WAIT, interval=2) == "ok"
+            took = round(time.monotonic() - t)
+            moved = a.current_supernode()
+            if ok:
+                time.sleep(self.SN_LOSSY_STAY)
+            now = a.current_supernode()
+        finally:
+            run(["nft", "delete", "table", "inet", "lossy"],
+                ns=self.edges["a"]["ns"])
+        self.result["sn_lossy"] = {"from": cur, "seconds": took,
+                                   "moved": moved, "now": now,
+                                   "said": said[:1]}
+        detail = "not within {}s".format(self.SN_LOSSY_WAIT)
+        if said:
+            detail = "after {}s: {}".format(took, said[0].split("] ", 1)[-1])
+        self.check("sn lossy: passed over", ok, detail)
+        self.check("sn lossy: stays", bool(ok and now and now != cur),
+                   "at {} {}s later (from {})".format(
+                       now, self.SN_LOSSY_STAY, cur))
 
     def check_lossy_back(self, ways, log, log_from):
         """Where a took its way to b for lossy within the hour, b's frames
@@ -3330,6 +3401,8 @@ class Run:
                 self.lossy_phase()
             if self.sc.pong_lost and self.check_alive("warm-up"):
                 self.pong_lost_phase()
+            if self.sc.sn_lossy and self.check_alive("warm-up"):
+                self.sn_lossy_phase()
             if self.sc.fec_loss and self.check_alive("warm-up"):
                 self.fec_phase()
             if self.sc.load and self.check_alive("warm-up"):

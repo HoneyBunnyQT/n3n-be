@@ -229,7 +229,7 @@ SCENARIOS = [
         "direct", roam="b", roam_max_gap=5.0,
         # n3n's default: the edges' next round of registration is up to
         # 20s away, not the harness's 5s
-        conf={"connection": {"register_interval": 20}}),
+        conf={"connection": {"register_interval": 40}}),
     Scenario(
         "netwatch-other",
         "easy NATs, direct; another TAP device with an address comes up "
@@ -700,6 +700,17 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", pong_lost=True),
     Scenario(
+        "sn-lossy",
+        "edges behind easy NATs, direct, registering every 40s; then the "
+        "answers to a's pings from its supernode are lost, its "
+        "registrations not: once a's long-term counts take that way for "
+        "lossy, and the other supernode for measurably better, a goes "
+        "there and stays (some 15 minutes)",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", sn_lossy=True, tags=["slow"],
+        conf={"connection": {"register_interval": 40}}),
+    Scenario(
         "lossy-direct-threads",
         "as lossy-direct, the edges with packet threads, which ask the main "
         "thread for the probes",
@@ -1007,11 +1018,12 @@ def _versions_built(sc):
 
 def select(patterns):
     """Scenarios by name, fnmatch pattern or @tag; for none all but those
-    tagged limits, which show what n3n cannot do (yet), and fail, and the
+    tagged limits, which show what n3n cannot do (yet), and fail, those
+    tagged slow, which take minutes, and the
     interop and cross ones of versions not built (tests/netns/versions.sh)"""
     import fnmatch
     if not patterns:
-        return [s for s in SCENARIOS if "limits" not in s.tags
+        return [s for s in SCENARIOS if not s.tags & {"limits", "slow"}
                 and (not s.tags & {"interop", "cross"} or _versions_built(s))]
     out = []
     for pat in patterns:
