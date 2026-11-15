@@ -423,8 +423,15 @@ static void tx_flush (void) {
             }
             // a run that cannot go as one: EINVAL for datagrams too big
             // for the path to go unfragmented, EIO for a device that does
-            // not do the checksums.  Its datagrams go one by one.
+            // not do the checksums.  Its datagrams go one by one.  Else it
+            // is lost as one, as a datagram would be - a firewall's EPERM
+            // for it is no reason to try each of them again
             int first = tx->out_first[done], count = tx->out_count[done];
+            if((errno != EINVAL) && (errno != EIO)) {
+                send_failed((const struct sockaddr *)&tx->dest[first]);
+                done++;
+                continue;
+            }
             if((count > 1) && (errno == EIO)) {
                 gso_off(tx->sock);
             }
