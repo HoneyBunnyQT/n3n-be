@@ -24,9 +24,12 @@
  * configuration, as an administrator: a file as it is (from the tray app's
  * file dialog, or a QR code it read), and in Notepad - each loaded and
  * checked as the edge would before it is taken, the one before kept as
- * SESSION.conf.old, and the service started anew if it runs.  Who is no
- * administrator can neither read the configuration, with the community's
- * key, nor change it.
+ * SESSION.conf.old, and the service started anew if it runs.  "service
+ * exit ADDRESS|none [session]" keeps the exit peer the tray app chose in it
+ * (tuntap.route_all and tuntap.gateway), for the next start, without
+ * starting the service anew: the tray app set it in the running edge
+ * already.  Who is no administrator can neither read the configuration,
+ * with the community's key, nor change it.
  */
 
 #include <stdbool.h>
@@ -669,8 +672,9 @@ static void restart (void) {
 // session's configuration from now on, the one before as SESSION.conf.old.
 // Without a management password of its own, it keeps the one before - or
 // gets a random one -, so that the tray app still reaches the edge; the
-// tray file follows.  0, or 1.
-static int take (const char *dir, const char *staged, const char *password, int port) {
+// tray file follows.  start_anew: the service started anew if it runs,
+// else it takes it at its next start.  0, or 1.
+static int take (const char *dir, const char *staged, const char *password, int port, bool start_anew) {
 
     char conf[MAX_PATH + 80], old[MAX_PATH + 90], pw[260];
     bool before;
@@ -707,7 +711,11 @@ static int take (const char *dir, const char *staged, const char *password, int 
     }
     printf("the configuration is %s now%s%s\n", conf, before ? ", the one before " : "", before ? old : "");
     tray_file(port, pw);
-    restart();
+    if(start_anew) {
+        restart();
+    } else {
+        printf("%s takes it at its next start\n", service_name);
+    }
     return 0;
 }
 
@@ -749,7 +757,7 @@ static int import_conf (const char *file) {
         DeleteFileA(staged);
         return 4;
     }
-    return take(dir, staged, password, port);
+    return take(dir, staged, password, port, true);
 }
 
 
@@ -812,7 +820,7 @@ static int edit_conf (void) {
             break;
         }
         if(check_conf(dir, name, conf, why, sizeof(why), &password, &port)) {
-            return take(dir, staged, password, port);
+            return take(dir, staged, password, port, true);
         }
         snprintf(msg, sizeof(msg), "This is not taken: %s\n\n"
                  "Change it in Notepad, save it, then OK.  Cancel leaves it as it was.", why);
@@ -820,6 +828,154 @@ static int edit_conf (void) {
     DeleteFileA(staged);
     printf("the configuration stays as it was\n");
     return 3;
+}
+
+
+// An IPv4 address as typed: four numbers of 0 to 255, with dots between
+static bool ipv4_text (const char *s) {
+
+    unsigned a, b, c, d;
+    char rest;
+
+    return *s && (strspn(s, "0123456789.") == strlen(s))
+           && (sscanf(s, "%3u.%3u.%3u.%3u%c", &a, &b, &c, &d, &rest) == 4)
+           && (a < 256) && (b < 256) && (c < 256) && (d < 256);
+}
+
+
+// Whether a line of a configuration sets key: "key = ...", "key=..."
+static bool line_sets (const char *line, const char *key) {
+
+    size_t n = strlen(key);
+
+    while((*line == ' ') || (*line == '\t')) {
+        line++;
+    }
+    return !strncmp(line, key, n) && line[n] && strchr(" \t=", line[n]);
+}
+
+
+#define EXIT_NOTE "# the exit peer, kept by the tray app (\"service exit\")"
+
+// text with the exit peer kept in its [tuntap] section - right after its
+// first heading, or in one of its own at the end: route_all, and with an
+// address gateway, as given; their lines before, in any [tuntap], gone.
+// Without an address (none), route_all = false, and a gateway stays, which
+// may be the way to other networks.  Into out, of size; false if it does
+// not fit.
+static bool with_exit (const char *text, const char *addr, char *out, size_t size) {
+
+    const char *eol = strstr(text, "\r\n") ? "\r\n" : "\n";
+    char block[200];
+    bool in_tuntap = false, placed = false;
+    size_t used = 0;
+
+    if(addr) {
+        snprintf(block, sizeof(block), EXIT_NOTE "%sroute_all = true%sgateway = %s%s", eol, eol, addr, eol);
+    } else {
+        snprintf(block, sizeof(block), EXIT_NOTE "%sroute_all = false%s", eol, eol);
+    }
+#define PUT(p, n) do { if(used + (n) + 1 > size) { return false; } memcpy(out + used, (p), (n)); used += (n); } while(0)
+    for(const char *line = text; *line;) {
+        const char *next = strchr(line, '\n');
+        size_t n = next ? (size_t)(next + 1 - line) : strlen(line);
+        const char *t = line;
+        size_t tn;
+
+        while((*t == ' ') || (*t == '\t')) {
+            t++;
+        }
+        for(tn = n - (t - line); (tn > 0) && strchr(" \t\r\n", t[tn - 1]); tn--) {
+        }
+        if(*t == '[') {
+            in_tuntap = !strncmp(t, "[tuntap]", 8);
+            PUT(line, n);
+            if(!next) {
+                PUT(eol, strlen(eol));
+            }
+            if(in_tuntap && !placed) {
+                PUT(block, strlen(block));
+                placed = true;
+            }
+        } else if(((tn == strlen(EXIT_NOTE)) && !strncmp(t, EXIT_NOTE, tn))
+                  || (in_tuntap && (line_sets(t, "route_all") || (addr && line_sets(t, "gateway"))))) {
+            // gone
+        } else {
+            PUT(line, n);
+        }
+        line += n;
+    }
+    if(!placed) {
+        if(used && (out[used - 1] != '\n')) {
+            PUT(eol, strlen(eol));
+        }
+        PUT(eol, strlen(eol));
+        PUT("[tuntap]", 8);
+        PUT(eol, strlen(eol));
+        PUT(block, strlen(block));
+    }
+#undef PUT
+    out[used] = '\0';
+    return true;
+}
+
+
+// "service exit ADDRESS|none": the exit peer kept in the configuration - all
+// traffic through the peer at ADDRESS in the community, or none - if the
+// edge can start with it, for its next start: the edge running now is not
+// started anew, the tray app set it there already (set_gateway).  0 kept,
+// 4 not kept (why in the output), 2 no address, 1 failed.
+static int exit_conf (const char *addr) {
+
+    char dir[MAX_PATH], conf[MAX_PATH + 80], staged[MAX_PATH + 80], name[sizeof(session) + 20], why[2048];
+    char *text, *out, *password;
+    bool none = !strcmp(addr, "none");
+    size_t len, size;
+    int port;
+    FILE *f;
+
+    if(!none && !ipv4_text(addr)) {
+        printf("%s is no IPv4 address - four numbers of 0 to 255, with dots between them -, nor none\n", addr);
+        return 2;
+    }
+    if(!machine_dir(dir, sizeof(dir))) {
+        fail("the directory %ProgramData%\\n3n-be");
+        return 1;
+    }
+    snprintf(conf, sizeof(conf), "%s\\%s.conf", dir, session);
+    if(!(text = slurp(conf, &len))) {
+        printf("there is no configuration %s yet: import one first\n", conf);
+        return 1;
+    }
+    size = len + 512;
+    out = malloc(size);
+    if(!out || !with_exit(text, none ? NULL : addr, out, size)) {
+        fail("keeping the exit peer");
+        free(out);
+        free(text);
+        return 1;
+    }
+    free(text);
+    snprintf(name, sizeof(name), "%s.exit", session);
+    snprintf(staged, sizeof(staged), "%s\\%s.conf", dir, name);
+    f = fopen(staged, "wb");
+    if(!f || (fwrite(out, 1, strlen(out), f) != strlen(out))) {
+        fail("writing the configuration");
+        if(f) {
+            fclose(f);
+        }
+        free(out);
+        DeleteFileA(staged);
+        return 1;
+    }
+    fclose(f);
+    free(out);
+    if(!check_conf(dir, name, conf, why, sizeof(why), &password, &port)) {
+        printf("the exit peer is not kept: %s\n", why);
+        DeleteFileA(staged);
+        return 4;
+    }
+    return take(dir, staged, password, port, false);
 }
 
 
@@ -956,11 +1112,13 @@ static int run (void) {
 int n3n_service_main (int argc, char *argv[]) {
 
     const char *cmd = (argc > 1) ? argv[1] : "";
-    // "import FILE [session]": the session after the file
-    int at = strcmp(cmd, "import") ? 2 : 3;
+    // "import FILE [session]", "exit ADDRESS [session]": the session after
+    // the file or the address
+    bool arg = !strcmp(cmd, "import") || !strcmp(cmd, "exit");
+    int at = arg ? 3 : 2;
     const char *s = (argc > at) ? argv[at] : "edge";
 
-    if(!strcmp(cmd, "import") && (argc < 3)) {
+    if(arg && (argc < 3)) {
         cmd = "";
     }
     if(!session_ok(s)) {
@@ -985,8 +1143,12 @@ int n3n_service_main (int argc, char *argv[]) {
     if(!strcmp(cmd, "edit")) {
         return edit_conf();
     }
+    if(!strcmp(cmd, "exit")) {
+        return exit_conf(argv[2]);
+    }
     printf("usage: n3n-be-edge service install|uninstall|edit [sessionname]\n"
            "       n3n-be-edge service import FILE [sessionname]\n"
+           "       n3n-be-edge service exit ADDRESS|none [sessionname]\n"
            "\n"
            "  install    the edge of the session (default: edge) as a service, which\n"
            "             starts at boot, with its configuration, session directory and\n"
@@ -997,6 +1159,9 @@ int n3n_service_main (int argc, char *argv[]) {
            "             it; the one before stays as SESSION.conf.old, and the service\n"
            "             starts anew if it runs\n"
            "  edit       the configuration in Notepad, taken in the same way once saved\n"
+           "  exit       all traffic through the peer at ADDRESS in the community, or\n"
+           "             none, kept in the configuration (tuntap.route_all, tuntap.gateway)\n"
+           "             for the next start; the service is not started anew\n"
            "\n"
            "All of them as an administrator: only administrators can read the\n"
            "configuration, which holds the community's key.\n"

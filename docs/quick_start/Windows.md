@@ -103,14 +103,19 @@ again 5 seconds after it fails.
 ### Changing the configuration
 
 The service reads `%ProgramData%\n3n-be\edge.conf` only - a file you
-change elsewhere, on the desktop say, is not seen.  Two commands change
-it, as administrator (the tray app's Configuration menu runs them, see
-below, and Windows asks):
+change elsewhere, on the desktop say, is not seen.  Three commands change
+it, as administrator (the tray app's menu runs them, see below, and
+Windows asks):
 
 ```
 n3n-be.exe edge service import FILE [session]    # FILE as the configuration
 n3n-be.exe edge service edit [session]           # it in Notepad
+n3n-be.exe edge service exit ADDRESS|none [session]  # the exit peer kept
 ```
+
+`service exit` sets `route_all` (and `gateway`) in `[tuntap]` for the next
+start, in place of the lines of them before, and leaves the running
+service alone - `set_gateway` changes that one.
 
 Either way the edge loads the new configuration as at its start and
 checks it before it is taken: one it would not start with - no community
