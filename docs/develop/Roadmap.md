@@ -559,6 +559,29 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       before either (pending peers; the port cookie; the pool's sockets),
       now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
       easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
+- [x] A lossy supernode behind a measurably better one (2026-11-15, the
+      second action on the evaluation): where the way to the supernode
+      the strategy chooses is lossy within the hour, another one that
+      answers lately and is measurably better - the top of its 95 %
+      range below the bottom of the first one's, of the same family -
+      goes first, the best of those by the strategy (`sn_sort()`).  Not
+      one merely unmeasured: "clean" would do as little, as the others
+      are measured by pings alone, some 100 an hour, too few for a top
+      below 2 %.  Where the loss is the edge's own line's, none is
+      better, and nothing changes; the first one goes first again as its
+      loss ages out of the hour.  The log says so ("... that one first",
+      "... first again"); Federation.md, the help of
+      `connection.supernode_selection`; the rule in `n3n_loss_better()`,
+      with cases in tests-loss-count.  netns `sn-lossy` (tagged `slow`,
+      left out of a run without names as `limits` is): the PONGs of a's
+      supernode lost, its registrations not - a lossy line would have the
+      registrations fail over first -, every 40 s, so that about half of
+      the round trips are lost: a passes it over after some 10 minutes
+      (47 %, 30.2 to 63.9 %; the other one at most 20.4 % after 17
+      pings), and stays.  With registrations every 20 s, a third lost,
+      and those of the warm-up counted, it took 11 minutes or did not
+      come at all (the bottom of the first one's range at 3.5 %).  On
+      the way, the lost PONG below
 - [x] One lost PONG no reason to leave the supernode (2026-11-15, found
       while trying the lossy supernode in the lab): before each round of
       PINGs, the current supernode's selection criterion became "good",
