@@ -133,6 +133,19 @@ LOSSY = """table inet lossy {{
 }}
 """
 
+# a's way to b cut, both ways, see outage_phase()
+QUIET = """table inet quiet {{
+    chain output {{
+        type filter hook output priority 0; policy accept;
+        ip daddr {peer} drop
+    }}
+    chain input {{
+        type filter hook input priority 0; policy accept;
+        ip saddr {peer} drop
+    }}
+}}
+"""
+
 AIRPORT = """table inet airport {
     chain output {
         type filter hook output priority 0; policy accept;
@@ -824,7 +837,9 @@ class Run:
             sn["daemon"].proc.stop(sig=signal.SIGKILL)
             self.killed.add(name)
         then = self.sc.outage_then
-        if then and then[0] == "idle":
+        if then and then[0] == "quiet":
+            self.outage_quiet(then[1])
+        elif then and then[0] == "idle":
             time.sleep(10)
             self.span_end()
             self.log("no frames for {}s".format(then[1]))
@@ -846,6 +861,52 @@ class Run:
         self.span_end()
         self.log("after {}s without supernodes: {}".format(
             OUTAGE_WATCH, self._modes_str(self.modes())))
+
+    # outage_quiet(): how long frames go to a peer gone quiet
+    QUIET_FRAMES = 16
+
+    def outage_quiet(self, idle):
+        """10s into the outage, the frames stop and a and b are cut off from
+        each other; idle seconds later - the supernodes long not answering,
+        each quiet at the other - frames again, still cut off: the edges,
+        with no supernode to look the other up, keep it, and send to its
+        last address, asking it there twice a second, unanswered.  That is
+        no round of probes (connection.p2p_max_loss): quiet, the other is
+        no lossy line, and once the way is open again, they go direct to
+        each other, also once the supernodes are back"""
+        _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+        peer = (row or {}).get("sockaddr", "").rsplit(":", 1)[0]
+        logs = {name: self.edges[name]["daemon"].proc.log_path
+                for name in ("a", "b")}
+        log_from = {name: os.path.getsize(path)
+                    for name, path in logs.items()}
+        time.sleep(10)
+        self.span_end()
+        if not peer or ":" in peer:
+            self.check("quiet", False, "no IPv4 address of b at a "
+                       "({!r})".format(peer))
+            time.sleep(OUTAGE_WATCH - 10)
+            return
+        self.lab.nft(self.edges["a"]["ns"], QUIET.format(peer=peer), "quiet")
+        self.log("a and b cut off, no frames for {}s".format(idle))
+        time.sleep(idle)
+        self.log("frames again, a and b still cut off")
+        self.span_flows(FLOW_IDLE)
+        time.sleep(self.QUIET_FRAMES)
+        run(["nft", "delete", "table", "inet", "quiet"],
+            ns=self.edges["a"]["ns"])
+        self.log("a and b no longer cut off")
+        time.sleep(OUTAGE_WATCH - 10 - idle - self.QUIET_FRAMES)
+        lossy = []
+        for name, path in sorted(logs.items()):
+            with open(path, errors="replace") as f:
+                f.seek(log_from[name])
+                lossy += ["{}: {}".format(name, line.strip()) for line in f
+                          if "lost on the direct path" in line]
+        self.result["quiet"] = {"lossy": lossy}
+        self.check("quiet: no lossy path", not lossy,
+                   lossy[-1] if lossy else "neither took the other, quiet, "
+                   "for a lossy line")
 
     def check_span(self, received, tag, max_gap):
         """The longest time without a frame each way, across a move or an

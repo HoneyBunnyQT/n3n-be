@@ -380,6 +380,7 @@ ports from all of it.
 | sn-tap-reload | easy-kept / the TAP device of sn2; sn2's configuration gets another description and a filter rule for its edge, then SIGHUP (`reload` naming the site) | relayed; sn2's edge takes both, a sees its new description at once |
 | sn-outage | easy-kept / easy-changed; both supernodes killed while frames flow both ways, for 90s (longer than the registrations live) | direct throughout, the longest gap each way at most 3s |
 | sn-outage-idle | as sn-outage, the frames stopping for 40s 10s into it | direct again at once (gap at most 3s): the edges keep their idle peers while no supernode answers |
+| sn-outage-quiet | as sn-outage, the frames stopping 10s into it and a and b cut off from each other; 25s later frames again, still cut off, for 16s | each sends to the other's last address meanwhile, unanswered, and takes it for no lossy line (no "lost on the direct path" in their logs); direct again once no longer cut off (gap at most 25s) |
 | sn-outage-roam | as sn-outage, easy-kept / easy-kept, b moving to another network 10s into it (limits) | fails: with no supernode to tell a b's new address, a's NAT keeps b out |
 | sn-outage-restart | as sn-outage, easy-kept / easy-kept, b's edge restarting 10s into it | direct again once b's device is up, the longest gap each way at most 20s |
 | sn-outage-restart-userpw | as sn-outage-restart, with user/password authentication (limits) | fails: b waits for a supernode to vouch for it |

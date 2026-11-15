@@ -291,6 +291,17 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", outage=True, outage_then=("idle", 40), outage_max_gap=3.0),
     Scenario(
+        "sn-outage-quiet",
+        "as sn-outage, and 10s into it the frames stop and a and b are cut "
+        "off from each other; 25s later frames again, still cut off, for "
+        "16s: each sends to the other's last address meanwhile, unanswered "
+        "- which is no lossy line (connection.p2p_max_loss): direct again "
+        "once they are no longer cut off",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", outage=True, outage_then=("quiet", 25),
+        outage_max_gap=25.0),
+    Scenario(
         "sn-outage-roam",
         "as sn-outage, and 10s into it b moves to another network: with no "
         "supernode to tell a b's new address, a's NAT keeps b out",
