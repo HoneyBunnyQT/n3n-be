@@ -559,6 +559,22 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       before either (pending peers; the port cookie; the pool's sockets),
       now checked by `loss_counts` in hard-easy, easy-hard-a2b/-b2a,
       easy-hard-pool and cgnat-hard-ttl.  n3n-be's own, not for `fixes`
+- [x] A lossy direct path back only after two clean rounds where it is
+      lossy within the hour (2026-11-15, the first action on the
+      evaluation): a peer through the supernode for `p2p_max_loss` went
+      the direct way again after one round of probes that lost at most a
+      quarter as many; a line losing within the hour may have a good round
+      now and then, and a switch back and forth costs more than another
+      round, 10 s, through the supernode.  Now two in a row where the
+      long-term counts take the path for lossy (`clean_rounds`), one where
+      not, as before; a round in between that is not clean starts them
+      anew; with `p2p_max_loss` 0 at once.  The log says so ("one round
+      more", "the second round in a row").  netns `lossy-direct(-threads)`:
+      `lossy: back after two rounds` from a's log, back after some 22 s
+      instead of 10.  The other proposal, a lossy supernode behind the
+      others when choosing one, is open: to decide on how it is ranked
+      back (pings only to the first NUMBER_SN_PINGS_REGULAR of them).
+      n3n-be's own, not for `fixes`
 - [x] What the loss counts say, shown smaller and told (2026-11-15, the
       first of the steps on the evaluation): the page's `line` a dot -
       green clean, a ring unclear, amber with the share lost lossy,
