@@ -172,10 +172,13 @@ unknown, 1 of 100 unclear (0.2 to 5.5 %), 3 of 300 still unclear (0.3 to
 2.9 %), 10 of 200 lossy (2.7 to 9.0 %).  A line that loses a few percent
 takes an hour of a supernode's some 300 round trips to tell; one losing
 10 % and more, minutes of a peer's probes.  The edge says so in its log as a way
-becomes lossy, and as it is clean again after.  The class, the numbers
-and the round trip are in `get_edges` and `get_supernodes` (`way`), on
-the status page (the column `line`, the numbers in its title) and in the
-metrics above.  Nothing acts on them yet.
+becomes lossy, and as it is clean again after; each change of a way's
+class is the event `way` of the management API, for a script to follow
+(see [Management API](../internals/ManagementAPI.md#events-stream)).  The
+class, the numbers and the round trip are in `get_edges` and
+`get_supernodes` (`way`), on the status page (the column `line`, a dot
+there, the numbers in its title, and a line of its own where a way is
+lossy) and in the metrics above.  Nothing acts on them yet.
 
 The round trip comes from the answers that can only be to one request,
 no other one waiting: on a lossy line, few.

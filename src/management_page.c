@@ -354,33 +354,89 @@ static void route_all_line (strbuf_t **b, struct n3n_runtime_data *eee) {
 }
 
 
-// A cell of what the long-term counts say of a way (loss_count.h): its
-// class, lossy with the share lost; the numbers in its title
+// A cell of what the long-term counts say of a way (loss_count.h), small: a
+// dot where it is clean, a ring where it is unclear, a dot and the share
+// lost where it is lossy, nothing where there are too few round trips to
+// tell - characters, so that a text browser shows them too; the numbers in
+// its title
 static const char *way_cell (char *buf, size_t size, const struct n3n_loss_eval *e, uint32_t rtt_us) {
 
-    char rtt[48] = "";
+    char rtt[48] = "", share[16] = "";
 
     if(rtt_us) {
         snprintf(rtt, sizeof(rtt), ", round trip %u.%u ms", rtt_us / 1000, (rtt_us % 1000) / 100);
     }
     if(e->class == N3N_LOSS_UNKNOWN) {
-        snprintf(buf, size, "<td><span class=dim title=\"%u round trips within the hour: too few to "
-                 "tell%s\">&ndash;</span></td>", e->samples, rtt);
+        snprintf(buf, size, "<td title=\"%u round trips within the hour: too few to tell%s\"></td>",
+                 e->samples, rtt);
         return buf;
     }
-    char what[24];
-
     if(e->class == N3N_LOSS_LOSSY) {
-        // the share lost in the badge too
-        snprintf(what, sizeof(what), "lossy %.0f %%", 100 * e->ratio);
-    } else {
-        snprintf(what, sizeof(what), "%s", n3n_loss_class_str(e->class));
+        snprintf(share, sizeof(share), " %.0f %%", 100 * e->ratio);
     }
-    snprintf(buf, size, "<td><span class=\"b %s\" title=\"%u of %u round trips lost within the hour, "
-             "%.1f %% (95 %%: %.1f to %.1f %%)%s\">%s</span></td>",
+    snprintf(buf, size, "<td><span class=%s title=\"%s: %u of %u round trips lost within the hour, "
+             "%.1f %% (95 %%: %.1f to %.1f %%)%s\">%s%s</span></td>",
              (e->class == N3N_LOSS_LOSSY) ? "warn" : (e->class == N3N_LOSS_CLEAN) ? "ok" : "dim",
-             e->lost, e->samples, 100 * e->ratio, 100 * e->lower, 100 * e->upper, rtt, what);
+             n3n_loss_class_str(e->class), e->lost, e->samples, 100 * e->ratio, 100 * e->lower,
+             100 * e->upper, rtt, (e->class == N3N_LOSS_UNCLEAR) ? "&#x25cb;" : "&#x25cf;", share);
     return buf;
+}
+
+
+// Below the edge's own lines, one only where a way is lossy: the first of
+// them, and how many more
+static void lossy_line (strbuf_t **b, const struct n3n_runtime_data *eee) {
+
+    const struct peer_info *p, *tmp, *first = NULL;
+    struct n3n_loss_eval e, first_e;
+    bool first_sn = false;
+    int more = -1;
+    char who[80];
+    n3n_sock_str_t sockbuf;
+    macstr_t mac_buf;
+    ipstr_t ip;
+
+    HASH_ITER(hh, eee->client.supernodes, p, tmp) {
+        edge_loss_eval_sn(p, &e);
+        if(e.class == N3N_LOSS_LOSSY) {
+            if(!first) {
+                first = p;
+                first_e = e;
+                first_sn = true;
+            }
+            more++;
+        }
+    }
+    HASH_ITER(hh, eee->client.known_peers, p, tmp) {
+        edge_loss_eval_peer(p, &e);
+        if(e.class == N3N_LOSS_LOSSY) {
+            if(!first) {
+                first = p;
+                first_e = e;
+            }
+            more++;
+        }
+    }
+    if(!first) {
+        return;
+    }
+    if(first_sn) {
+        snprintf(who, sizeof(who), "supernode %s", sock_to_cstr(sockbuf, &first->sock));
+    } else if(first->dev_addr.net_addr) {
+        // in host order there
+        uint32_t addr = htonl(first->dev_addr.net_addr);
+
+        snprintf(who, sizeof(who), "peer %s", inet_ntop(AF_INET, &addr, ip, sizeof(ip)));
+    } else {
+        snprintf(who, sizeof(who), "peer %s", macaddr_str(mac_buf, first->mac_addr));
+    }
+    sb_reprintf(b, "<dt>Line</dt><dd><span class=warn>&#x25cf;</span> the way to the %s loses %.0f %% "
+                "<span class=dim>(%u of %u round trips within the hour)</span>", who, 100 * first_e.ratio,
+                first_e.lost, first_e.samples);
+    if(more) {
+        sb_reprintf(b, ", %d more lossy, see below", more);
+    }
+    sb_reprintf(b, "</dd>\n");
 }
 
 
@@ -501,6 +557,7 @@ static void section_edge (strbuf_t **b, struct n3n_runtime_data *eee, bool own_o
                     (eee->conf.client.sn_selection_strategy == SN_SELECTION_STRATEGY_MAC) ? "lowest MAC address" :
                     "lowest load");
         route_all_line(b, eee);
+        lossy_line(b, eee);
     }
     sb_reprintf(b, "</dl>\n");
 

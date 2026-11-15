@@ -73,10 +73,13 @@ description), `announced` (0 for an edge of an older version),
   measured differently: FEC counts every PACKET, one way each, by its
   sequence number; the probes are two a second, there and back.  Beside
   it, `line`: what the long-term counts make of the direct path within
-  the hour - `clean`, `unclear`, `lossy` with the share lost, a dash for
-  too few round trips to tell - the numbers and the round trip in its
-  tooltip (see [Metrics](../advanced/Metrics.md#what-the-counts-say)).
-  The supernodes have the same column, of their registrations and pings.
+  the hour, small - a green dot for clean, a ring for unclear, an amber
+  dot with the share lost for lossy, nothing for too few round trips to
+  tell -, the class, the numbers and the round trip in its tooltip (see
+  [Metrics](../advanced/Metrics.md#what-the-counts-say)).  The supernodes
+  have the same column, of their registrations and pings.  Where a way is
+  lossy, a line `Line` among the edge's own says which, and how many
+  more.
 - Everything other peers say about themselves (descriptions, versions,
   community names) is shown as text.
 - The buttons are plain forms, posted to `/page`; they ask for the management
