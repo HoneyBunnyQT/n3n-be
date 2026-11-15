@@ -14,6 +14,8 @@
  *   - nothing counts while the network settles after a change
  *   - a reset counts anew
  *   - the round trip of an answer that can only be to one request
+ *   - the evaluation: Wilson's interval, the classes, the window of an
+ *     hour of snapshots, several counts together
  */
 
 #include <stdio.h>            // for printf
@@ -87,6 +89,8 @@ int main (void) {
     // lost - those waiting are only the ones of the last 3 s, the others
     // lost; no round trip, as another one always waits
     struct n3n_loss_count g = {0};
+    const struct n3n_loss_count *gs[] = { &g };
+    struct n3n_loss_eval ge;
     for(int i = 0; i < 100; i++) {
         uint64_t t = 2000 * S + (uint64_t)i * S / 2;
         n3n_loss_sent(&g, t);
@@ -94,9 +98,11 @@ int main (void) {
             n3n_loss_answer(&g, t + 30000);
         }
     }
+    n3n_loss_eval(gs, 1, 2050 * S, &ge);
     printf("%-48s sent %u answered %u waiting %u\n", "2 a second without a pause, every other lost",
            g.sent, g.answered, g.waiting);
-    printf("%-48s %u us\n", "  round trip", g.rtt_min_us);
+    printf("%-48s %u %u %s, round trip %u us\n", "  evaluated", ge.samples, ge.lost,
+           n3n_loss_class_str(ge.class), g.rtt_min_us);
 
     // more at once than are kept: the oldest lost
     struct n3n_loss_count m = {0};
@@ -130,5 +136,66 @@ int main (void) {
     printf("%-48s %u us, shortest %u us\n", "round trip 80 ms, 40 ms, one unclear",
            r.rtt_us, r.rtt_min_us);
 
+    // the evaluation
+    struct {
+        const char *what;
+        uint32_t sent, answered;
+    } cases[] = {
+        { "none", 0, 0 },
+        { "20, 1 lost (an ACK now and then)", 20, 19 },
+        { "100, 1 lost", 100, 99 },
+        { "300, none lost", 300, 300 },
+        { "300, 3 lost", 300, 297 },
+        { "200, 10 lost", 200, 190 },
+        { "1000, 100 lost", 1000, 900 },
+    };
+    for(size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        struct n3n_loss_count e = {0};
+        const struct n3n_loss_count *one[] = { &e };
+        struct n3n_loss_eval v;
+
+        e.sent = cases[i].sent;
+        e.answered = cases[i].answered;
+        n3n_loss_eval(one, 1, 0, &v);
+        printf("%-34s %4u %3u %.4f [%.4f %.4f] %s\n", cases[i].what, v.samples, v.lost,
+               v.ratio, v.lower, v.upper, n3n_loss_class_str(v.class));
+    }
+
+    // the window: an hour of snapshots; what came before it does not count
+    struct n3n_loss_count w = {0};
+    const struct n3n_loss_count *ws[] = { &w };
+    struct n3n_loss_eval v;
+    w.sent = 1000;
+    w.answered = 500;           // a bad hour long ago
+    for(int i = 0; i < N3N_LOSS_SNAPS; i++) {
+        n3n_loss_snapshot(&w);
+        w.sent += 50;           // then 50 clean ones every 5 minutes
+        w.answered += 50;
+    }
+    n3n_loss_eval(ws, 1, 0, &v);
+    printf("%-34s %4u %3u %s\n", "a bad hour, then a clean one", v.samples, v.lost,
+           n3n_loss_class_str(v.class));
+    n3n_loss_reset(&w);
+    w.sent = 10;
+    n3n_loss_snapshot(&w);
+    n3n_loss_eval(ws, 1, 0, &v);
+    printf("%-34s %4u %3u %s\n", "reset: counted anew", v.samples, v.lost,
+           n3n_loss_class_str(v.class));
+
+    // a supernode's registrations and pings together; one still waiting
+    // is not lost yet
+    struct n3n_loss_count reg = {0}, ping = {0};
+    const struct n3n_loss_count *both[] = { &reg, &ping };
+    reg.sent = 180;
+    reg.answered = 180;
+    n3n_loss_sent(&reg, 4000 * S);
+    ping.sent = 120;
+    ping.answered = 118;
+    n3n_loss_eval(both, 2, 4000 * S + S, &v);
+    printf("%-34s %4u %3u %s\n", "registrations and pings", v.samples, v.lost,
+           n3n_loss_class_str(v.class));
+    n3n_loss_eval(both, 2, 4000 * S + N3N_LOSS_WINDOW_US, &v);
+    printf("%-34s %4u %3u %s\n", "  the one waiting then lost", v.samples, v.lost,
+           n3n_loss_class_str(v.class));
     return 0;
 }

@@ -38,6 +38,11 @@
 // NATs and routes in between may still be settling
 #define N3N_LOSS_SETTLE_US      (10 * 1000000ULL)
 
+// The window the counts are evaluated over (n3n_loss_eval()): an hour, from
+// a snapshot of the counts taken every 5 minutes (n3n_loss_snapshot())
+#define N3N_LOSS_SNAP_S         300
+#define N3N_LOSS_SNAPS          12
+
 // how many requests may wait for an answer at once: more than go within
 // the window (two a second to a peer); beyond, the oldest counts as lost
 #define N3N_LOSS_WAITING        8
@@ -52,6 +57,11 @@ struct n3n_loss_count {
     // other one waiting): smoothed (1/8) and the shortest, 0 for none yet
     uint32_t rtt_us;
     uint32_t rtt_min_us;
+    // snapshots of sent and answered, the oldest at snap_next once full
+    uint32_t snap_sent[N3N_LOSS_SNAPS];
+    uint32_t snap_answered[N3N_LOSS_SNAPS];
+    uint8_t snap_next;
+    uint8_t snap_count;
 };
 
 // A request that is to count went at now_us
@@ -65,6 +75,41 @@ static inline void n3n_loss_reset (struct n3n_loss_count *c) {
 
     memset(c, 0, sizeof(*c));
 }
+
+// A snapshot of the counts, every N3N_LOSS_SNAP_S seconds
+void n3n_loss_snapshot (struct n3n_loss_count *c);
+
+// What the counts say of the last hour (N3N_LOSS_SNAPS snapshots), or of
+// as long as they have counted: how many samples, how many of them lost,
+// the share lost and its 95 % confidence interval (Wilson), and a class -
+// lossy where even the lower bound is N3N_LOSS_EVAL_LOSSY or more, clean
+// where even the upper bound is below it, unknown with fewer than
+// N3N_LOSS_EVAL_MIN samples, unclear else.  Several counts (a supernode's
+// registrations and pings) count together; those still waiting for an
+// answer at now_us are not lost yet and do not count.
+#define N3N_LOSS_EVAL_MIN       30
+#define N3N_LOSS_EVAL_LOSSY     0.02
+
+enum n3n_loss_class {
+    N3N_LOSS_UNKNOWN = 0,
+    N3N_LOSS_CLEAN,
+    N3N_LOSS_UNCLEAR,
+    N3N_LOSS_LOSSY,
+};
+
+struct n3n_loss_eval {
+    uint32_t samples;
+    uint32_t lost;
+    double ratio;               // lost / samples, 0 without samples
+    double lower, upper;        // the interval, 0 and 1 without samples
+    enum n3n_loss_class class;
+};
+
+void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
+                    struct n3n_loss_eval *e);
+
+// "unknown", "clean", "unclear" or "lossy"
+const char *n3n_loss_class_str (enum n3n_loss_class class);
 
 // Whether a request sent at now_us may count, after a network change at
 // changed_us (0: none)

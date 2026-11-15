@@ -7,10 +7,21 @@ one unanswered, the next after its window        sent 7 answered 5
 100 apart, every tenth lost                      sent 100 answered 90
 2 a second, every third lost                     sent 300 answered 200
 2 a second without a pause, every other lost     sent 100 answered 50 waiting 3
-  round trip                                     0 us
+  evaluated                                      98 48 lossy, round trip 0 us
 10 at once, 10 answers                           sent 10 answered 8
 settled 5 s after a change                       no
 settled 10 s after a change                      yes
 settled without a change                         yes
 reset                                            sent 0 answered 0
 round trip 80 ms, 40 ms, one unclear             75000 us, shortest 40000 us
+none                                  0   0 0.0000 [0.0000 1.0000] unknown
+20, 1 lost (an ACK now and then)     20   1 0.0500 [0.0089 0.2361] unknown
+100, 1 lost                         100   1 0.0100 [0.0018 0.0545] unclear
+300, none lost                      300   0 0.0000 [0.0000 0.0126] clean
+300, 3 lost                         300   3 0.0100 [0.0034 0.0290] unclear
+200, 10 lost                        200  10 0.0500 [0.0274 0.0896] lossy
+1000, 100 lost                     1000 100 0.1000 [0.0829 0.1202] lossy
+a bad hour, then a clean one        600   0 clean
+reset: counted anew                  10  10 unknown
+registrations and pings             300   2 unclear
+  the one waiting then lost         301   3 unclear

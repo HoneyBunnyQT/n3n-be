@@ -2,7 +2,7 @@
  * Copyright (C) Honey Bunny QT
  * SPDX-License-Identifier: AGPL-3.0-only
  *
- * Counting what gets lost, long term - see loss_count.h
+ * What the long-term counts of loss say - see loss_count.h
  */
 
 #include <string.h>     // for memmove
@@ -57,4 +57,128 @@ void n3n_loss_answer (struct n3n_loss_count *c, uint64_t now_us) {
     // run out
     c->waiting--;
     c->answered++;
+}
+
+
+void n3n_loss_snapshot (struct n3n_loss_count *c) {
+
+    // counted anew since the last one (another path): the old ones go
+    if(c->snap_count) {
+        uint8_t last = (uint8_t)((c->snap_next + N3N_LOSS_SNAPS - 1) % N3N_LOSS_SNAPS);
+        if((c->sent < c->snap_sent[last]) || (c->answered < c->snap_answered[last])) {
+            c->snap_count = 0;
+            c->snap_next = 0;
+        }
+    }
+    c->snap_sent[c->snap_next] = c->sent;
+    c->snap_answered[c->snap_next] = c->answered;
+    c->snap_next = (uint8_t)((c->snap_next + 1) % N3N_LOSS_SNAPS);
+    if(c->snap_count < N3N_LOSS_SNAPS) {
+        c->snap_count++;
+    }
+}
+
+
+// The counts of the window: since the oldest snapshot once there are all of
+// them (an hour), since the counting began before
+static void window (const struct n3n_loss_count *c, uint64_t now_us, uint32_t *sent, uint32_t *answered) {
+
+    uint32_t s0 = 0, a0 = 0, waiting = 0;
+
+    if(c->snap_count == N3N_LOSS_SNAPS) {
+        s0 = c->snap_sent[c->snap_next];
+        a0 = c->snap_answered[c->snap_next];
+    }
+    // the ones still waiting for an answer are not lost yet
+    for(uint8_t i = 0; i < c->waiting; i++) {
+        if(now_us - c->waiting_us[i] < N3N_LOSS_WINDOW_US) {
+            waiting++;
+        }
+    }
+    uint32_t s = (c->sent >= waiting) ? c->sent - waiting : 0;
+    *sent = (s >= s0) ? s - s0 : 0;
+    *answered = (c->answered >= a0) ? c->answered - a0 : 0;
+    if(*answered > *sent) {
+        *answered = *sent;
+    }
+}
+
+
+// A square root without libm, which nothing else needs: Newton's steps
+static double root (double x) {
+
+    double r = (x > 1) ? x : 1;
+
+    if(x <= 0) {
+        return 0;
+    }
+    for(int i = 0; i < 40; i++) {
+        double next = (r + x / r) / 2;
+        if((next >= r) && (i > 0)) {
+            break;
+        }
+        r = next;
+    }
+    return r;
+}
+
+
+void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
+                    struct n3n_loss_eval *e) {
+
+    // 95 %
+    const double z = 1.959964;
+    uint64_t sent = 0, answered = 0;
+
+    for(int i = 0; i < n; i++) {
+        uint32_t s, a;
+        window(counts[i], now_us, &s, &a);
+        sent += s;
+        answered += a;
+    }
+    e->samples = (sent > UINT32_MAX) ? UINT32_MAX : (uint32_t)sent;
+    e->lost = (uint32_t)(sent - answered);
+    if(!sent) {
+        e->ratio = 0;
+        e->lower = 0;
+        e->upper = 1;
+        e->class = N3N_LOSS_UNKNOWN;
+        return;
+    }
+
+    // Wilson's interval, which stays inside 0 and 1 and holds also for
+    // few samples and none lost
+    double nn = (double)sent;
+    double p = (double)(sent - answered) / nn;
+    double zz = z * z;
+    double centre = (p + zz / (2 * nn)) / (1 + zz / nn);
+    double half = z * root(p * (1 - p) / nn + zz / (4 * nn * nn)) / (1 + zz / nn);
+
+    e->ratio = p;
+    e->lower = (centre - half > 0) ? centre - half : 0;
+    e->upper = (centre + half < 1) ? centre + half : 1;
+    if(sent < N3N_LOSS_EVAL_MIN) {
+        e->class = N3N_LOSS_UNKNOWN;
+    } else if(e->lower >= N3N_LOSS_EVAL_LOSSY) {
+        e->class = N3N_LOSS_LOSSY;
+    } else if(e->upper < N3N_LOSS_EVAL_LOSSY) {
+        e->class = N3N_LOSS_CLEAN;
+    } else {
+        e->class = N3N_LOSS_UNCLEAR;
+    }
+}
+
+
+const char *n3n_loss_class_str (enum n3n_loss_class class) {
+
+    switch(class) {
+        case N3N_LOSS_CLEAN:
+            return "clean";
+        case N3N_LOSS_UNCLEAR:
+            return "unclear";
+        case N3N_LOSS_LOSSY:
+            return "lossy";
+        default:
+            return "unknown";
+    }
 }
