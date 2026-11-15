@@ -308,11 +308,11 @@ ports from all of it.
 | public-easy | none / easy-changed | direct |
 | fed-split | easy-kept / easy-changed, each edge knowing only one supernode | direct; lost long term near nothing |
 | easy-hard | easy-kept / hard-range | direct, after guessing |
-| hard-easy | hard-range / easy-changed | direct, after guessing |
-| easy-hard-a2b, -b2a | as easy-hard, traffic one way only | direct |
-| easy-hard-pool | as easy-hard, a guessing 16 ports a round | direct, as one of b's 32 sockets is met |
-| cgnat-hard-ttl | as easy-hard-pool, b behind easy-kept and hard-range, punch_ttl=3 | direct |
-| hard-hard | hard-range / hard-range | relayed; lost long term near nothing |
+| hard-easy | hard-range / easy-changed | direct, after guessing; lost long term near nothing, the guesses not counted |
+| easy-hard-a2b, -b2a | as easy-hard, traffic one way only | direct; lost long term near nothing |
+| easy-hard-pool | as easy-hard, a guessing 16 ports a round | direct, as one of b's 32 sockets is met; lost long term near nothing, the guesses and the sockets' REGISTERs not counted |
+| cgnat-hard-ttl | as easy-hard-pool, b behind easy-kept and hard-range, punch_ttl=3 | direct; lost long term near nothing |
+| hard-hard | hard-range / hard-range | relayed; lost long term near nothing, the punching that fails not counted |
 | easy-wide | easy-kept / hard-wide | relayed |
 | no-punch | as easy-hard, with punch_ports=0 | relayed - or direct by luck, which passes too (`direct_ok`): the hard side's own REGISTERs may hit the port the easy NAT keeps for it |
 | several | several / easy-kept | relayed |

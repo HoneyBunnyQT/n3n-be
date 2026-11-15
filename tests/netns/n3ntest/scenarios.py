@@ -61,23 +61,23 @@ SCENARIOS = [
         "hard-easy",
         "hard NAT on the first edge, the second one guesses",
         Site(["hard-range"]), Site(["easy-changed"]),
-        "direct"),
+        "direct", loss_counts=True),
     Scenario(
         "easy-hard-a2b",
         "easy and hard NAT, only the easy side sends",
         Site(["easy-kept"]), Site(["hard-range"]),
-        "direct", traffic="a2b"),
+        "direct", traffic="a2b", loss_counts=True),
     Scenario(
         "easy-hard-b2a",
         "easy and hard NAT, only the hard side sends",
         Site(["easy-kept"]), Site(["hard-range"]),
-        "direct", traffic="b2a"),
+        "direct", traffic="b2a", loss_counts=True),
     Scenario(
         "easy-hard-pool",
         "16 guesses a round meet one of the ports of the hard side's sockets",
         Site(["easy-kept"], conf={"connection": {"punch_ports": 16}}),
         Site(["hard-range"]),
-        "direct"),
+        "direct", loss_counts=True),
     Scenario(
         "cgnat-hard-ttl",
         "the hard side behind a home router and a carrier NAT, its extra "
@@ -85,7 +85,7 @@ SCENARIOS = [
         Site(["easy-kept"], conf={"connection": {"punch_ports": 16}}),
         Site(["hard-range", "easy-kept"],
              conf={"connection": {"punch_ttl": 3}}),
-        "direct"),
+        "direct", loss_counts=True),
     Scenario(
         "hard-hard",
         "hard NAT on both sides stays relayed",
