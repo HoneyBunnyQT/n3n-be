@@ -950,7 +950,10 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
 
             HASH_FIND_PEER(eee->client.known_peers, ev->mac, scan);
             if(scan) {
-                peer_probe(eee, scan);
+                if(p2p_max_loss(&eee->conf)) {
+                    peer_probe(eee, scan);
+                }
+                peer_announce_ask(eee, scan, ev->now);
             }
             break;
         }

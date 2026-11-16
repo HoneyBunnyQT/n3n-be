@@ -326,7 +326,10 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             all (1 in 8 before, 1 in 10 after): the peer quiet for the
             12 s, dropped as the frames start and learnt anew, its
             announcement asked for anew - lost on the line, and the
-            sender sends it no FEC until the next to all, a minute on
+            sender sends it no FEC until the next to all, a minute on.
+            Now asked again while frames go to it, 1, 2 and 4 s after
+            the last question, where it has not answered
+            (`peer_announce_ask()`; 12 of 12 after)
       - [x] Frames one way, nothing back: past half the peer's timeout
             they went through the supernode until a REGISTER's ACK came
             (EDGE_EVENT_PEER_IDLE) - with the lab's 5 s, 1 to 3 frames

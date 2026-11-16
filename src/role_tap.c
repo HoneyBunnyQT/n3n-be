@@ -673,9 +673,9 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
              * REGISTERs meanwhile) */
             uint64_t us = n3n_monotonic_us();
 
-            // the direct path measured while frames go, see peer_probe()
-            if(p2p_max_loss(&eee->conf)
-               && (us - SHARED_LOAD(scan->last_probe_us) >= P2P_PROBE_US)) {
+            // while frames go, once a second: the direct path measured, see
+            // peer_probe(), and what the peer announced, peer_announce_ask()
+            if(us - SHARED_LOAD(scan->last_probe_us) >= P2P_PROBE_US) {
                 struct edge_event ev = { .type = EDGE_EVENT_PEER_PROBE, .now = now };
 
                 SHARED_STORE(scan->last_probe_us, us);

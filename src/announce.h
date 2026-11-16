@@ -33,9 +33,11 @@
  *
  * Each edge sends its announcement to all (broadcast) once it is
  * registered and every N3N_ANNOUNCE_INTERVAL seconds, the first one with
- * ASK; to a peer that is new to it, with ASK; and answers an ASK, or one
- * from a peer new to it, to that peer alone.  An announcement is all an
- * edge says of itself: one replaces the one before.
+ * ASK; to a peer that is new to it, with ASK - again once it reaches it
+ * directly, and while frames go to it 1, 2 and 4 s after, where it has not
+ * answered (peer_announce_ask()); and answers an ASK, or one from a peer
+ * new to it, to that peer alone.  An announcement is all an edge says of
+ * itself: one replaces the one before.
  *
  * The edge keeps the latest of each peer here, by MAC, for
  * N3N_ANNOUNCE_KEEP seconds: the threads that handle packets learn them,

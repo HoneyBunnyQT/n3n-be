@@ -60,7 +60,11 @@ in the last 10 seconds: what it said before may be of a program that is no
 more.  The question goes through the supernode, as the peer is not known
 directly yet; where the peer has roamed and the supernode still has its
 old address, it gets lost - so once the peer is reached directly and has
-not answered yet, it is asked again, directly.
+not answered yet, it is asked again, directly; and while frames go to it,
+again 1, 2 and 4 seconds after that, where the question or the answer got
+lost (the line that loses them may be why the edge looks the peer up
+anew).  No more: an older edge, which announces nothing, gets no more
+than that.
 
 ## Names
 

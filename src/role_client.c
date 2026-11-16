@@ -1047,8 +1047,11 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
         // registered there yet.  Asked again, now directly - a frame or two
         // more where both answers come, once a peer is new
         struct n3n_announce_info info;
+        scan->announce_asks = 0;
         if(!n3n_announce_get(eee->client.announce, mac, &info)) {
             edge_announce(eee, mac, N3N_ANNOUNCE_ASK);
+            scan->announce_asks = 1;
+            scan->announce_asked = now;
         }
     } else
         traceEvent(TRACE_DEBUG, "failed to find sender in pending_peers");
@@ -1980,6 +1983,28 @@ void edge_tick_loss (struct n3n_runtime_data *eee, time_t now) {
         edge_loss_eval_sn(p, &e);
         loss_log(p, &e, "supernode", sock_to_cstr(sockbuf, &p->sock));
     }
+}
+
+
+// Frames go to the peer, once a second at most: what it announced, if it
+// has not answered yet - a question or its answer may be lost, as where
+// the peer is new to the edge (again) just as the line loses, and the
+// edge sends it no FEC until its next announcement to all, a minute on.
+// Again 1, 2 and 4 s after the last question, no more: an older program,
+// which announces nothing, gets no more than that, nor a peer nothing goes
+// to.  See announce.h
+void peer_announce_ask (struct n3n_runtime_data *eee, struct peer_info *peer, time_t now) {
+
+    struct n3n_announce_info info;
+
+    if((peer->announce_asks > N3N_ANNOUNCE_ASKS)
+       || (peer->announce_asks && (now - peer->announce_asked < ((time_t)1 << (peer->announce_asks - 1))))
+       || n3n_announce_get(eee->client.announce, peer->mac_addr, &info)) {
+        return;
+    }
+    edge_announce(eee, peer->mac_addr, N3N_ANNOUNCE_ASK);
+    peer->announce_asks++;
+    peer->announce_asked = now;
 }
 
 
