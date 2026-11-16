@@ -732,6 +732,16 @@ SCENARIOS = [
         conf={"community": {"fec": "auto"},
               "connection": {"udp_gso": False}}),
     Scenario(
+        "fec-oneway",
+        "as fec-lossy, but after a while of nothing, frames go from a to b "
+        "only: b, with nothing to send a, tells a of the loss on a report "
+        "of its own, and a sends repairs - at most 3% lost instead of 10%",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", fec_oneway=10,
+        conf={"community": {"fec": "auto"},
+              "connection": {"udp_gso": False}}),
+    Scenario(
         "fec-lossy-threads",
         "as fec-lossy, the edges with packet threads, which share what FEC "
         "keeps of each peer, and p2p_max_loss 0 given",

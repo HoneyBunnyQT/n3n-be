@@ -240,7 +240,7 @@ class Scenario:
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
                  metrics_remote=False, loss_counts=False, other_dev=None,
-                 pong_lost=False, sn_lossy=False):
+                 pong_lost=False, sn_lossy=False, fec_oneway=0):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -287,6 +287,11 @@ class Scenario:
         # pings over it, with community.fec in conf, those lost alone are
         # undone by the copy in the next PACKET, see fec_phase()
         self.fec_loss = fec_loss
+        # After the warm-up, the direct path between the edges loses this
+        # many percent each way, nothing goes for a while, then frames
+        # from a to b only: b has nothing to send a report of a's loss
+        # with, and is to send one of its own, see fec_oneway_phase()
+        self.fec_oneway = fec_oneway
         # After the warm-up, a TCP stream from a to b through the tunnel, as
         # fast as it goes, for this many seconds: the edges are to keep the
         # path they are on - not take a busy direct path for a lossy one
@@ -2432,15 +2437,17 @@ class Run:
 
     def _fec_stats(self, name):
         """An edge's FEC counters: copies and repairs sent, frames undone,
-        PACKETs found lost"""
+        PACKETs found lost, reports of the loss on their own sent"""
         rows = self.edges[name]["daemon"].mgmt.try_call("get_packetstats")
-        out = {"sent": 0, "undone": 0, "lost": 0}
+        out = {"sent": 0, "undone": 0, "lost": 0, "reports": 0}
         for row in rows or []:
             if row.get("type") == "fec":
                 out["sent"] = row.get("tx_pkt", 0)
                 out["undone"] = row.get("rx_pkt", 0)
             elif row.get("type") == "fec_lost":
                 out["lost"] = row.get("rx_pkt", 0)
+            elif row.get("type") == "fec_report":
+                out["reports"] = row.get("tx_pkt", 0)
         return out
 
     def _bulk(self, src, dst, count, rate, size):
@@ -2614,6 +2621,64 @@ class Run:
                        arrived, bulk, 100 - self.sc.fec_loss,
                        bstats["b"]["undone"], bstats["b"]["lost"],
                        bstats["a"]["sent"]))
+
+    # fec_oneway_phase(): how long nothing goes first - longer than what a
+    # peer told counts for, and the way back's loss (FEC_REPORT_AGE_US,
+    # FEC_RX_IDLE_US: 10s) -, and the frames from a to b then
+    FEC_ONEWAY_QUIET = 12
+    FEC_ONEWAY_FRAMES = 6000
+    FEC_ONEWAY_RATE = 500
+
+    def fec_oneway_phase(self):
+        """The direct path between a and b loses sc.fec_oneway percent each
+        way; after a while of nothing, frames from a to b only, 12s of
+        them: b has no PACKETs to a that its report of a's loss could ride
+        on, and a nothing of b's to measure the way back by.  With
+        community.fec auto, a is to send repairs all the same, once b told
+        it of the loss on a report of its own - a few of them, and none
+        on the clean line before"""
+        _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+        peer = (row or {}).get("sockaddr", "").rsplit(":", 1)[0]
+        if not peer or ":" in peer:
+            return self.check("fec oneway", False, "no IPv4 address of b "
+                              "at a ({!r})".format(peer))
+        # the clean line first: no report
+        clean = self._fec_stats("b")
+        self._bulk("a", "b", self.FEC_ONEWAY_FRAMES // 2,
+                   self.FEC_ONEWAY_RATE, 1200)
+        clean_reports = self._fec_stats("b")["reports"] - clean["reports"]
+        self.lab.nft(self.edges["a"]["ns"],
+                     LOSSY.format(peer=peer, pct=self.sc.fec_oneway), "lossy")
+        try:
+            time.sleep(self.FEC_ONEWAY_QUIET)
+            before = {n: self._fec_stats(n) for n in ("a", "b")}
+            arrived = self._bulk("a", "b", self.FEC_ONEWAY_FRAMES,
+                                 self.FEC_ONEWAY_RATE, 1200)
+            after = {n: self._fec_stats(n) for n in ("a", "b")}
+        finally:
+            run(["nft", "delete", "table", "inet", "lossy"],
+                ns=self.edges["a"]["ns"])
+        stats = {n: {k: after[n][k] - before[n][k] for k in after[n]}
+                 for n in after}
+        bulk = self.FEC_ONEWAY_FRAMES
+        self.result["fec_oneway"] = {"arrived": arrived, "of": bulk,
+                                     "edges": stats,
+                                     "clean_reports": clean_reports}
+        # b's reports of its own: one as the loss became significant, a
+        # second or two in, and one every 25s - a few, not one a second
+        self.check("fec oneway: reports", clean_reports == 0
+                   and 1 <= stats["b"]["reports"] <= 2,
+                   "b sent {} on the line losing {}% (12s), {} on the clean "
+                   "line before".format(stats["b"]["reports"],
+                                        self.sc.fec_oneway, clean_reports))
+        # without repairs, 90% at 10%; with them from b's first report on,
+        # a second or two in, some 98% and more
+        self.check("fec oneway", arrived >= 0.97 * bulk and stats["a"]["sent"],
+                   "{} of {} frames of 1200 bytes arrived, a to b only "
+                   "(without FEC some {}%), a sent {} repairs, b undid {} of "
+                   "{} lost".format(arrived, bulk, 100 - self.sc.fec_oneway,
+                                    stats["a"]["sent"], stats["b"]["undone"],
+                                    stats["b"]["lost"]))
 
     def _sn_entries(self, mac):
         """{supernode: the address its entry for the MAC has}"""
@@ -3405,6 +3470,8 @@ class Run:
                 self.sn_lossy_phase()
             if self.sc.fec_loss and self.check_alive("warm-up"):
                 self.fec_phase()
+            if self.sc.fec_oneway and self.check_alive("warm-up"):
+                self.fec_oneway_phase()
             if self.sc.load and self.check_alive("warm-up"):
                 self.load_phase()
             if self.sc.spoof and self.check_alive("warm-up"):
