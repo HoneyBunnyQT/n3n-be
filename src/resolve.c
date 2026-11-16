@@ -20,6 +20,8 @@
 
 #include "config.h"          // for HAVE_LIBPTHREAD
 #include "resolve.h"
+#include "peer_info.h"       // for peer_info_malloc, sn_list_merge_learned
+#include "sn_selection.h"    // for sn_selection_criterion_bad
 #include "n2n.h"             // for sock_equal, parse_address_spec
 #include "n2n_define.h"
 #include "n2n_typedefs.h"
@@ -613,10 +615,48 @@ static int resolve_hostnames_str_to_peer_info_one (
     // WARN: this function could block for a name resolution
     int rv = supernode2sock(&sock, s);
 
+    struct peer_info *scan, *tmp;
+    HASH_ITER(hh, *list, scan, tmp) {
+        if((scan->sock.family == AF_INVALID) && scan->hostname && !strcmp(scan->hostname, s)) {
+            break;
+        }
+    }
+
     if(rv < 0) {
-        /* just warn, since it might resolve next time */
-        traceEvent(TRACE_WARNING, "could not resolve %s", s);
+        // It is kept all the same, without an address (AF_INVALID): the
+        // resolver thread tries it again, as it does the others (see
+        // resolve_create_thread()), and nothing is sent to it meanwhile.
+        // Not kept, it was never tried again - and with no supernode at
+        // all, the edge had no current one to register with.
+        traceEvent(TRACE_WARNING, "could not resolve %s, trying again later", s);
+        if(scan) {
+            return 1;
+        }
+        HASH_ITER(hh, *list, scan, tmp) {
+            if(scan->hostname && !strcmp(scan->hostname, s)) {
+                // given once, resolved by now (resolve_check())
+                return 1;
+            }
+        }
+        scan = peer_info_malloc(null_mac);
+        if(!scan) {
+            return 1;
+        }
+        // not chosen while another one can be
+        scan->selection_criterion = sn_selection_criterion_bad();
+        memset(&scan->sock, 0, sizeof(scan->sock));
+        scan->sock.family = AF_INVALID;
+        scan->hostname = strdup(s);
+        scan->purgeable = false;
+        HASH_ADD_PEER(*list, scan);
         return 1;
+    }
+
+    // given before, but not resolved then: its address now
+    if(scan) {
+        memcpy(&(scan->sock), &sock, sizeof(n3n_sock_t));
+        traceEvent(TRACE_INFO, "supernode %s resolved now", s);
+        return 0;
     }
 
     int skip_add = SN_ADD;

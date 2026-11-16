@@ -57,6 +57,14 @@ struct peer_info* peer_info_malloc (const n2n_mac_t mac);
 void peer_info_free (struct peer_info *);
 struct peer_info* peer_info_validate (struct peer_info **, struct peer_info *);
 
+// A supernode given by a name not resolved at first (see resolve.c) may get
+// its address only after the federation told of the same supernode: two
+// entries for one in sn_list then.  One is kept, the one given - the
+// resolver thread updates its address, by pointer - with what the learned
+// one knows of it; *curr, where given, moves to it as well.  Called after
+// resolve_check().
+void sn_list_merge_learned (struct peer_info **sn_list, struct peer_info **curr);
+
 char *peer_info_get_hostname (struct peer_info *);
 
 /* Operations on peer_info lists. */

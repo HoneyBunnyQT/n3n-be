@@ -1619,6 +1619,12 @@ static void sendto_sock (struct n3n_runtime_data *eee, const void * buf,
         return;
     }
 
+    if(dest->family == AF_INVALID) {
+        // a supernode whose name is not resolved yet, see resolve.c
+        traceEvent(TRACE_DEBUG, "not sending to an address not resolved yet");
+        return;
+    }
+
     if(eee->sock < 0) {
         traceEvent(TRACE_DEBUG, "bad eee->sock");
         // invalid socket file descriptor, e.g. TCP unconnected has fd of '-1'
@@ -4592,6 +4598,7 @@ int run_edge_loop (struct n3n_runtime_data *eee) {
                 eee->resolution_request = false;
             }
         }
+        sn_list_merge_learned(&eee->supernodes, &eee->curr_sn);
 
 
     } /* while */

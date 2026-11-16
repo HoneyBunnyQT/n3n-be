@@ -3659,6 +3659,7 @@ int run_sn_loop (struct n3n_runtime_data *sss) {
             false /* presumably, no special resolution requirement */,
             now
         );
+        sn_list_merge_learned(&sss->federation->edges, NULL);
     } /* while */
 
     edge_threads_stop(sss);
