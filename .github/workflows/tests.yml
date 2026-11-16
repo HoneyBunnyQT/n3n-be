@@ -158,7 +158,8 @@ jobs:
 
       - name: Install packages
         run: |
-          brew install automake
+          # again where it fails: the runner's network, now and then
+          scripts/ci_retry.sh 3 30 brew install automake
 
       - name: generate a makefile and use it to install more packages
         run: |
@@ -435,7 +436,8 @@ jobs:
 
       - name: Install packages needed for build
         run: |
-          brew install automake
+          # again where it fails: the runner's network, now and then
+          scripts/ci_retry.sh 3 30 brew install automake
 
       - name: Configure and Build
         shell: bash
@@ -491,7 +493,8 @@ jobs:
 
       - name: Install packages needed for build
         run: |
-          brew install automake
+          # again where it fails: the runner's network, now and then
+          scripts/ci_retry.sh 3 30 brew install automake
 
       - name: Configure and Build
         shell: bash

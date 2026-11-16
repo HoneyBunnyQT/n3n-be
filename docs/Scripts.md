@@ -80,6 +80,14 @@ version number to use.  In a checkout without tags, such as a shallow
 clone, it takes the VERSION file with the commit (`3.4.7-g608cc48`), and
 says so.
 
+### `ci_retry.sh`
+
+`ci_retry.sh TRIES WAIT command...` runs a command, and again where it
+fails - up to TRIES times, WAIT seconds before the second try and twice
+as long before each one after.  For the CI's steps that fetch from the
+network (`brew install`, `choco install`), which fail now and then for
+reasons of the runner's, as a name it cannot resolve.
+
 ## Monitoring and statistics
 
 ### `munin/n3n_`

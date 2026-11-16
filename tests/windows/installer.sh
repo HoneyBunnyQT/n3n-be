@@ -51,13 +51,10 @@ image_path() {
 # checked, so the run ends here, saying why (not with every check after
 # failing for want of setup.exe)
 if ! command -v makensis >/dev/null; then
-    for try in 1 2; do
-        [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
-        if ! choco install nsis -y --no-progress >"$WORK/choco.log" 2>&1; then
-            echo "choco install nsis failed (try $try):"
+    if [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
+        scripts/ci_retry.sh 3 30 choco install nsis -y --no-progress >"$WORK/choco.log" 2>&1 ||
             tail -n 20 "$WORK/choco.log"
-        fi
-    done
+    fi
     PATH="$PATH:/c/Program Files (x86)/NSIS"
 fi
 if ! command -v makensis >/dev/null; then

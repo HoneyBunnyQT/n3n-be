@@ -317,9 +317,8 @@ jobs:
           if [ -f packages/windows/n3n-be.nsi ]; then
             if ! command -v makensis >/dev/null &&
                 [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
-              # once more where Chocolatey fails, as it does now and then
-              choco install nsis -y --no-progress ||
-                choco install nsis -y --no-progress
+              # again where Chocolatey fails, as it does now and then
+              scripts/ci_retry.sh 3 30 choco install nsis -y --no-progress
             fi
             PATH="$PATH:/c/Program Files (x86)/NSIS"
             if ! command -v makensis >/dev/null; then
@@ -353,7 +352,8 @@ jobs:
 
       - name: Install what the build needs
         run: |
-          brew install automake
+          # again where it fails: the runner's network, now and then
+          scripts/ci_retry.sh 3 30 brew install automake
 
       - name: Build
         run: |
