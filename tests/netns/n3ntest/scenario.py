@@ -251,7 +251,7 @@ class Scenario:
                  fec_loss=0, load=0, exit=None, flood=0,
                  metrics_remote=False, loss_counts=False, other_dev=None,
                  pong_lost=False, sn_lossy=False, fec_oneway=0,
-                 peer_refresh=False, sn_names=False):
+                 peer_refresh=False, sn_names=False, lossy_within=None):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -313,6 +313,9 @@ class Scenario:
         # sn1 resolves; the one of sn2 resolves later still, and a is to
         # take it up - see sn_names_start(), sn_names_phase()
         self.sn_names = sn_names
+        # with lossy: through the supernode within so many seconds of the
+        # loss starting, None for no limit - see lossy_phase()
+        self.lossy_within = lossy_within
         # After the warm-up, a TCP stream from a to b through the tunnel, as
         # fast as it goes, for this many seconds: the edges are to keep the
         # path they are on - not take a busy direct path for a lossy one
@@ -2248,8 +2251,11 @@ class Run:
                 took = round(time.monotonic() - t, 1)
                 now = self._modes_str(self.modes())
                 self.result[tag] = {"seconds": took, "modes": now}
-                self.check(tag, ok, "{} after {}s".format(now,
-                                                          took))
+                within = self.sc.lossy_within if want == "pSp" else None
+                self.check(tag, ok and (within is None or took <= within),
+                           "{} after {}s{}".format(
+                               now, took, "" if within is None else
+                               " (within {}s wanted)".format(within)))
                 if not ok or want == "p2p":
                     break
                 # the loss on until a has round trips enough to tell (30,

@@ -60,6 +60,7 @@ static inline uint32_t p2p_max_loss (const n2n_edge_conf_t *conf) {
 #define P2P_PROBE_ROUND     20      /* probes */
 #define P2P_PROBE_US        1000000
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer);
+void peer_data_loss (struct n3n_runtime_data *eee, struct peer_info *peer);
 // the questions for a peer's announcement, beside the first one, at most
 #define N3N_ANNOUNCE_ASKS   3
 void peer_announce_ask (struct n3n_runtime_data *eee, struct peer_info *peer, time_t now);

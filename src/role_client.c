@@ -30,6 +30,7 @@
 #include "config.h"
 #include "announce.h"          // for n3n_announce_renew
 #include "exit_probe.h"        // for edge_exit_network_changed
+#include "fec.h"               // for n3n_fec_peer_info
 #include "edge_utils.h"
 #include "header_encryption.h"
 #include "management.h"
@@ -1854,6 +1855,8 @@ static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *pee
         }
         SHARED_STORE(peer->lossy, 0);
         peer->clean_rounds = 0;
+        peer->data_lossy = 0;
+        peer->direct_us = n3n_monotonic_us();
         traceEvent(TRACE_NORMAL, "peer %s: %u%% lost on the direct path%s, direct again",
                    macaddr_str(mac_buf, peer->mac_addr), peer->loss,
                    (want > 1) ? ", the second round in a row" : "");
@@ -1983,6 +1986,50 @@ void edge_tick_loss (struct n3n_runtime_data *eee, time_t now) {
         edge_loss_eval_sn(p, &e);
         loss_log(p, &e, "supernode", sock_to_cstr(sockbuf, &p->sock));
     }
+}
+
+
+// Frames go to the peer directly, once a second at most: the loss of those
+// frames themselves, as the peer tells it - forward error correction's
+// reports, riding along or of their own (fec.h).  Where it is
+// p2p_max_loss or more twice in a row, the peer's frames go through the
+// supernode, as after a round of probes that lost as much: at once, with
+// nothing on the wire for it.  Not while they go through the supernode:
+// what the peer tells then is the loss of that way - the probes tell when
+// the direct one is good again (probe_round_end()); nor for a while after
+// they go directly again, when what it tells may still be of the other.
+#define PEER_DATA_SETTLE_US     (2 * 1000000ULL)
+void peer_data_loss (struct n3n_runtime_data *eee, struct peer_info *peer) {
+
+    uint32_t max = p2p_max_loss(&eee->conf);
+    uint64_t now_us = n3n_monotonic_us();
+    struct n3n_fec_info info;
+    macstr_t mac_buf;
+
+    if(!max || peer->lossy || !eee->client.fec
+       || (n3n_fec_peer_info(eee->client.fec, peer->mac_addr, &info) < 0)
+       || (info.loss_fast < 0) || (now_us > info.told_until_us)
+       || (info.told_us < peer->direct_us + PEER_DATA_SETTLE_US)) {
+        peer->data_lossy = 0;
+        return;
+    }
+    if((uint32_t)info.loss_fast < max) {
+        peer->data_lossy = 0;
+        return;
+    }
+    if(++peer->data_lossy < 2) {
+        return;
+    }
+    peer->loss = (uint8_t)info.loss_fast;
+    SHARED_STORE(peer->lossy, 1);
+    peer->clean_rounds = 0;
+    peer->data_lossy = 0;
+    // to tell when it is good again
+    peer->probing = 1;
+    peer->probes_sent = 0;
+    peer->probes_answered = 0;
+    traceEvent(TRACE_NORMAL, "peer %s: %u%% of the frames to it lost on the direct path, as it tells, "
+               "through the supernode", macaddr_str(mac_buf, peer->mac_addr), peer->loss);
 }
 
 

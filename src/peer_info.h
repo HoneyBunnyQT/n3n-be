@@ -53,6 +53,8 @@ struct peer_info {
     uint8_t lossy;          /* its frames go through the supernode, see peer_probe() */
     uint8_t clean_rounds;   /* lossy: rounds of probes in a row since that lost little, see probe_round_end() */
     uint8_t probing;        /* the direct path is probed, since a REGISTER to the peer got lost, see peer_probe() */
+    uint8_t data_lossy;     /* checks in a row where the peer told of too much loss of our frames, see peer_data_loss() */
+    uint64_t direct_us;     /* when its frames went directly again, after it was lossy (monotonic) */
     uint32_t reg_lost_seen; /* n3n_loss_lost() of reg_loss when peer_probe() last looked */
     uint8_t announce_asks;  /* an edge's peer: asked for its announcement so often, unanswered, see peer_announce_ask() */
     time_t announce_asked;  /* and when last */

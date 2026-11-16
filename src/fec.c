@@ -1717,6 +1717,9 @@ int n3n_fec_peer_info (struct n3n_fec *fec, const n2n_mac_t peer, struct n3n_fec
         bool told = p->reported != FEC_LOSS_UNKNOWN;
 
         info->loss = told ? p->reported : -1;
+        info->loss_fast = told ? p->reported_fast : -1;
+        info->told_us = told ? p->reported_us : 0;
+        info->told_until_us = told ? p->reported_until_us : 0;
         info->burst4 = told ? p->reported_burst : 0;
         info->residual = told ? p->reported_residual : -1;
         info->margin8 = p->margin;

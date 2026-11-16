@@ -259,8 +259,15 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             stay lost, not while backing off tests.  tests-fec: 3 % in bursts of 4,
             33 of 2000 stay lost taken as independent, 6 told; a two-way
             simulation (`duplex`, frames one way and the other's reports
-            back, over 30 s).  `get_edges` shows a peer's `fec`.  Left:
-            p2p_max_loss may take the data's loss while direct
+            back, over 30 s).  `get_edges` shows a peer's `fec`.  And
+            p2p_max_loss takes the data's loss while direct (2026-11-16,
+            `peer_data_loss()`): with FEC and a p2p_max_loss given, the
+            peer's reports of the frames to it, the fast loss at or over
+            it at two looks a second apart, take its frames through the
+            supernode at once - not while through it (that way's loss),
+            nor for 2 s after back; back by the probes as before.  netns
+            `lossy-direct-fec`: through the supernode after 4.5 to 6.5 s
+            (21.6 s by the probes alone)
       - [x] Backing off where the repairs fill the line (2026-10-19): for
             streams (groups of 4 frames and more), after 8 s of repairs,
             half of them for a second; where the loss told lately (the

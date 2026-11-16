@@ -300,7 +300,13 @@ path however bad it gets.
 The default, `auto`, is 20 - or 0 where `community.fec` is on: FEC
 repairs what the direct path loses, and a loss on the edge's own line,
 the most common one, the way through the supernode would not avoid.
-A number given for `p2p_max_loss` holds also with FEC.
+A number given for `p2p_max_loss` holds also with FEC - and there the
+peer tells how many of the frames to it it lost (see
+[Forward Error Correction](FEC.md)): where that is as many, at two
+looks a second apart, the frames go through the supernode at once,
+within seconds of the loss starting and with nothing on the wire for it.
+Back the direct way is for the probes, as above: through the supernode,
+the peer's count is of that way.
 
 Nothing of it is on the wire: the probes are REGISTERs, which every
 version of n3n and n2n answers.  The way through the supernode is not

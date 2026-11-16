@@ -728,6 +728,17 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", lossy=30, conf={"daemon": {"threads": 3}}),
     Scenario(
+        "lossy-direct-fec",
+        "as lossy-direct, with community.fec auto and p2p_max_loss 20 "
+        "given: the loss of the frames themselves, which the peers' "
+        "reports tell, takes them through the supernode within seconds - "
+        "no probes needed for it; back with the probes, as without FEC",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", lossy=30, lossy_within=10,
+        conf={"community": {"fec": "auto"},
+              "connection": {"p2p_max_loss": 20}}),
+    Scenario(
         "fec-lossy",
         "edges behind easy NATs, direct, with community.fec auto; then their "
         "direct path loses 10% each way, and they stay on it "

@@ -205,6 +205,9 @@ int n3n_fec_m_burst (int k, int percent, int burst4);
 struct n3n_fec_info {
     // to the peer
     int loss;                   // percent, -1 for not known
+    int loss_fast;              // of it: lately, -1 for not known
+    uint64_t told_us;           // when the peer told it last (monotonic), 0: never
+    uint64_t told_until_us;     // and how long that holds, see FEC_REPORT_HOLD_US
     int burst4;                 // mean burst in quarters, 0 for not known
     int residual;               // per mille, -1 for not known
     int margin8;                // the loss times margin8 / 8 for m
