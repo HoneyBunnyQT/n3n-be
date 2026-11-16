@@ -315,6 +315,18 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             `fec_report`, the log at info.  The probes' loss of the
             direct path instead was the idea before: they are off with
             FEC
+      - [x] A report of its own lost - on the very line that loses -
+            left the sender without repairs until the next, 25 s later:
+            `fec-oneway` 1 report, 0 repairs, now and then.  Now one the
+            sender does not act on - no repairs from it, nor frames of a
+            group with them, within a second - goes again, and 2 s after
+            that, no more in a row (2026-11-16); a sender that repairs at
+            once costs nothing more.  tests-fec (`report: first lost`,
+            `all lost`).  The other `fec-oneway` failure, no report at
+            all (1 in 8 before, 1 in 10 after): the peer quiet for the
+            12 s, dropped as the frames start and learnt anew, its
+            announcement asked for anew - lost on the line, and the
+            sender sends it no FEC until the next to all, a minute on
       - [x] Frames one way, nothing back: past half the peer's timeout
             they went through the supernode until a REGISTER's ACK came
             (EDGE_EVENT_PEER_IDLE) - with the lab's 5 s, 1 to 3 frames

@@ -40,6 +40,13 @@
 #define FEC_REPORT_EVERY_US     (25 * 1000000ULL)
 #define FEC_REPORT_RIDDEN_US    (8 * 1000000ULL)
 #define FEC_REPORT_QUIET_US     (1000000ULL)
+// a report, alone or riding, the peer did not act on - no repairs from it
+// since, as of a group with repairs, or a repair - is lost, as like as not:
+// it goes again so long after it, twice as long the second time, and no
+// more than so many times in a row - a peer that does not repair, whatever
+// it reads, gets no more than that
+#define FEC_REPORT_CHECK_US     (1000000ULL)
+#define FEC_REPORT_TRIES        2
 // the loss of a peer's frames for those reports: counted in blocks of so
 // many seqs, of the last two; significant from FEC_SIG_MIN counted on,
 // where the bottom of Wilson's 95 % interval is FEC_SIG_LOSS or more, and
@@ -208,6 +215,8 @@ struct fec_peer {
     bool report_due;            // it changed, to be told
     uint64_t report_us;         // the last report to it, riding or alone
     uint64_t report_alone_us;   // the last one on its own, 0: none
+    uint8_t report_tries;       // in a row, the peer not repairing, see FEC_REPORT_CHECK_US
+    uint64_t repairs_us;        // the last of its repairs, or frames of a group with them
     // the frames of groups in the window, by seq % FEC_WINDOW, and repairs
     struct fec_slot slot[FEC_WINDOW];
     uint8_t *slot_data;         // FEC_WINDOW x N3N_FEC_SYMBOL_MAX, from the first frame of a group on
@@ -1069,8 +1078,22 @@ int n3n_fec_report (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
             if(p->report_alone_us && (p->report_alone_us + FEC_REPORT_EVERY_US > at)) {
                 at = p->report_alone_us + FEC_REPORT_EVERY_US;
             }
+            // no repairs since the last: it may have been lost
+            if((p->report_tries < FEC_REPORT_TRIES) && (p->repairs_us < p->report_us)) {
+                uint64_t again = p->report_us + (FEC_REPORT_CHECK_US << p->report_tries);
+
+                if(again < at) {
+                    at = again;
+                }
+            }
         }
         if(!got && (now_us >= at) && (out_size >= 1 + N3N_FEC_REPORT_MORE)) {
+            // once more where the peer did not act on the last one
+            if(p->report_due || (p->repairs_us >= p->report_us)) {
+                p->report_tries = 0;
+            } else if(p->report_tries < FEC_REPORT_TRIES) {
+                p->report_tries++;
+            }
             *out_len = put_report(out, p);
             memcpy(peer, p->mac, sizeof(n2n_mac_t));
             p->report_us = now_us;
@@ -1573,6 +1596,11 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
             out->count = 1;
         }
         return 0;
+    }
+
+    // the peer repairs: it knows of the loss, see FEC_REPORT_CHECK_US
+    if((scheme == N3N_FEC_GROUP) || (scheme == N3N_FEC_REPAIR) || (scheme == N3N_FEC_RIDE)) {
+        p->repairs_us = now_us;
     }
 
     if(told) {

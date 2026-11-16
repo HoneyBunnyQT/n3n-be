@@ -39,6 +39,9 @@ report: then none lost, 9 s        0 report(s)
 report: none lost, 12 s            1 report(s)
 report: none lost, 30 s more       0 report(s)
 report: 5 %, b's frames to a, 30 s 0 report(s)
+report: first lost, 10 s           2 report(s), a repairs 1
+report: all lost, 20 s             3 report(s)
+report: all lost, 30 s             4 report(s)
 duplex, 10 %               150000 frames,  99.9 % arrive,  36.2 % repairs, loss told 11 %, residual 0, margin 1.500, scale 8/8: ok
 duplex, 5 % in bursts of 3 150000 frames,  99.7 % arrive,  36.1 % repairs, loss told  8 %, residual 0, margin 2.125, scale 8/8: ok
 duplex, full line, 3 %     300000 frames,  99.7 % arrive,  17.0 % repairs, loss told  5 %, residual 2, margin 3.000, scale 3/8: ok

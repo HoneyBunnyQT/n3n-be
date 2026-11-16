@@ -114,13 +114,17 @@ that is plainly there, and seldom:
   - and none of them where a report rode along to the peer within a
   second anyway.  The sender holds a report on its own for 30 s, one
   riding along for 10; one riding along does not cut short the other.
+- *Again:* a report the sender does not act on - no repairs from it in a
+  second - may have been lost, on the very line that loses: it goes
+  again then, and two seconds after that, no more in a row.  A sender
+  that repairs at once costs nothing more.
 - *To whom:* only to a peer whose frames come with FEC, and that says it
   reads such reports (scheme 5, see below) - also from an edge with
   `community.fec = none`, which reads FEC all the same.
 
 So a clean line, or one that loses a little, has none; a line losing much
-on a stream one way, a report as the loss shows, then one every 25 s - not
-one a second.  The edge's log says why, at `-v` (info): "... 19 of its
+on a stream one way, a report as the loss shows (two or three where they
+get lost), then one every 25 s - not one a second.  The edge's log says why, at `-v` (info): "... 19 of its
 last 208 frames lost, 5.9 to 13.8 % - significant, to be told", "told ...
 of the loss of its frames on a report of its own".
 

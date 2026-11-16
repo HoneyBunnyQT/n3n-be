@@ -2681,9 +2681,10 @@ class Run:
                                      "edges": stats,
                                      "clean_reports": clean_reports}
         # b's reports of its own: one as the loss became significant, a
-        # second or two in, and one every 25s - a few, not one a second
+        # second or two in - again 1s and 2s after where a does not repair,
+        # it got lost - and one every 25s: a few, not one a second
         self.check("fec oneway: reports", clean_reports == 0
-                   and 1 <= stats["b"]["reports"] <= 2,
+                   and 1 <= stats["b"]["reports"] <= 3,
                    "b sent {} on the line losing {}% (12s), {} on the clean "
                    "line before".format(stats["b"]["reports"],
                                         self.sc.fec_oneway, clean_reports))

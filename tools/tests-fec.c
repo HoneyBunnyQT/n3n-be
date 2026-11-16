@@ -612,10 +612,13 @@ static int test_measure (void) {
 }
 
 
+// how many of the next reports b sends on their own get lost, see oneway()
+static int reports_lost;
+
 // Frames from a to b, one a millisecond, every lose_every-th lost (0:
 // none); where back_every is not 0, a frame of b's to a every so many,
-// its report riding along.  The reports b sends on their own go to a; how
-// many in *reports
+// its report riding along.  The reports b sends on their own go to a -
+// but for reports_lost of them; how many in *reports
 static void oneway (struct n3n_fec *a, struct n3n_fec *b, int frames, int lose_every, int back_every,
                     uint64_t *now, int *reports) {
 
@@ -644,7 +647,11 @@ static void oneway (struct n3n_fec *a, struct n3n_fec *b, int frames, int lose_e
             p.scheme = N3N_FEC_REPORT;
             if(!memcmp(to, mac_a, sizeof(n2n_mac_t))) {
                 (*reports)++;
-                unwrap(a, mac_b, &p, *now, &s, 100);
+                if(reports_lost > 0) {
+                    reports_lost--;
+                } else {
+                    unwrap(a, mac_b, &p, *now, &s, 100);
+                }
             }
         }
     }
@@ -764,6 +771,35 @@ static int test_report (void) {
     oneway(a, b, 30000, 20, 100, &now, &r);
     printf("%-34s %d report(s)\n", "report: 5 %, b's frames to a, 30 s", r);
     failed |= r != 0;
+
+    // the first report lost: a does not repair, b tells it again a second
+    // later - and then not before 25 s
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    a = n3n_fec_new();
+    b = n3n_fec_new();
+    now = 8000 * SEC;
+    r = 0;
+    reports_lost = 1;
+    oneway(a, b, 10000, 20, 0, &now, &r);
+    printf("%-34s %d report(s), a repairs %d\n", "report: first lost, 10 s", r, a_repairs(a, now));
+    failed |= (r != 2) || (a_repairs(a, now) < 1);
+
+    // all lost: again after 1 s and 2 s more, then every 25 s only
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    a = n3n_fec_new();
+    b = n3n_fec_new();
+    now = 9000 * SEC;
+    r = 0;
+    reports_lost = 1000;
+    oneway(a, b, 20000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: all lost, 20 s", r);
+    failed |= r != 3;
+    oneway(a, b, 10000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: all lost, 30 s", r);
+    failed |= r != 4;
+    reports_lost = 0;
 
     n3n_fec_free(a);
     n3n_fec_free(b);

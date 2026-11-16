@@ -72,7 +72,10 @@
  * sender holds such a report for 30 s, one riding along for 10 - one
  * riding along does not cut short what one on its own holds; so where
  * only those rode along, one goes on its own 8 s after the last of them.
- * A clean line, or one that loses a frame now and then, has none.
+ * One the sender does not act on - no repairs from it since, nor frames
+ * of a group with them - may be lost: it goes again a second after, and
+ * two after that, no more in a row.  A clean line, or one that loses a
+ * frame now and then, has none.
  *
  * m follows the loss and how it comes - in bursts, it takes more (see
  * n3n_fec_m_burst()); and where frames stay lost all the same, the sender
