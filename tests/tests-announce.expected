@@ -1,5 +1,5 @@
-frame               ffffffffffff02000000000a88b5 | 6e336e0101 | 0102001f02156c6976696e6720726f6f6d2c2075707374616972730301810000000000000000000000
-read back           flags 01, fec 001f, name "living room, upstairs", exit 81
+frame               ffffffffffff02000000000a88b5 | 6e336e0101 | 0102003f02156c6976696e6720726f6f6d2c2075707374616972730301810000000000000000000000
+read back           flags 01, fec 003f, name "living room, upstairs", exit 81
 nothing to say      60 bytes, the least of a frame
 read back           flags 00, fec (none) 0000, name "", exit 00
 unknown TLV         flags 00, fec 0001, name "one ", exit 00

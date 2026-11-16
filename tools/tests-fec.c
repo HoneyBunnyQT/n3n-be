@@ -612,6 +612,165 @@ static int test_measure (void) {
 }
 
 
+// Frames from a to b, one a millisecond, every lose_every-th lost (0:
+// none); where back_every is not 0, a frame of b's to a every so many,
+// its report riding along.  The reports b sends on their own go to a; how
+// many in *reports
+static void oneway (struct n3n_fec *a, struct n3n_fec *b, int frames, int lose_every, int back_every,
+                    uint64_t *now, int *reports) {
+
+    uint8_t frame[N2N_PKT_BUF_SIZE];
+    size_t len = make_frame(frame, 0, 100);
+    n2n_mac_t to;
+    struct pdu p;
+    struct seen s;
+
+    memset(&s, 0, sizeof(s));
+    for(int i = 1; i <= frames; i++) {
+        *now += 1000;
+        p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                ROOM, &p.len, *now);
+        if(!lose_every || (i % lose_every)) {
+            unwrap(b, mac_a, &p, *now, &s, 100);
+        }
+        while(n3n_fec_repair(a, *now, to, p.buf, sizeof(p.buf), &p.len)) {
+        }
+        if(back_every && !(i % back_every)) {
+            p.scheme = n3n_fec_wrap(b, N3N_FEC_MODE_AUTO, mac_a, frame, len, p.buf, sizeof(p.buf),
+                                    ROOM, &p.len, *now);
+            unwrap(a, mac_b, &p, *now, &s, 100);
+        }
+        while(n3n_fec_report(b, *now, to, p.buf, sizeof(p.buf), &p.len)) {
+            p.scheme = N3N_FEC_REPORT;
+            if(!memcmp(to, mac_a, sizeof(n2n_mac_t))) {
+                (*reports)++;
+                unwrap(a, mac_b, &p, *now, &s, 100);
+            }
+        }
+    }
+}
+
+
+// The repairs a's last group to b got, its frames at now: what a makes of
+// what b told it
+static int a_repairs (struct n3n_fec *a, uint64_t now) {
+
+    uint8_t frame[N2N_PKT_BUF_SIZE];
+    size_t len = make_frame(frame, 0, 100);
+    struct n3n_fec_info info;
+    struct pdu p;
+    n2n_mac_t to;
+
+    for(int i = 0; i < 4; i++) {
+        p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                                ROOM, &p.len, now + i * 1000);
+    }
+    // the next group's first frame closes this one
+    p.scheme = n3n_fec_wrap(a, N3N_FEC_MODE_AUTO, mac_b, frame, len, p.buf, sizeof(p.buf),
+                            ROOM, &p.len, now + 20000);
+    while(n3n_fec_repair(a, now + 30000, to, p.buf, sizeof(p.buf), &p.len)) {
+    }
+    n3n_fec_peer_info(a, mac_b, &info);
+    return info.m;
+}
+
+
+// Reports of their own, where nothing goes back (see fec.h): a frame lost
+// now and then is no report; 5 % is - one, a quiet second after it is
+// significant -, a's repairs follow it, and it holds 30 s; one every 25 s
+// while it lasts, one more as it is over, and none where b's own frames
+// to a carry it
+static int test_report (void) {
+
+    struct n3n_fec *a = n3n_fec_new();
+    struct n3n_fec *b = n3n_fec_new();
+    uint64_t now = 3000 * SEC, at;
+    int failed = 0, r, m_held, m_gone;
+
+    r = 0;
+    oneway(a, b, 3000, 500, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: 1 of 500 lost, 3 s", r);
+    failed |= r != 0;
+
+    r = 0;
+    oneway(a, b, 2000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: 5 % lost, 2 s", r);
+    failed |= r != 1;
+
+    // one of b's frames to a then, its report riding along: no report
+    // of its own 8 s after it, a holds the one before longer
+    r = 0;
+    oneway(a, b, 1000, 20, 1000, &now, &r);
+    oneway(a, b, 15000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: one frame back, 16 s", r);
+    failed |= r != 0;
+    a_repairs(a, now);
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    a = n3n_fec_new();
+    b = n3n_fec_new();
+    now = 4000 * SEC;
+    r = 0;
+    oneway(a, b, 2000, 20, 0, &now, &r);
+    failed |= r != 1;
+
+    // what a holds of it: 20 s on, and 31 s on
+    at = now;
+    m_held = a_repairs(a, at + 20 * SEC);
+    m_gone = a_repairs(a, at + 31 * SEC);
+    printf("%-34s %d repairs 20 s on, %d 31 s on\n", "report: a's group of 4", m_held, m_gone);
+    failed |= (m_held < 1) || (m_gone != 0);
+
+    // a and b anew, at a time a holds nothing of before
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    a = n3n_fec_new();
+    b = n3n_fec_new();
+    now = 5000 * SEC;
+    r = 0;
+    oneway(a, b, 60000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: 5 % lost, 60 s", r);
+    // the first, a second or so in, then at 25 s and 50 s from it
+    failed |= r != 3;
+
+    // a second without loss, as when the frames go through the
+    // supernode for a while: nothing to tell
+    r = 0;
+    oneway(a, b, 1000, 0, 0, &now, &r);
+    oneway(a, b, 3000, 20, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: 1 s none lost, 3 s 5 %", r);
+    failed |= r != 0;
+
+    // over: once none lost for 10 s
+    r = 0;
+    oneway(a, b, 9000, 0, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: then none lost, 9 s", r);
+    failed |= r != 0;
+    oneway(a, b, 3000, 0, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: none lost, 12 s", r);
+    failed |= r != 1;
+
+    r = 0;
+    oneway(a, b, 30000, 0, 0, &now, &r);
+    printf("%-34s %d report(s)\n", "report: none lost, 30 s more", r);
+    failed |= r != 0;
+
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    a = n3n_fec_new();
+    b = n3n_fec_new();
+    now = 7000 * SEC;
+    r = 0;
+    oneway(a, b, 30000, 20, 100, &now, &r);
+    printf("%-34s %d report(s)\n", "report: 5 %, b's frames to a, 30 s", r);
+    failed |= r != 0;
+
+    n3n_fec_free(a);
+    n3n_fec_free(b);
+    return failed;
+}
+
+
 // a sends frames of size to b, one every gap_us, for secs seconds; b one
 // of 60 bytes to a every millisecond, its report riding along.  The way
 // from a to b loses pct at random, in bursts of burst4 / 4 (0: one by
@@ -867,6 +1026,7 @@ int main (int argc, char * argv[]) {
     burst4_way = 0;
 
     failed |= test_measure();
+    failed |= test_report();
     // both ways, the receiver telling what it sees: at random, in bursts,
     // and on a line that is full where repairs are added
     failed |= duplex("duplex, 10 %", 1000, 200, 30, 10, 0, 0, 995, 0);

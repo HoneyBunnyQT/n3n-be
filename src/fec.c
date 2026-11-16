@@ -10,6 +10,7 @@
 #endif
 
 #include <n2n_define.h>     // for ETH_FRAMESIZE
+#include <n3n/logging.h>    // for traceEvent
 #include <n3n/random.h>     // for n3n_rand
 #include <stdbool.h>        // for bool
 #include <stdlib.h>         // for calloc, malloc, free
@@ -19,6 +20,7 @@
 
 #include "fec.h"
 #include "gf256.h"
+#include "loss_count.h"     // for n3n_loss_wilson
 #include "uthash.h"
 
 // a peer not heard from or sent to for so long is forgotten
@@ -26,8 +28,29 @@
 #define FEC_PURGE_US            (10 * 1000000ULL)
 // more peers are not kept: their PACKETs go without
 #define FEC_PEERS_MAX           4096
-// what the peer told of its loss counts for so long
+// what the peer told of its loss counts for so long - riding along, and
+// on a report of its own (REPORT), which comes less often
 #define FEC_REPORT_AGE_US       (10 * 1000000ULL)
+#define FEC_REPORT_HOLD_US      (30 * 1000000ULL)
+// a report of its own goes again so long after one, while the loss stays
+// significant; so long after one that rode along, which the peer holds for
+// FEC_REPORT_AGE_US only - unless another rides along meanwhile; and as
+// the loss becomes significant, or stops being so, once nothing went for
+// the quiet time: one rode along then, and more will
+#define FEC_REPORT_EVERY_US     (25 * 1000000ULL)
+#define FEC_REPORT_RIDDEN_US    (8 * 1000000ULL)
+#define FEC_REPORT_QUIET_US     (1000000ULL)
+// the loss of a peer's frames for those reports: counted in blocks of so
+// many seqs, of the last two; significant from FEC_SIG_MIN counted on,
+// where the bottom of Wilson's 95 % interval is FEC_SIG_LOSS or more, and
+// over where its top is below it - a frame lost now and then is not
+#define FEC_SIG_BLOCK           256
+#define FEC_SIG_MIN             200
+#define FEC_SIG_LOSS            0.02
+// over only once it stayed so for this long: the frames of a peer that
+// hears nothing back go through the supernode for a second now and then
+// (EDGE_EVENT_PEER_IDLE), another way, maybe clean - no reason to tell
+#define FEC_SIG_OVER_US         (10 * 1000000ULL)
 // after so long without a PACKET from the peer, its count starts anew
 #define FEC_RX_IDLE_US          (10 * 1000000ULL)
 // a PACKET is counted as lost once so many after it came: some leeway for
@@ -134,6 +157,7 @@ struct fec_peer {
     uint8_t reported_burst;     // in quarters, 0 for not known
     uint8_t reported_residual;  // per mille
     uint64_t reported_us;
+    uint64_t reported_until_us; // it counts until then, see FEC_REPORT_HOLD_US
     uint8_t margin;             // see FEC_MARGIN_MIN
     uint64_t margin_us;         // changed last, or a probe ended
     uint8_t last_k, last_m;     // of the last group
@@ -175,6 +199,15 @@ struct fec_peer {
     uint8_t run;                // lost in a row, so far
     uint32_t burst;             // the mean of those runs, of FEC_BURST_ONE, 0: none yet
     uint8_t dups;               // that came before already, in a row
+    // telling it the loss on reports of its own, see FEC_SIG_BLOCK
+    uint16_t sig_n[2], sig_lost[2];
+    uint8_t sig_cur;
+    bool sig_check;             // counted enough since the last look
+    bool sig_lossy;             // significant now
+    uint64_t sig_clean_us;      // lossy, but clean since then, 0: not
+    bool report_due;            // it changed, to be told
+    uint64_t report_us;         // the last report to it, riding or alone
+    uint64_t report_alone_us;   // the last one on its own, 0: none
     // the frames of groups in the window, by seq % FEC_WINDOW, and repairs
     struct fec_slot slot[FEC_WINDOW];
     uint8_t *slot_data;         // FEC_WINDOW x N3N_FEC_SYMBOL_MAX, from the first frame of a group on
@@ -188,6 +221,7 @@ struct n3n_fec {
     uint64_t purged_us;
     int open_groups;
     int pending;                // repairs waiting, of all peers
+    uint64_t report_next_us;    // a report of its own may be due from then on, 0: none
 };
 
 // coef[j][i]: of frame i in repair j, see fec_tables()
@@ -547,12 +581,19 @@ static size_t put_report (uint8_t *out, const struct fec_peer *p) {
 }
 
 
+// Whether the peer told of its loss lately: as long as what it told holds
+static bool told_lately (const struct fec_peer *p, uint64_t now_us) {
+
+    return (p->reported != FEC_LOSS_UNKNOWN) && (now_us <= p->reported_until_us);
+}
+
+
 // The loss of the way to the peer, in percent: as it told, or - where it
 // did not lately - as the way back loses, the loss taken to be the same
 // both ways; -1 if neither is known
 static int loss_out (const struct fec_peer *p, uint64_t now_us) {
 
-    if((p->reported != FEC_LOSS_UNKNOWN) && (now_us - p->reported_us <= FEC_REPORT_AGE_US)) {
+    if(told_lately(p, now_us)) {
         return p->reported;
     }
     if(p->loss_known && (now_us - p->rx_us <= FEC_REPORT_AGE_US)) {
@@ -566,7 +607,7 @@ static int loss_out (const struct fec_peer *p, uint64_t now_us) {
 // known: from where loss_out() has it
 static int burst_out (const struct fec_peer *p, uint64_t now_us) {
 
-    if((p->reported != FEC_LOSS_UNKNOWN) && (now_us - p->reported_us <= FEC_REPORT_AGE_US)) {
+    if(told_lately(p, now_us)) {
         return p->reported_burst;
     }
     if(p->loss_known && (now_us - p->rx_us <= FEC_REPORT_AGE_US)) {
@@ -644,7 +685,7 @@ static void margin_adapt (struct fec_peer *p, uint64_t now_us) {
         return;
     }
     p->margin_us = now_us;
-    if((p->reported == FEC_LOSS_UNKNOWN) || (now_us - p->reported_us > FEC_REPORT_AGE_US)) {
+    if(!told_lately(p, now_us)) {
         return;
     }
     if((p->reported_residual >= FEC_RESIDUAL_HIGH) && p->last_m) {
@@ -659,7 +700,7 @@ static void margin_adapt (struct fec_peer *p, uint64_t now_us) {
 // FEC_PROBE_US: while repairs go (sending), and the peer tells
 static void probe (struct fec_peer *p, bool sending, uint64_t now_us) {
 
-    bool told = (p->reported != FEC_LOSS_UNKNOWN) && (now_us - p->reported_us <= FEC_REPORT_AGE_US);
+    bool told = told_lately(p, now_us);
 
     // fewer repairs for a while: more, slowly, again
     if((p->scale < 8) && (now_us - p->scale_us >= FEC_PROBE_MIN_US)) {
@@ -877,6 +918,7 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
     put16(out + n, ++p->tx_seq);
     n += 2;
     n += put_report(out + n, p);
+    p->report_us = now_us;
 
     if(p->group_open && (p->group_k >= p->group_kt)) {
         group_close(fec, p, now_us);
@@ -931,6 +973,7 @@ int n3n_fec_repair (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
                     out[r->len + 2] = r->k;
                     out[r->len + 3] = r->j;
                     *out_len = r->len + 4 + put_report(out + r->len + 4, p);
+                    p->report_us = now_us;
                     memcpy(peer, p->mac, sizeof(n2n_mac_t));
                     got = 1;
                 }
@@ -976,8 +1019,118 @@ int64_t n3n_fec_due_us (struct n3n_fec *fec, uint64_t now_us) {
             }
         }
     }
+    if(fec->report_next_us) {
+        int64_t left = (int64_t)fec->report_next_us - (int64_t)now_us;
+
+        if((due < 0) || (left < due)) {
+            due = left < 0 ? 0 : left;
+        }
+    }
     fec_unlock(fec);
     return due;
+}
+
+
+int n3n_fec_report (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
+                    uint8_t *out, size_t out_size, size_t *out_len) {
+
+    struct fec_peer *p, *tmp;
+    uint64_t next = 0;
+    int got = 0;
+
+    if(!fec) {
+        return 0;
+    }
+    fec_lock(fec);
+    if(!fec->report_next_us || (now_us < fec->report_next_us)) {
+        fec_unlock(fec);
+        return 0;
+    }
+    HASH_ITER(hh, fec->peers, p, tmp) {
+        uint64_t at;
+
+        if(!p->report_due && !p->sig_lossy) {
+            continue;
+        }
+        if(now_us - p->rx_us > FEC_RX_IDLE_US) {
+            // its frames stopped: nothing to tell any more
+            p->report_due = false;
+            p->sig_lossy = false;
+            continue;
+        }
+        // a change: once nothing went for the quiet time; then again
+        // before what the peer holds runs out
+        if(p->report_due) {
+            at = p->report_us + FEC_REPORT_QUIET_US;
+        } else {
+            // the peer holds the last one on its own, and those riding
+            // along, the longer of them, see told_lately()
+            at = p->report_us + FEC_REPORT_RIDDEN_US;
+            if(p->report_alone_us && (p->report_alone_us + FEC_REPORT_EVERY_US > at)) {
+                at = p->report_alone_us + FEC_REPORT_EVERY_US;
+            }
+        }
+        if(!got && (now_us >= at) && (out_size >= 1 + N3N_FEC_REPORT_MORE)) {
+            *out_len = put_report(out, p);
+            memcpy(peer, p->mac, sizeof(n2n_mac_t));
+            p->report_us = now_us;
+            p->report_alone_us = now_us;
+            p->report_due = false;
+            got = 1;
+            if(!p->sig_lossy) {
+                continue;
+            }
+            at = now_us + FEC_REPORT_EVERY_US;
+        }
+        if(!next || (at < next)) {
+            next = at;
+        }
+    }
+    // after one, the others may be due too: a look again at once
+    fec->report_next_us = got ? now_us : next;
+    fec_unlock(fec);
+    return got;
+}
+
+
+// Whether the loss of the peer's frames became significant, or stopped
+// being so, see FEC_SIG_BLOCK: then a report is due - riding along, or on
+// its own (n3n_fec_report())
+static void sig_look (struct n3n_fec *fec, struct fec_peer *p, uint64_t now_us) {
+
+    uint32_t n = (uint32_t)p->sig_n[0] + p->sig_n[1];
+    uint32_t lost = (uint32_t)p->sig_lost[0] + p->sig_lost[1];
+    double lower, upper;
+
+    p->sig_check = false;
+    if(n < FEC_SIG_MIN) {
+        return;
+    }
+    n3n_loss_wilson(n, lost, &lower, &upper);
+    if(!p->sig_lossy && (lower >= FEC_SIG_LOSS)) {
+        p->sig_lossy = true;
+        p->sig_clean_us = 0;
+    } else if(p->sig_lossy && (upper < FEC_SIG_LOSS)) {
+        if(!p->sig_clean_us) {
+            p->sig_clean_us = now_us;
+        }
+        if(now_us - p->sig_clean_us < FEC_SIG_OVER_US) {
+            return;
+        }
+        p->sig_lossy = false;
+    } else {
+        if(p->sig_lossy) {
+            p->sig_clean_us = 0;
+        }
+        return;
+    }
+    p->report_due = true;
+    traceEvent(TRACE_INFO, "%02x:%02x:%02x:%02x:%02x:%02x: %u of its last %u frames lost, %.1f to %.1f %% - %s",
+               p->mac[0], p->mac[1], p->mac[2], p->mac[3], p->mac[4], p->mac[5], lost, n,
+               100 * lower, 100 * upper, p->sig_lossy ? "significant, to be told" : "over, to be told");
+    if(!fec->report_next_us || (fec->report_next_us > now_us)) {
+        fec->report_next_us = now_us;
+    }
 }
 
 
@@ -988,6 +1141,9 @@ static void rx_start (struct fec_peer *p, uint16_t seq) {
 
     p->rx_started = true;
     p->dups = 0;
+    p->sig_n[0] = p->sig_n[1] = 0;
+    p->sig_lost[0] = p->sig_lost[1] = 0;
+    p->sig_check = false;
     p->top = seq;
     p->arrived = ~(uint64_t)1;
     p->delivered = 0;
@@ -1034,6 +1190,19 @@ static int rx_advance (struct fec_peer *p, int d) {
             p->run = 0;
         }
         p->loss_known = true;
+        // for the reports of its own, see FEC_SIG_BLOCK: a look every 16
+        p->sig_n[p->sig_cur]++;
+        if(!got) {
+            p->sig_lost[p->sig_cur]++;
+        }
+        if(!(p->sig_n[p->sig_cur] & 15)) {
+            p->sig_check = true;
+        }
+        if(p->sig_n[p->sig_cur] >= FEC_SIG_BLOCK) {
+            p->sig_cur ^= 1;
+            p->sig_n[p->sig_cur] = 0;
+            p->sig_lost[p->sig_cur] = 0;
+        }
         p->arrived <<= 1;
         p->delivered <<= 1;
         p->counted = (p->counted << 1) | 1;
@@ -1364,10 +1533,16 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
             n = t - rlen;
             repair = buf + n;
             break;
+        case N3N_FEC_REPORT:
+            // the report alone
+            if(end) {
+                return -1;
+            }
+            break;
         default:
             return -1;
     }
-    frame = scheme != N3N_FEC_REPAIR;
+    frame = (scheme != N3N_FEC_REPAIR) && (scheme != N3N_FEC_REPORT);
     if(frame && (n < ETH_FRAMESIZE)) {
         return -1;
     }
@@ -1406,6 +1581,12 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         p->reported_burst = burst;
         p->reported_residual = residual;
         p->reported_us = now_us;
+        // a report riding along counts for less long than one on its own,
+        // which comes less often: it does not cut that one short
+        uint64_t until = now_us + ((scheme == N3N_FEC_REPORT) ? FEC_REPORT_HOLD_US : FEC_REPORT_AGE_US);
+        if(until > p->reported_until_us) {
+            p->reported_until_us = until;
+        }
         // for backing off: the loss lately, before and while fewer repairs
         // go
         if((p->probe == 1) || (p->probe == 3)) {
@@ -1415,8 +1596,8 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
     }
 
     if(!frame) {
-        // a repair on its own: no seq, nothing to count
-        if(p->rx_started) {
+        // a repair or a report on its own: no seq, nothing to count
+        if(repair && p->rx_started) {
             rx_repair(p, repair, rlen, first, k, j, now_us, scratch, out);
         }
         fec_unlock(fec);
@@ -1435,6 +1616,9 @@ int n3n_fec_unwrap (struct n3n_fec *fec, int scheme, const n2n_mac_t peer,
         rx_start(p, seq);
     } else if(d > 0) {
         out->lost = rx_advance(p, d);
+        if(p->sig_check) {
+            sig_look(fec, p, now_us);
+        }
     } else if(d <= -FEC_WINDOW) {
         // long gone, or from a peer that started anew lower down
         rx_start(p, seq);

@@ -389,6 +389,16 @@ static void transops (void) {
         snprintf(name, sizeof(name), "fec-repair-alone-%i", i);
         put("transop", name, out, n + 1);
     }
+    // reports on their own: one byte where nothing is lost, four where
+    // something is (slow, burst, residual, 0x80 | fast)
+    out[0] = 0xf0 | N3N_FEC_REPORT;
+    out[1] = 0;
+    put("transop", "fec-report-0", out, 2);
+    out[1] = 10;
+    out[2] = 6;
+    out[3] = 20;
+    out[4] = 0x80 | 12;
+    put("transop", "fec-report-1", out, 5);
     n3n_fec_free(fec);
 }
 

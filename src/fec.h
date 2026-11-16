@@ -19,6 +19,7 @@
  *  2 GROUP   frame | seq:16 | report
  *  3 REPAIR  repair | first:16 | k:8 | j:8 | report
  *  4 RIDE    frame | repair | repair_len:16 | first:16 | k:8 | j:8 | seq:16 | report
+ *  5 REPORT  report
  *
  * seq counts the frames from one edge to another, and lets the receiver
  * tell what is missing, what came twice, and how many are lost on the way;
@@ -59,6 +60,20 @@
  * where they do not, or where no frame comes for long.  A small frame's
  * repair at a low rate - voice - is then a copy of it in the next PACKET.
  *
+ * The report rides along with whatever goes back.  Where nothing goes
+ * back - frames one way only - the receiver sends it on its own (REPORT),
+ * only where the loss is significant: of the last 256 to 512 of the
+ * peer's frames (200 at least), the bottom of Wilson's 95 % interval 2 %
+ * or more (loss_count.h); once as it becomes so, every 25 s while it
+ * stays so, and once as it is over (the top below 2 % for 10 s - the
+ * frames of a peer that hears nothing back go through the supernode for
+ * a second now and then, another way) - and none of
+ * them where a report went to the peer within a second anyway.  The
+ * sender holds such a report for 30 s, one riding along for 10 - one
+ * riding along does not cut short what one on its own holds; so where
+ * only those rode along, one goes on its own 8 s after the last of them.
+ * A clean line, or one that loses a frame now and then, has none.
+ *
  * m follows the loss and how it comes - in bursts, it takes more (see
  * n3n_fec_m_burst()); and where frames stay lost all the same, the sender
  * adds a margin until they do not.  Where the repairs themselves make the
@@ -88,11 +103,13 @@
 #define N3N_FEC_GROUP           2
 #define N3N_FEC_REPAIR          3
 #define N3N_FEC_RIDE            4
-#define N3N_FEC_SCHEME_MAX      N3N_FEC_RIDE
+#define N3N_FEC_REPORT          5
+#define N3N_FEC_SCHEME_MAX      N3N_FEC_REPORT
 // the schemes this edge reads, as bits - announced to the peers (announce.h);
-// and those an edge sends, all of which a peer has to read to get them
+// and those an edge sends, all of which a peer has to read to get them - a
+// REPORT goes only to a peer that reads it, see n3n_fec_report()
 #define N3N_FEC_READS           ((1 << (N3N_FEC_SCHEME_MAX + 1)) - 1)
-#define N3N_FEC_SENT            (N3N_FEC_READS & ~(1 << N3N_FEC_NONE))
+#define N3N_FEC_SENT            (N3N_FEC_READS & ~(1 << N3N_FEC_NONE) & ~(1 << N3N_FEC_REPORT))
 
 // community.fec: what an edge sends
 #define N3N_FEC_MODE_NONE       0   // nothing: PACKETs as in v3, which every edge reads
@@ -142,7 +159,15 @@ int n3n_fec_wrap (struct n3n_fec *fec, int mode, const n2n_mac_t peer,
 int n3n_fec_repair (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
                     uint8_t *out, size_t out_size, size_t *out_len);
 
-// Microseconds until n3n_fec_repair() may have one, -1 for never
+// A report to send on its own, now: 1 with its payload (scheme
+// N3N_FEC_REPORT, uncompressed) in out and its peer in *peer, 0 if there
+// is none.  For a peer that does not read REPORT, not sent: what it says
+// goes with the next PACKET to it anyway.
+int n3n_fec_report (struct n3n_fec *fec, uint64_t now_us, n2n_mac_t peer,
+                    uint8_t *out, size_t out_size, size_t *out_len);
+
+// Microseconds until n3n_fec_repair() or n3n_fec_report() may have one,
+// -1 for never
 int64_t n3n_fec_due_us (struct n3n_fec *fec, uint64_t now_us);
 
 // What a payload of scheme from peer gives, in the order to write it to
