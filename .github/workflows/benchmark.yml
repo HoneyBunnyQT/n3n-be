@@ -40,7 +40,9 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ./cache
-          key: ${{ runner.os }}-benchmark
+          # by branch: the benchmarks of another branch, another harness
+          # say, are no baseline for this one's
+          key: ${{ runner.os }}-benchmark-${{ github.ref_name }}
 
       - name: Store benchmark result
         uses: benchmark-action/github-action-benchmark@v1
