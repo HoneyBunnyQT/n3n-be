@@ -331,7 +331,9 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             while no supernode answers, as before (the first take,
             054426a4, had frames ask a quiet peer then too, and its
             answer drop it after 1.5 timeouts: `sn-outage-idle`,
-            `-quiet`, `-restart` lost the peer)
+            `-quiet`, `-restart` lost the peer; and on the main thread,
+            which applies the event at once, the frame went on with the
+            peer that answer had freed: ASan, CI)
       - [x] Per peer instead of per community: an edge sends FEC only
             to the peers that announced they read it (2026-10-26,
             `src/announce.c`, see below) - mixed communities; netns

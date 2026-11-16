@@ -624,10 +624,11 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
 
     HASH_FIND_PEER(eee->client.known_peers, mac_address, scan);
 
-    if(scan && (scan->last_seen > 0)) {
-        time_t idle = now - SHARED_LOAD(scan->last_p2p);
-        int sn_answers = supernode_answers(eee, now);
+    time_t idle = 0;
+    int sn_answers = supernode_answers(eee, now);
 
+    if(scan && (scan->last_seen > 0)) {
+        idle = now - SHARED_LOAD(scan->last_p2p);
         if((idle >= (scan->timeout * 3 / 8))
            && ((idle < (scan->timeout / 2)) || sn_answers)
            && (SHARED_LOAD(scan->refresh_posted) != now)) {
@@ -645,7 +646,13 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
             SHARED_STORE(scan->refresh_posted, now);
             memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
             edge_event_post(eee, &ev);
+            // on the main thread, applied at once: the peer may be gone,
+            // quiet for too long (and then looked up anew, below)
+            HASH_FIND_PEER(eee->client.known_peers, mac_address, scan);
         }
+    }
+
+    if(scan && (scan->last_seen > 0)) {
         if((idle >= (scan->timeout / 2)) && sn_answers) {
             /* Not heard directly for half its timeout - peers register
              * with each other once a register interval, the timeout - so it
