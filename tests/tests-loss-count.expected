@@ -37,3 +37,8 @@ registrations and pings             300   2 unclear
 0 of 30  better than 3 of 30  no  (top 0.114, bottom 0.035)
 3 of 30  better than 3 of 30  no  (top 0.256, bottom 0.035)
 10 of 30 better than 3 of 30  no  (top 0.512, bottom 0.035)
+lost: answered                                  0
+lost: one waiting 2.9 s                         0
+lost: one waiting past its window               1
+lost: one, and its retry answered, at once      1
+lost: one, and its retry answered, 3 s on       2

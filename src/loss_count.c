@@ -60,6 +60,22 @@ void n3n_loss_answer (struct n3n_loss_count *c, uint64_t now_us) {
 }
 
 
+uint32_t n3n_loss_lost (const struct n3n_loss_count *c, uint64_t now_us) {
+
+    uint32_t waiting = 0;
+
+    // the ones still waiting for an answer are not lost yet
+    for(uint8_t i = 0; i < c->waiting; i++) {
+        if(now_us - c->waiting_us[i] < N3N_LOSS_WINDOW_US) {
+            waiting++;
+        }
+    }
+    uint32_t s = (c->sent >= waiting) ? c->sent - waiting : 0;
+
+    return (s > c->answered) ? s - c->answered : 0;
+}
+
+
 void n3n_loss_snapshot (struct n3n_loss_count *c) {
 
     // counted anew since the last one (another path): the old ones go

@@ -9,8 +9,8 @@
  *
  * Every request that is to count is counted, and its time kept while it
  * waits for an answer, N3N_LOSS_WINDOW_US at most.  Which request an answer
- * is to cannot be told (the REGISTERs to a peer go twice a second while
- * frames go, with the same cookie), and need not: an answer is credited to
+ * is to cannot be told (the REGISTERs to a peer go once a second while
+ * its path is probed, with the same cookie), and need not: an answer is credited to
  * the latest one still waiting, each gets one answer at most, so over many
  * the share answered is the share that came back, of a packet there and
  * one back - loss is 1 - answered / sent, of both ways together.  Those
@@ -69,6 +69,10 @@ void n3n_loss_sent (struct n3n_loss_count *c, uint64_t now_us);
 
 // An answer came at now_us
 void n3n_loss_answer (struct n3n_loss_count *c, uint64_t now_us);
+
+// How many of the requests counted went unanswered within their window,
+// since the counting began: one more says one got lost lately
+uint32_t n3n_loss_lost (const struct n3n_loss_count *c, uint64_t now_us);
 
 // Another path (the peer moved): counted anew
 static inline void n3n_loss_reset (struct n3n_loss_count *c) {

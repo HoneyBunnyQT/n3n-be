@@ -52,6 +52,8 @@ struct peer_info {
     uint8_t loss;           /* percent of the probes lost in the last round */
     uint8_t lossy;          /* its frames go through the supernode, see peer_probe() */
     uint8_t clean_rounds;   /* lossy: rounds of probes in a row since that lost little, see probe_round_end() */
+    uint8_t probing;        /* the direct path is probed, since a REGISTER to the peer got lost, see peer_probe() */
+    uint32_t reg_lost_seen; /* n3n_loss_lost() of reg_loss when peer_probe() last looked */
     time_t time_alloc;
     uint64_t selection_criterion;
     uint64_t last_valid_time_stamp;

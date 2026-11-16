@@ -336,14 +336,16 @@ static struct n3n_conf_option section_connection[] = {
         .str2id_data = p2p_max_loss_data,
         .offset = offsetof(n2n_edge_conf_t, client.p2p_max_loss),
         .desc = "Percent lost on a direct path that sends through the supernode",
-        .help = "While frames go to a peer directly, the edge sends it a "
-                "REGISTER twice a second and counts the answers.  Where this "
+        .help = "Once a REGISTER to a peer went unanswered, the edge sends it "
+                "one a second while frames go to it directly, and counts the "
+                "answers.  Where this "
                 "many percent of 20 or more go unanswered, the peer's frames "
                 "go through the supernode - as long as one answers - and back "
                 "the direct way once a round loses at most a quarter as many "
                 "(two rounds in a row where the edge's long-term counts take "
                 "the path for lossy within the hour); the edge goes on asking "
-                "meanwhile.  Only while the peer was heard "
+                "meanwhile, and stops once a round on the direct path loses "
+                "that quarter at most.  Only while the peer was heard "
                 "from directly within half its timeout: what a peer gone "
                 "quiet leaves unanswered says nothing of the path.  0 keeps a "
                 "direct path however "

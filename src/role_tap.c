@@ -628,10 +628,10 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
         time_t idle = now - SHARED_LOAD(scan->last_p2p);
         int sn_answers = supernode_answers(eee, now);
 
-        if((idle >= (scan->timeout / 4))
+        if((idle >= (scan->timeout * 3 / 8))
            && ((idle < (scan->timeout / 2)) || sn_answers)
            && (SHARED_LOAD(scan->refresh_posted) != now)) {
-            /* Not heard directly for a quarter of its timeout while frames
+            /* Not heard directly for 3/8 of its timeout while frames
              * go to it - as when they go one way only, and nothing comes
              * back that would tell it is still there: a REGISTER asks it,
              * once a second, while the frames still go direct; its ACK

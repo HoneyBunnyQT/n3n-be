@@ -25,9 +25,9 @@ destination needs more, see [below](#getting-through-a-hard-nat).
 Once direct, a peer stays so as long as it is heard from directly - its
 frames, or the REGISTER_ACKs to the REGISTERs it is sent.  Where frames
 go to it but nothing comes back, as with a stream one way, the edge asks
-it with a REGISTER once a quarter of its timeout (`register_interval`, 20
-seconds by default) has passed without word, and once a second until it
-answers; the frames go direct meanwhile.  Only past half its timeout do
+it with a REGISTER once 3/8 of its timeout (`register_interval`, 20
+seconds by default: 7 seconds) have passed without word, and once a
+second until it answers; the frames go direct meanwhile.  Only past half its timeout do
 they go through the supernode, while the REGISTERs go on; a peer quiet for
 one and a half timeouts is looked up anew.  A peer that nothing goes to is
 not asked: in a big community, an edge keeps up only with the peers it
@@ -192,7 +192,7 @@ The range is the one the supernodes happened to see, rounded out.  A NAT
 that hands out doors from a wider block may pick one outside it; E then
 keeps going round without meeting it.  E keeps the door H answered from:
 when the traffic goes one way only, the sending edge asks the peer with a
-REGISTER every quarter `register_interval`, as with any peer (see
+REGISTER every 3/8 `register_interval`, as with any peer (see
 [above](#nat-traversal)), and a REGISTER to the door it kept keeps the
 direct connection, as long as H's NAT keeps the door.
 
@@ -269,11 +269,14 @@ spread its traffic over two peering links, one of which dropped packets,
 and the direct path to a peer lost 20 to 30 percent while the way through
 the supernode's data centre was clean.
 
-So while frames go to a peer directly, the edge sends it a REGISTER twice a
-second, and counts the REGISTER_ACKs that come back from the peer's
-address; every REGISTER to the peer there counts, also the regular ones -
-while the peer was heard from directly within half its timeout (10
-seconds by default).  A peer gone quiet, which the edge keeps while no
+So once a REGISTER to a peer went unanswered - the regular ones, and
+those that ask it while frames go one way (see [above](#nat-traversal)) -
+the edge measures the direct path: while frames go to the peer, it sends
+it a REGISTER once a second, and counts the REGISTER_ACKs that come back
+from the peer's address; every REGISTER to the peer there counts, also
+the regular ones - while the peer was heard from directly within half its
+timeout (10 seconds by default).  Before, nothing extra goes: a path that
+loses nothing costs nothing.  A peer gone quiet, which the edge keeps while no
 supernode answers and sends to at its last address, may be gone, or
 behind a NAT that forgot the edge: what it leaves unanswered says nothing
 of the path, and the round starts anew once it is heard from again.
@@ -289,8 +292,10 @@ within the hour (see [Metrics](Metrics.md#what-the-counts-say)), it takes
 two such rounds in a row: a line that loses now and then may well have a
 good round, and a switch back and forth costs more than one round through
 the supernode.  Such a peer shows as `pSp` in `get_edges`.  A switch takes a
-round or two, 10 to 20 seconds; `connection.p2p_max_loss = 0` keeps a
-direct path however bad it gets.
+round or two, 20 to 40 seconds, after the first REGISTER lost.  A round
+that loses at most that quarter on the direct path ends the probes, until
+a REGISTER gets lost again.  `connection.p2p_max_loss = 0` keeps a direct
+path however bad it gets.
 
 The default, `auto`, is 20 - or 0 where `community.fec` is on: FEC
 repairs what the direct path loses, and a loss on the edge's own line,

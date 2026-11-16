@@ -913,7 +913,7 @@ class Run:
         each other; idle seconds later - the supernodes long not answering,
         each quiet at the other - frames again, still cut off: the edges,
         with no supernode to look the other up, keep it, and send to its
-        last address, asking it there twice a second, unanswered.  That is
+        last address, asking it there, unanswered.  That is
         no round of probes (connection.p2p_max_loss): quiet, the other is
         no lossy line, and once the way is open again, they go direct to
         each other, also once the supernodes are back"""
@@ -2725,8 +2725,9 @@ class Run:
         time.sleep(1)
 
     def peer_refresh_phase(self):
-        """With community.fec, which turns the probes of p2p_max_loss off,
-        nothing but REGISTERs and their ACKs tells a that b is still there:
+        """Where frames go one way, nothing but REGISTERs and their ACKs
+        tells a that b is still there (the probes of p2p_max_loss, off with
+        community.fec, and else only once a REGISTER got lost):
         frames from a to b for 15s, then both ways, then 30s of nothing.
         a is not to take b for idle meanwhile and send through the
         supernode - asking it in time, and taking its frames for word - and

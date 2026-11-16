@@ -236,5 +236,22 @@ int main (void) {
                    n3n_loss_better(&oe, &le) ? "yes" : "no ", oe.upper, le.lower);
         }
     }
+
+    // lost lately: what wakes the probes of a peer's direct path
+    struct n3n_loss_count l = {0};
+    n3n_loss_sent(&l, 300 * S);
+    n3n_loss_answer(&l, 300 * S + S / 10);
+    printf("lost: answered                                  %u\n", n3n_loss_lost(&l, 301 * S));
+    n3n_loss_sent(&l, 310 * S);
+    printf("lost: one waiting 2.9 s                         %u\n",
+           n3n_loss_lost(&l, 310 * S + N3N_LOSS_WINDOW_US - S / 10));
+    printf("lost: one waiting past its window               %u\n",
+           n3n_loss_lost(&l, 310 * S + N3N_LOSS_WINDOW_US));
+    // the retry a second later answered: the first stays lost
+    n3n_loss_sent(&l, 320 * S);
+    n3n_loss_sent(&l, 321 * S);
+    n3n_loss_answer(&l, 321 * S + S / 10);
+    printf("lost: one, and its retry answered, at once      %u\n", n3n_loss_lost(&l, 321 * S + S / 5));
+    printf("lost: one, and its retry answered, 3 s on       %u\n", n3n_loss_lost(&l, 323 * S));
     return 0;
 }

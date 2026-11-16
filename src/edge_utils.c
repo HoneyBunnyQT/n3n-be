@@ -918,7 +918,7 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
                 break;
             }
             idle = ev->now - scan->last_p2p;
-            if(idle < (scan->timeout / 4)) {
+            if(idle < (scan->timeout * 3 / 8)) {
                 break;
             }
             if(idle >= (scan->timeout + scan->timeout / 2)) {

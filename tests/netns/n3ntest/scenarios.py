@@ -756,6 +756,16 @@ SCENARIOS = [
         conf={"community": {"fec": "auto"},
               "connection": {"register_interval": 20}}),
     Scenario(
+        "peer-refresh-probes",
+        "as peer-refresh, without FEC: p2p_max_loss is 20, its probes of "
+        "the direct path wait for a REGISTER lost, which on the clean line "
+        "none is - as many REGISTERs as with FEC (before, some 30 probes "
+        "in 15s of frames)",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", peer_refresh=True,
+        conf={"connection": {"register_interval": 20}}),
+    Scenario(
         "fec-lossy-threads",
         "as fec-lossy, the edges with packet threads, which share what FEC "
         "keeps of each peer, and p2p_max_loss 0 given",

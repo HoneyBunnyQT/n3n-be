@@ -138,9 +138,11 @@ Only what is the line's counts:
 - not within 10 s after the host's network changed
 
 Nothing acts on the counts yet.  How many there
-are depends on the traffic: to a peer, REGISTERs go mostly as the probes
-of `connection.p2p_max_loss` - twice a second while frames go to it - so
-with `community.fec`, which turns those off by default, there are few
+are depends on the traffic: to a peer, REGISTERs go as the regular ones,
+those that ask a peer that frames go to one way, and the probes of
+`connection.p2p_max_loss` - once a second while frames go to it, once a
+REGISTER got lost, until a round loses little - so with
+`community.fec`, which turns those off by default, there are few
 (FEC sees the loss of the frames themselves, `n3n_edge_peer_fec_loss_ratio`).
 To a supernode a registration goes every `connection.register_interval`
 and a PING every 30 s: some 180 and 120 an hour, enough to tell a clean

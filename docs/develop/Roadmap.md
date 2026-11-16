@@ -320,13 +320,18 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             (EDGE_EVENT_PEER_IDLE) - with the lab's 5 s, 1 to 3 frames
             every 2.5 s, a whole second where the REGISTER or its ACK got
             lost.  Now a frame to a peer not
-            heard for a quarter of its timeout asks it (2026-11-16):
-            frames stay direct, a REGISTER every 5 s by default while
-            they go one way, none both ways (the peer's frames count as
+            heard for 3/8 of its timeout asks it (2026-11-16): frames
+            stay direct, a REGISTER every 7 s by default while they go
+            one way (5 s, a quarter, would not make up for a lost one
+            before the 10 s either), none both ways (the peer's frames count as
             heard, as before), none without frames - nothing kept up
             with peers that nothing goes to.  netns `peer-refresh`
             (`register_interval` 20: before, 1 frame through the
-            supernode every 10 s)
+            supernode every 10 s); in the lab's 5 s, 3/8 is 1 s.  Kept
+            while no supernode answers, as before (the first take,
+            054426a4, had frames ask a quiet peer then too, and its
+            answer drop it after 1.5 timeouts: `sn-outage-idle`,
+            `-quiet`, `-restart` lost the peer)
       - [x] Per peer instead of per community: an edge sends FEC only
             to the peers that announced they read it (2026-10-26,
             `src/announce.c`, see below) - mixed communities; netns
@@ -449,6 +454,17 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       supernode after 9-18 s, direct again 9-19 s after; 10 of 10).  Not
       measured: the way through the supernode itself - v4's path manager
       (2026-10-18)
+- [x] The probes of `p2p_max_loss` only once a REGISTER to the peer got
+      lost (2026-11-16): twice a second while frames went, on every
+      path, clean or not - in big networks, many REGISTERs for nothing.
+      Now nothing until one goes unanswered in its 3 s (the long-term
+      counts, warm path and settled network only: `n3n_loss_lost()`,
+      checked on the once-a-second event the frames post anyway), then
+      one a second, rounds of 20 (20 s), until a round on the direct
+      path loses a quarter of `p2p_max_loss` at most.  `lossy-direct`:
+      through the supernode after 22 s (9-18 before), direct again 45 s
+      after (two rounds, the way lossy within the hour).  netns
+      `peer-refresh-probes`: none on the clean line
 - [x] Rate limits at the supernode against floods of registrations (and
       of anything else that costs it work before it knows the sender),
       per source address; moved up from "Far future" (2026-10-18), done

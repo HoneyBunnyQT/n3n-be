@@ -34,15 +34,18 @@ void send_register (struct n3n_runtime_data * eee,
                     const n2n_mac_t peer_mac,
                     const n2n_cookie_t cookie);
 
-// The direct path to a known peer, measured: each REGISTER sent to the
-// peer at its address is a probe, each REGISTER_ACK from there an answer -
-// the regular ones, while the path is warm (the peer heard from directly
+// The direct path to a known peer, measured once a REGISTER to it got lost
+// (its long-term counts, reg_loss): while frames go to the peer, it is
+// probed every P2P_PROBE_US from then on (edge_event_apply(),
+// EDGE_EVENT_PEER_PROBE, peer_probe()), and each REGISTER sent to the peer
+// at its address is a probe, each REGISTER_ACK from there an answer - the
+// regular ones, while the path is warm (the peer heard from directly
 // within half its timeout; to one gone quiet, a REGISTER is no probe).
 // After a round of probes, the share unanswered is the path's loss; at
 // connection.p2p_max_loss or more, the peer's frames go through the
 // supernode (find_peer_destination()), and back the direct way at a
-// quarter of it.  While frames go to the peer, it is probed every
-// P2P_PROBE_US (edge_event_apply(), EDGE_EVENT_PEER_PROBE)
+// quarter of it.  A round that loses at most that quarter on the direct
+// way ends the probes, until a REGISTER gets lost again.
 #define P2P_MAX_LOSS_DFL    20      /* percent */
 // connection.p2p_max_loss = auto, the default: P2P_MAX_LOSS_DFL, or 0 with
 // community.fec - which repairs the loss, and repairs it through the
@@ -55,7 +58,7 @@ static inline uint32_t p2p_max_loss (const n2n_edge_conf_t *conf) {
     return conf->community.fec ? 0 : P2P_MAX_LOSS_DFL;
 }
 #define P2P_PROBE_ROUND     20      /* probes */
-#define P2P_PROBE_US        500000
+#define P2P_PROBE_US        1000000
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer);
 
 // What the long-term counts say of the way to a peer known directly (its

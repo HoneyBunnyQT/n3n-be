@@ -999,6 +999,8 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
                     scan_tmp->loss = 0;
                     SHARED_STORE(scan_tmp->lossy, 0);
                     scan_tmp->clean_rounds = 0;
+                    scan_tmp->probing = 0;
+                    scan_tmp->reg_lost_seen = 0;
                     n3n_loss_reset(&scan_tmp->reg_loss);
                 }
                 scan_tmp->sock = scan->sock;
@@ -1837,6 +1839,14 @@ static void probe_round_end (struct n3n_runtime_data *eee, struct peer_info *pee
         // not little enough: the rounds in a row start anew
         peer->clean_rounds = 0;
     }
+
+    // direct, and lost little: no more probes until a REGISTER gets lost
+    if(!peer->lossy && (!max || (peer->loss <= max / 4))) {
+        peer->probing = 0;
+        peer->reg_lost_seen = n3n_loss_lost(&peer->reg_loss, n3n_monotonic_us());
+        traceEvent(TRACE_INFO, "peer %s: %u%% lost on the direct path, no more probes",
+                   macaddr_str(mac_buf, peer->mac_addr), peer->loss);
+    }
 }
 
 // Whether the direct path to a known peer is warm: the peer heard from
@@ -1862,8 +1872,8 @@ static void reg_loss_sent (struct n3n_runtime_data *eee, struct peer_info *peer,
 }
 
 // A REGISTER to a known peer at its address: a probe of the direct path,
-// where it is warm.  To a quiet peer - while no supernode answers, the edge
-// keeps it and sends to its last address, probing it twice a second - it
+// where it is warm and probed (peer_probe()).  To a quiet peer - while no
+// supernode answers, the edge keeps it and sends to its last address - it
 // is none, and the round so far is stale: it starts anew once the peer is
 // heard from again.
 static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer, n2n_cookie_t cookie) {
@@ -1871,7 +1881,7 @@ static void probe_sent (struct n3n_runtime_data *eee, struct peer_info *peer, n2
     if(cookie != N2N_REGULAR_REG_COOKIE) {
         return;
     }
-    if(!path_warm(peer)) {
+    if(!peer->probing || !path_warm(peer)) {
         peer->probes_sent = 0;
         peer->probes_answered = 0;
         return;
@@ -1954,8 +1964,28 @@ void edge_tick_loss (struct n3n_runtime_data *eee, time_t now) {
 }
 
 
+// Frames go to the peer: a probe, once a REGISTER to it got lost - nothing
+// on the wire before (see role_client.h)
 void peer_probe (struct n3n_runtime_data *eee, struct peer_info *peer) {
 
+    uint32_t lost = n3n_loss_lost(&peer->reg_loss, n3n_monotonic_us());
+    macstr_t mac_buf;
+
+    if(lost < peer->reg_lost_seen) {
+        // counted anew: another path
+        peer->reg_lost_seen = lost;
+    }
+    if(!peer->probing) {
+        if(lost == peer->reg_lost_seen) {
+            return;
+        }
+        peer->probing = 1;
+        peer->probes_sent = 0;
+        peer->probes_answered = 0;
+        traceEvent(TRACE_INFO, "peer %s: a REGISTER got lost, probing the direct path",
+                   macaddr_str(mac_buf, peer->mac_addr));
+    }
+    peer->reg_lost_seen = lost;
     send_register(eee, &(peer->sock), peer->mac_addr, N2N_REGULAR_REG_COOKIE);
 }
 

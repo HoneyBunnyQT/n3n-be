@@ -237,7 +237,7 @@ no second way of doing them.
 
 **Control messages** (kind 8): a byte of type, then TLVs.  Among them: a
 probe and its answer (the path's round trip and loss, which v3 measures
-with REGISTERs twice a second for `p2p_max_loss`); a path MTU probe,
+with REGISTERs once a second for `p2p_max_loss`, once one got lost); a path MTU probe,
 padded to the size it tests, and its answer; a newer record of the
 sender; the registration with a relay, and its answer; asking a relay for
 a label; closing a session.
