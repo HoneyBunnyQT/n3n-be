@@ -46,12 +46,23 @@ image_path() {
         tr -d '\r' | sed -n 's/.*REG_[A-Z_]*SZ *//p'
 }
 
-# makensis: NSIS's, or Chocolatey's
+# makensis: NSIS's, or Chocolatey's - which fails now and then on a
+# runner: once more then, and without it nothing of the rest can be
+# checked, so the run ends here, saying why (not with every check after
+# failing for want of setup.exe)
 if ! command -v makensis >/dev/null; then
-    if [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
-        choco install nsis -y --no-progress >/dev/null
-    fi
+    for try in 1 2; do
+        [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
+        if ! choco install nsis -y --no-progress >"$WORK/choco.log" 2>&1; then
+            echo "choco install nsis failed (try $try):"
+            tail -n 20 "$WORK/choco.log"
+        fi
+    done
     PATH="$PATH:/c/Program Files (x86)/NSIS"
+fi
+if ! command -v makensis >/dev/null; then
+    echo "FAIL makensis: not there, and Chocolatey could not install NSIS - nothing to test"
+    exit 1
 fi
 
 # the files of the zip, as release.yml puts them together (the docs if

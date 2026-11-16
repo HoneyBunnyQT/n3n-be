@@ -317,9 +317,15 @@ jobs:
           if [ -f packages/windows/n3n-be.nsi ]; then
             if ! command -v makensis >/dev/null &&
                 [ ! -x "/c/Program Files (x86)/NSIS/makensis.exe" ]; then
-              choco install nsis -y --no-progress
+              # once more where Chocolatey fails, as it does now and then
+              choco install nsis -y --no-progress ||
+                choco install nsis -y --no-progress
             fi
             PATH="$PATH:/c/Program Files (x86)/NSIS"
+            if ! command -v makensis >/dev/null; then
+              echo "::error::makensis: not there, and Chocolatey could not install NSIS"
+              exit 1
+            fi
             packages/windows/installer.sh "$name" "$TAG" \
               "dist/n3n-be-$TAG-windows-x86_64-setup.exe"
           fi
