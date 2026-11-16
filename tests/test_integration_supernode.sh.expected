@@ -64,6 +64,10 @@
     },
     {
         "tx_pkt": 0,
+        "type": "fec_report"
+    },
+    {
+        "tx_pkt": 0,
         "type": "sn_fwd"
     },
     {
@@ -120,6 +124,10 @@
     {
         "rx_pkt": 0,
         "type": "fec_lost"
+    },
+    {
+        "tx_pkt": 0,
+        "type": "fec_report"
     },
     {
         "tx_pkt": 0,

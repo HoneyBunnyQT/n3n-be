@@ -78,7 +78,7 @@ Of an edge:
 |------|------|--------|------|
 | `n3n_edge_registered` | gauge | | 1 while registered at a supernode |
 | `n3n_edge_start_time_seconds` | gauge | | when it started (seconds since the epoch) |
-| `n3n_edge_packets` | counter | `direction`, `event` | packets sent and received directly (`p2p`), through a supernode (`sup`, `sup_broadcast`), multicast dropped, FEC repairs sent, frames undone and lost |
+| `n3n_edge_packets` | counter | `direction`, `event` | packets sent and received directly (`p2p`), through a supernode (`sup`, `sup_broadcast`), multicast dropped, FEC repairs sent, frames undone and lost, FEC reports sent on their own |
 | `n3n_edge_tx_tuntap_error` | counter | | frames the device did not take |
 | `n3n_edge_supernode_current` | gauge | `supernode` | 1 for the supernode it is registered at, 0 for the others it knows |
 | `n3n_edge_supernode_rtt_seconds` | gauge | `supernode` | the round trip of its last answer to a ping |

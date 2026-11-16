@@ -968,12 +968,13 @@ size_t edge_encode_packet (struct n3n_runtime_data *eee,
 }
 
 
-/* A PACKET of forward error correction's repair, see fec.h: payload is its
- * repair and trailer, sent as it is - not compressed, which does not pay off
- * for it.  Returns the length of the PDU in pktbuf. */
-static size_t edge_encode_repair (struct n3n_runtime_data *eee, n2n_mac_t dest,
-                                  const uint8_t *payload, size_t len,
-                                  uint8_t *pktbuf, size_t pktbuf_size) {
+/* A PACKET of forward error correction's own, see fec.h: payload is a
+ * repair and its trailer, or a report (scheme), sent as it is - not
+ * compressed, which does not pay off for it.  Returns the length of the PDU
+ * in pktbuf. */
+static size_t edge_encode_fec (struct n3n_runtime_data *eee, n2n_mac_t dest, int scheme,
+                               const uint8_t *payload, size_t len,
+                               uint8_t *pktbuf, size_t pktbuf_size) {
 
     n2n_common_t cmn;
     n2n_PACKET_t pkt;
@@ -989,7 +990,7 @@ static size_t edge_encode_repair (struct n3n_runtime_data *eee, n2n_mac_t dest,
     memcpy(pkt.srcMac, eee->tap.device.mac_addr, N2N_MAC_SIZE);
     memcpy(pkt.dstMac, dest, N2N_MAC_SIZE);
     pkt.transform = eee->client.transop.transform_id;
-    pkt.compression = N3N_FEC_BYTE(N3N_FEC_REPAIR, N2N_COMPRESSION_ID_NONE);
+    pkt.compression = N3N_FEC_BYTE(scheme, N2N_COMPRESSION_ID_NONE);
 
     encode_PACKET(pktbuf, &idx, &cmn, &pkt);
     headerIdx = idx;
@@ -1002,7 +1003,9 @@ static size_t edge_encode_repair (struct n3n_runtime_data *eee, n2n_mac_t dest,
 
 
 /* Send the repairs of forward error correction that are due: of groups
- * that closed with the frames just sent, or whose time is up. */
+ * that closed with the frames just sent, or whose time is up - and the
+ * reports of their own to peers whose frames lose much, where nothing else
+ * goes to them that a report could ride along with (see fec.h). */
 void edge_fec_flush (struct n3n_runtime_data *eee) {
 
     uint8_t payload[N2N_PKT_BUF_SIZE];
@@ -1012,10 +1015,28 @@ void edge_fec_flush (struct n3n_runtime_data *eee) {
 
     while(n3n_fec_repair(eee->client.fec, n3n_monotonic_us(), dest,
                          payload, sizeof(payload), &len)) {
-        size_t idx = edge_encode_repair(eee, dest, payload, len, pktbuf, sizeof(pktbuf));
+        size_t idx = edge_encode_fec(eee, dest, N3N_FEC_REPAIR, payload, len, pktbuf, sizeof(pktbuf));
 
         if(idx) {
             STATS_INC(eee, tx_fec_redundant);
+            send_packet(eee, dest, pktbuf, idx); /* to peer or supernode */
+        }
+    }
+    while(n3n_fec_report(eee->client.fec, n3n_monotonic_us(), dest,
+                         payload, sizeof(payload), &len)) {
+        size_t idx;
+
+        // a peer that does not read it hears with the next PACKET to it
+        if(!n3n_announce_reads_fec(eee->client.announce, dest, 1 << N3N_FEC_REPORT)) {
+            continue;
+        }
+        idx = edge_encode_fec(eee, dest, N3N_FEC_REPORT, payload, len, pktbuf, sizeof(pktbuf));
+        if(idx) {
+            macstr_t mac_buf;
+
+            traceEvent(TRACE_INFO, "told %s of the loss of its frames on a report of its own (%u %% lately)",
+                       macaddr_str(mac_buf, dest), payload[len - 1] & 0x7f);
+            STATS_INC(eee, tx_fec_report);
             send_packet(eee, dest, pktbuf, idx); /* to peer or supernode */
         }
     }

@@ -91,9 +91,38 @@ frames (one for one, for a group of one).  Where losses come one by one:
 
 The more is lost, the more redundancy goes - and the bigger the groups,
 the less of it is needed for the same: losses even out over more frames.
-Where no edge tells (traffic one way only), the sender goes by what it
-sees lost of the peer's PACKETs to it, as if the loss were the same both
-ways.
+Where no edge tells, the sender goes by what it sees lost of the peer's
+PACKETs to it, as if the loss were the same both ways.
+
+**Traffic one way only.** The report rides along with whatever goes back
+- a TCP stream's acknowledgements, the other half of a call.  Where
+nothing goes back - a camera's stream, sound one way, a UDP test - there
+is nothing for it to ride along with, and nothing to measure the way back
+by: the sender would send no repairs at all.  So the receiver sends its
+report on its own then, in a small PACKET of its own - but only for loss
+that is plainly there, and seldom:
+
+- *Significant:* of the sender's last 256 to 512 frames (200 at least),
+  the bottom of the 95 % confidence range of the share lost is 2 % or
+  more - a frame lost now and then, or a packet that went astray once,
+  never is.  1 of 500 is not, 15 of 500 (3 %) not yet, 25 of 500 is; at
+  10 % lost and 100 frames a second it takes a second or two.
+- *When:* once as the loss becomes significant, every 25 s while it stays
+  so, and once as it is over - the top of the range below 2 % for 10 s
+  (the frames of a peer that hears nothing back go through the supernode
+  for a second now and then, another way, maybe clean: no reason to tell)
+  - and none of them where a report rode along to the peer within a
+  second anyway.  The sender holds a report on its own for 30 s, one
+  riding along for 10; one riding along does not cut short the other.
+- *To whom:* only to a peer whose frames come with FEC, and that says it
+  reads such reports (scheme 5, see below) - also from an edge with
+  `community.fec = none`, which reads FEC all the same.
+
+So a clean line, or one that loses a little, has none; a line losing much
+on a stream one way, a report as the loss shows, then one every 25 s - not
+one a second.  The edge's log says why, at `-v` (info): "... 19 of its
+last 208 frames lost, 5.9 to 13.8 % - significant, to be told", "told ...
+of the loss of its frames on a report of its own".
 
 **Bursts.** Many lines lose several packets in a row - a radio fading, a
 queue overflowing - and a burst takes several frames of a group, which
@@ -229,6 +258,8 @@ why `auto` backs off then (see above).
 - `fec`: `tx_pkt` repairs sent, `rx_pkt` frames undone
 - `fec_lost`: `rx_pkt` frames from peers found missing by their sequence
   numbers, whether undone or not - the loss of the way in
+- `fec_report`: `tx_pkt` reports sent on their own, where nothing went back
+  that they could ride along with
 
 `n3n-be-ctl get_edges --raw` shows, for each peer, `fec`: what the peer
 tells of the way to it (`loss`, `burst`, `residual`), what the edge makes
@@ -237,7 +268,7 @@ sees of the way from the peer (`rx_loss`, `rx_burst`, `rx_residual`), see
 [the management API](../internals/ManagementAPI.md).
 
 The same on the metrics page (`packets`, events `fec_redundant`,
-`fec_undone` and `fec_lost`) and the management page: its peers show
+`fec_undone`, `fec_lost` and `fec_report`) and the management page: its peers show
 what the way to each loses, as the peer tells, and `FEC` where the last
 group to the peer had repairs.
 
@@ -246,7 +277,10 @@ The netns scenario `fec-lossy` (see
 loses 10 percent each way: of 400 pings, 97 to 98 percent are answered
 (without, some 82), their repairs riding along with the next; of 2000
 frames of 1200 bytes one way, all arrive (without, 90 percent), with
-about one repair for two frames.
+about one repair for two frames.  `fec-oneway` sends frames one way only,
+nothing coming back, after a while of nothing: 98 to 99 percent of 6000
+frames arrive (without, 90), on one report the receiver sent on its own;
+on the clean line before, none.
 
 ## On the wire
 
@@ -266,6 +300,7 @@ scheme:
 | 2 | `0x2.` | a frame of a group: as 1 |
 | 3 | `0x3.` | a repair: repair, first sequence number of its group (16 bits), frames in it (8 bits), number of the repair (8 bits), report |
 | 4 | `0x4.` | a frame with a repair riding along: frame, repair, length of the repair (16 bits), first sequence number of its group, frames in it, number of the repair, sequence number, report |
+| 5 | `0x5.` | a report on its own, where nothing else goes back (see above): the report alone |
 
 The report, at the very end, is what the sender sees of the PACKETs from
 the one it sends to: one byte where nothing is lost - 0, or 0x7f while

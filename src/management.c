@@ -1293,6 +1293,12 @@ static void jsonrpc_get_packetstats (char *id, struct n3n_runtime_data *eee, con
 
     sb_reprintf(&conn->request,
                 "{"
+                "\"type\":\"fec_report\","
+                "\"tx_pkt\":%u},",
+                stats.tx_fec_report);
+
+    sb_reprintf(&conn->request,
+                "{"
                 "\"type\":\"sn_fwd\","
                 "\"tx_pkt\":%u},",
                 stats.sn_fwd);

@@ -170,6 +170,11 @@ static struct n3n_metrics_items_llu32 edge_utils_metrics_items2 = {
             .val2 = "fec_lost",
             .offset = offsetof(struct n2n_edge_stats, rx_fec_lost),
         },
+        {
+            .val1 = "tx",
+            .val2 = "fec_report",
+            .offset = offsetof(struct n2n_edge_stats, tx_fec_report),
+        },
         { },
     },
 };

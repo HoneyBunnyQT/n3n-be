@@ -613,6 +613,7 @@ struct n2n_edge_stats {
     uint32_t tx_fec_redundant;  /* Copies and repairs sent, see fec.h */
     uint32_t rx_fec_undone;     /* Frames lost on the way, and undone from them */
     uint32_t rx_fec_lost;       /* PACKETs of the peers found missing by their seq */
+    uint32_t tx_fec_report;     /* Reports of the loss on their own, see fec.h */
 };
 
 // one slot of counters per packet thread, see stats.h - the same number as
