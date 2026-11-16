@@ -1789,8 +1789,8 @@ Designed, not coded: v4, [the peer protocol](PeerProtocol.md)
 Open, in rough order:
 
 - A release, which fixes FEC's wire format: before it, whether less
-  recognisable traffic (Next) wants room in the PACKET; FEC's `auto`
-  without reports.
+  recognisable traffic (Next) wants room in the PACKET.  (FEC's `auto`
+  without reports: done, scheme 5, 2026-11-16.)
 - GNOME and NetworkManager: why the first tries in use went badly.
 - `slow_openwrt.yml` (the `openwrt` branch, or by hand; `openwrt.yml`
   builds the packages meanwhile): stale - it checks out to `src` and
