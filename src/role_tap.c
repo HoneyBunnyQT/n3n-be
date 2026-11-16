@@ -626,23 +626,27 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
 
     if(scan && (scan->last_seen > 0)) {
         time_t idle = now - SHARED_LOAD(scan->last_p2p);
+        int sn_answers = supernode_answers(eee, now);
 
         if((idle >= (scan->timeout / 4))
+           && ((idle < (scan->timeout / 2)) || sn_answers)
            && (SHARED_LOAD(scan->refresh_posted) != now)) {
             /* Not heard directly for a quarter of its timeout while frames
              * go to it - as when they go one way only, and nothing comes
              * back that would tell it is still there: a REGISTER asks it,
              * once a second, while the frames still go direct; its ACK
              * keeps them so, see EDGE_EVENT_PEER_IDLE.  A peer without
-             * frames to it is not asked - nor kept. */
+             * frames to it is not asked - nor kept.  Past half its
+             * timeout, only while a supernode answers: one that does not
+             * answer would not find the peer again, so it is kept at its
+             * last address (see below), not dropped as quiet. */
             struct edge_event ev = { .type = EDGE_EVENT_PEER_IDLE, .now = now };
 
             SHARED_STORE(scan->refresh_posted, now);
             memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
             edge_event_post(eee, &ev);
         }
-        if((idle >= (scan->timeout / 2))
-           && supernode_answers(eee, now)) {
+        if((idle >= (scan->timeout / 2)) && sn_answers) {
             /* Not heard directly for half its timeout - peers register
              * with each other once a register interval, the timeout - so it
              * may be at another address: through the supernode, while a
@@ -671,8 +675,7 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
                 memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
                 edge_event_post(eee, &ev);
             }
-            if(SHARED_LOAD(scan->lossy) && p2p_max_loss(&eee->conf)
-               && supernode_answers(eee, now)) {
+            if(SHARED_LOAD(scan->lossy) && p2p_max_loss(&eee->conf) && sn_answers) {
                 // too lossy: through the supernode, still a known peer
                 memcpy(destination, &(eee->client.curr_sn->sock), sizeof(n3n_sock_t));
                 return 0;
