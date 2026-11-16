@@ -287,10 +287,34 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             frames and repairs come).  If the groups' latency hurts
       - [ ] (Instead of FEC, for bulk at high loss: retransmission within
             the tunnel, as KCP - a round trip later.  Not planned)
-      - [ ] Edges that do not tell (one-way traffic, or `none` on the
-            other side) leave `auto` with the way back's loss at most
-            (phase 2): take the probes' loss of the direct path
-            (`p2p_max_loss`'s) where there is none
+      - [x] Edges that do not tell (one-way traffic, or `none` on the
+            other side) left `auto` with the way back's loss at most -
+            none on one-way traffic: no repairs at all (2026-11-16).  A
+            report of its own now (scheme 5, REPORT: the report alone),
+            from the receiver, where nothing goes back it could ride
+            along with - only for loss that is significant, of the last
+            256 to 512 frames (200 at least) the bottom of the 95 %
+            range 2 % or more (`n3n_loss_wilson()`, loss_count.h): once
+            as it becomes so, every 25 s while it stays so, once as it is
+            over (the top below 2 % for 10 s: frames to a peer that hears
+            nothing back go through the supernode for a second every
+            10 s - EDGE_EVENT_PEER_IDLE -, another way, maybe clean); not
+            within a second of a report that rode along, and 8 s after
+            the last of those where only they went.  The sender holds it
+            30 s, one riding along 10, the longer of them counting.  Only
+            to peers that read scheme 5 (announced; the schemes sent stay
+            1 to 4, so that an edge without 5 still gets FEC), also from
+            an edge with `none`.  Not one a second, as first thought:
+            a heartbeat for a packet lost now and then, in big networks.
+            tests-fec (`report:` cases: 1 of 500 none, 5 % one, then
+            every 25 s, over after 10 s clean, a second clean in between
+            none, b's own frames carrying it none), netns `fec-oneway`:
+            98-99 % of 6000 frames one way at 10 % (91 % before, no
+            repairs), on 1 report; first with the "over" at once and a
+            refresh after every ride, 3 to 5 in 12 s.  `get_packetstats`
+            `fec_report`, the log at info.  The probes' loss of the
+            direct path instead was the idea before: they are off with
+            FEC
       - [x] Per peer instead of per community: an edge sends FEC only
             to the peers that announced they read it (2026-10-26,
             `src/announce.c`, see below) - mixed communities; netns
