@@ -108,6 +108,10 @@ struct n3n_loss_eval {
 void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
                     struct n3n_loss_eval *e);
 
+// Wilson's 95 % interval of the share lost, lost of samples (0 and 1 for
+// no samples); used by n3n_loss_eval(), and by fec.c for a stream's frames
+void n3n_loss_wilson (uint32_t samples, uint32_t lost, double *lower, double *upper);
+
 // Whether way a is measurably better than way b: the top of a's interval
 // below the bottom of b's - better with 95 % confidence, not merely not
 // measured yet (no samples: never)

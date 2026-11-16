@@ -123,11 +123,32 @@ static double root (double x) {
 }
 
 
-void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
-                    struct n3n_loss_eval *e) {
+void n3n_loss_wilson (uint32_t samples, uint32_t lost, double *lower, double *upper) {
 
     // 95 %
     const double z = 1.959964;
+
+    if(!samples) {
+        *lower = 0;
+        *upper = 1;
+        return;
+    }
+    // Wilson's interval, which stays inside 0 and 1 and holds also for
+    // few samples and none lost
+    double nn = (double)samples;
+    double p = (double)lost / nn;
+    double zz = z * z;
+    double centre = (p + zz / (2 * nn)) / (1 + zz / nn);
+    double half = z * root(p * (1 - p) / nn + zz / (4 * nn * nn)) / (1 + zz / nn);
+
+    *lower = (centre - half > 0) ? centre - half : 0;
+    *upper = (centre + half < 1) ? centre + half : 1;
+}
+
+
+void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t now_us,
+                    struct n3n_loss_eval *e) {
+
     uint64_t sent = 0, answered = 0;
 
     for(int i = 0; i < n; i++) {
@@ -138,25 +159,8 @@ void n3n_loss_eval (const struct n3n_loss_count *const *counts, int n, uint64_t 
     }
     e->samples = (sent > UINT32_MAX) ? UINT32_MAX : (uint32_t)sent;
     e->lost = (uint32_t)(sent - answered);
-    if(!sent) {
-        e->ratio = 0;
-        e->lower = 0;
-        e->upper = 1;
-        e->class = N3N_LOSS_UNKNOWN;
-        return;
-    }
-
-    // Wilson's interval, which stays inside 0 and 1 and holds also for
-    // few samples and none lost
-    double nn = (double)sent;
-    double p = (double)(sent - answered) / nn;
-    double zz = z * z;
-    double centre = (p + zz / (2 * nn)) / (1 + zz / nn);
-    double half = z * root(p * (1 - p) / nn + zz / (4 * nn * nn)) / (1 + zz / nn);
-
-    e->ratio = p;
-    e->lower = (centre - half > 0) ? centre - half : 0;
-    e->upper = (centre + half < 1) ? centre + half : 1;
+    e->ratio = sent ? (double)(sent - answered) / (double)sent : 0;
+    n3n_loss_wilson(e->samples, e->lost, &e->lower, &e->upper);
     if(sent < N3N_LOSS_EVAL_MIN) {
         e->class = N3N_LOSS_UNKNOWN;
     } else if(e->lower >= N3N_LOSS_EVAL_LOSSY) {
