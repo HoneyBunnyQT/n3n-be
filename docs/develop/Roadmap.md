@@ -315,6 +315,18 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
             `fec_report`, the log at info.  The probes' loss of the
             direct path instead was the idea before: they are off with
             FEC
+      - [x] Frames one way, nothing back: past half the peer's timeout
+            they went through the supernode until a REGISTER's ACK came
+            (EDGE_EVENT_PEER_IDLE) - with the lab's 5 s, 1 to 3 frames
+            every 2.5 s, a whole second where the REGISTER or its ACK got
+            lost.  Now a frame to a peer not
+            heard for a quarter of its timeout asks it (2026-11-16):
+            frames stay direct, a REGISTER every 5 s by default while
+            they go one way, none both ways (the peer's frames count as
+            heard, as before), none without frames - nothing kept up
+            with peers that nothing goes to.  netns `peer-refresh`
+            (`register_interval` 20: before, 1 frame through the
+            supernode every 10 s)
       - [x] Per peer instead of per community: an edge sends FEC only
             to the peers that announced they read it (2026-10-26,
             `src/announce.c`, see below) - mixed communities; netns

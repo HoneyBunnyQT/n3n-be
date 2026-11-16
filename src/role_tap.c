@@ -625,7 +625,23 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
     HASH_FIND_PEER(eee->client.known_peers, mac_address, scan);
 
     if(scan && (scan->last_seen > 0)) {
-        if(((now - SHARED_LOAD(scan->last_p2p)) >= (scan->timeout / 2))
+        time_t idle = now - SHARED_LOAD(scan->last_p2p);
+
+        if((idle >= (scan->timeout / 4))
+           && (SHARED_LOAD(scan->refresh_posted) != now)) {
+            /* Not heard directly for a quarter of its timeout while frames
+             * go to it - as when they go one way only, and nothing comes
+             * back that would tell it is still there: a REGISTER asks it,
+             * once a second, while the frames still go direct; its ACK
+             * keeps them so, see EDGE_EVENT_PEER_IDLE.  A peer without
+             * frames to it is not asked - nor kept. */
+            struct edge_event ev = { .type = EDGE_EVENT_PEER_IDLE, .now = now };
+
+            SHARED_STORE(scan->refresh_posted, now);
+            memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
+            edge_event_post(eee, &ev);
+        }
+        if((idle >= (scan->timeout / 2))
            && supernode_answers(eee, now)) {
             /* Not heard directly for half its timeout - peers register
              * with each other once a register interval, the timeout - so it
@@ -635,12 +651,8 @@ static int find_peer_destination (struct n3n_runtime_data * eee,
              * looked up through the supernode (QUERY_PEER), which may tell
              * another of its addresses, as one of the other family, and
              * move it there; only one that does not answer is
-             * (EDGE_EVENT_PEER_IDLE). */
-            struct edge_event ev = { .type = EDGE_EVENT_PEER_IDLE, .now = now };
-
+             * (EDGE_EVENT_PEER_IDLE, asked for above). */
             traceEvent(TRACE_DEBUG, "refreshing idle known peer");
-            memcpy(ev.mac, mac_address, sizeof(n2n_mac_t));
-            edge_event_post(eee, &ev);
             memcpy(destination, &(eee->client.curr_sn->sock), sizeof(n3n_sock_t));
             return 0;
         } else {

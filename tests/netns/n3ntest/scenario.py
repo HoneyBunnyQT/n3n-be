@@ -144,6 +144,16 @@ SN_PONGS_LOST = """table inet {table} {{
 }}
 """
 
+# a's REGISTERs to b counted - packet type 1 in the low 5 bits of the
+# flags, after version and ttl -, see peer_refresh_phase()
+REGISTERS_COUNTED = """table inet refresh {{
+    chain output {{
+        type filter hook output priority 0; policy accept;
+        ip daddr {peer} udp dport {port} @th,88,8 & 0x1f == 1 counter
+    }}
+}}
+"""
+
 # a's way to b cut, both ways, see outage_phase()
 QUIET = """table inet quiet {{
     chain output {{
@@ -240,7 +250,8 @@ class Scenario:
                  multicast=False, lossy=0, spoof=False, lockout=False,
                  fec_loss=0, load=0, exit=None, flood=0,
                  metrics_remote=False, loss_counts=False, other_dev=None,
-                 pong_lost=False, sn_lossy=False, fec_oneway=0):
+                 pong_lost=False, sn_lossy=False, fec_oneway=0,
+                 peer_refresh=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -292,6 +303,11 @@ class Scenario:
         # from a to b only: b has nothing to send a report of a's loss
         # with, and is to send one of its own, see fec_oneway_phase()
         self.fec_oneway = fec_oneway
+        # After the warm-up, frames from a to b, then both ways, then none:
+        # the frames are to go directly all the while, not through the
+        # supernode as b counts for idle at a now and then, and no REGISTERs
+        # to b while nothing goes - see peer_refresh_phase()
+        self.peer_refresh = peer_refresh
         # After the warm-up, a TCP stream from a to b through the tunnel, as
         # fast as it goes, for this many seconds: the edges are to keep the
         # path they are on - not take a busy direct path for a lossy one
@@ -2680,6 +2696,81 @@ class Run:
                                     stats["a"]["sent"], stats["b"]["undone"],
                                     stats["b"]["lost"]))
 
+    # peer_refresh_phase(): seconds of frames one way, both ways, and none
+    REFRESH_SECS = 15
+    REFRESH_QUIET = 30
+    REFRESH_RATE = 100
+
+    def _refresh_counts(self):
+        """a's PACKETs through the supernode, and its REGISTERs to b"""
+        stats = self.edges["a"]["daemon"].stats()
+        out = run(["nft", "list", "table", "inet", "refresh"],
+                  ns=self.edges["a"]["ns"], check=False)
+        m = re.search(r"counter packets (\d+)", out or "")
+        # broadcasts (ARP) go through the supernode anyway
+        return (stats.get("super", {}).get("tx_pkt", 0)
+                - stats.get("super_broadcast", {}).get("tx_pkt", 0),
+                int(m.group(1)) if m else -1)
+
+    def _refresh_stream(self, directions):
+        senders = [self.sender(s, d, FLOW_HOLD,
+                               self.REFRESH_SECS * self.REFRESH_RATE,
+                               self.REFRESH_RATE) for s, d in directions]
+        try:
+            wait_for(lambda: not any(p.alive() for p in senders) or None,
+                     self.REFRESH_SECS + 10, interval=0.5)
+        finally:
+            for p in senders:
+                p.stop()
+        time.sleep(1)
+
+    def peer_refresh_phase(self):
+        """With community.fec, which turns the probes of p2p_max_loss off,
+        nothing but REGISTERs and their ACKs tells a that b is still there:
+        frames from a to b for 15s, then both ways, then 30s of nothing.
+        a is not to take b for idle meanwhile and send through the
+        supernode - asking it in time, and taking its frames for word - and
+        not to ask b anything while nothing goes"""
+        _, row = self.edges["a"]["daemon"].peer(self.edges["b"]["mac"])
+        sock = (row or {}).get("sockaddr", "")
+        ip, _, port = sock.rpartition(":")
+        if not ip or ":" in ip:
+            return self.check("refresh", False, "no IPv4 address of b at a "
+                              "({!r})".format(sock))
+        self.lab.nft(self.edges["a"]["ns"],
+                     REGISTERS_COUNTED.format(peer=ip, port=port), "refresh")
+        c0 = self._refresh_counts()
+        self._refresh_stream([("a", "b")])
+        c1 = self._refresh_counts()
+        self._refresh_stream([("a", "b"), ("b", "a")])
+        c2 = self._refresh_counts()
+        time.sleep(self.REFRESH_QUIET)
+        c3 = self._refresh_counts()
+        run(["nft", "delete", "table", "inet", "refresh"],
+            ns=self.edges["a"]["ns"])
+        one = (c1[0] - c0[0], c1[1] - c0[1])
+        both = (c2[0] - c1[0], c2[1] - c1[1])
+        idle = c3[1] - c2[1]
+        self.result["refresh"] = {"one_way": one, "both_ways": both,
+                                  "idle_registers": idle}
+        secs = self.REFRESH_SECS
+        # one way: asked in time - a REGISTER each quarter of b's timeout
+        # (register_interval), none through the supernode
+        interval = self.sc.conf.get("connection", {}).get(
+            "register_interval", self.st.register_interval)
+        reg_max = secs // max(1, interval // 4) + 2
+        self.check("refresh: one way", one[0] == 0 and 0 < one[1] <= reg_max,
+                   "{} frames of a through the supernode, {} REGISTERs to b "
+                   "in {}s of frames to it".format(one[0], one[1], secs))
+        # both ways: b's frames tell a it is there, nothing to ask
+        self.check("refresh: both ways", both[0] == 0 and both[1] <= 1,
+                   "{} frames of a through the supernode, {} REGISTERs to b "
+                   "in {}s of frames both ways".format(both[0], both[1],
+                                                       secs))
+        self.check("refresh: idle", idle == 0,
+                   "{} REGISTERs to b in {}s of nothing".format(
+                       idle, self.REFRESH_QUIET))
+
     def _sn_entries(self, mac):
         """{supernode: the address its entry for the MAC has}"""
         out = {}
@@ -3472,6 +3563,8 @@ class Run:
                 self.fec_phase()
             if self.sc.fec_oneway and self.check_alive("warm-up"):
                 self.fec_oneway_phase()
+            if self.sc.peer_refresh and self.check_alive("warm-up"):
+                self.peer_refresh_phase()
             if self.sc.load and self.check_alive("warm-up"):
                 self.load_phase()
             if self.sc.spoof and self.check_alive("warm-up"):

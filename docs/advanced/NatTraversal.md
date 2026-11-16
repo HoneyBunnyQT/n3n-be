@@ -22,6 +22,17 @@ that keeps the public port the same for every destination (most home
 routers) lets it work at once; one that takes a new port for every
 destination needs more, see [below](#getting-through-a-hard-nat).
 
+Once direct, a peer stays so as long as it is heard from directly - its
+frames, or the REGISTER_ACKs to the REGISTERs it is sent.  Where frames
+go to it but nothing comes back, as with a stream one way, the edge asks
+it with a REGISTER once a quarter of its timeout (`register_interval`, 20
+seconds by default) has passed without word, and once a second until it
+answers; the frames go direct meanwhile.  Only past half its timeout do
+they go through the supernode, while the REGISTERs go on; a peer quiet for
+one and a half timeouts is looked up anew.  A peer that nothing goes to is
+not asked: in a big community, an edge keeps up only with the peers it
+talks to.
+
 ## Sockets
 
 By default an edge opens two UDP sockets, one for IPv6 and one for IPv4, on
@@ -180,10 +191,10 @@ when nothing came from the peer for two minutes.  0 turns the pool off.
 The range is the one the supernodes happened to see, rounded out.  A NAT
 that hands out doors from a wider block may pick one outside it; E then
 keeps going round without meeting it.  E keeps the door H answered from:
-when the traffic goes one way only, the sending edge drops the peer every
-half `register_interval` and registers again, as with any peer, and a
-REGISTER to the door it kept brings the direct connection back at once,
-as long as H's NAT keeps the door.
+when the traffic goes one way only, the sending edge asks the peer with a
+REGISTER every quarter `register_interval`, as with any peer (see
+[above](#nat-traversal)), and a REGISTER to the door it kept keeps the
+direct connection, as long as H's NAT keeps the door.
 
 It shows in the log of the edge behind the hard NAT:
 

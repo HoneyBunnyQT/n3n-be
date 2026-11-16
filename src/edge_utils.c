@@ -918,7 +918,7 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
                 break;
             }
             idle = ev->now - scan->last_p2p;
-            if(idle < (scan->timeout / 2)) {
+            if(idle < (scan->timeout / 4)) {
                 break;
             }
             if(idle >= (scan->timeout + scan->timeout / 2)) {
@@ -930,8 +930,9 @@ void edge_event_apply (struct n3n_runtime_data *eee, const struct edge_event *ev
                 break;
             }
             // ask it at its address, once a second (the frames that post
-            // this come by the thousand): the ACK from there makes it
-            // direct again, see edge_rx_register_ack()
+            // this may come by the thousand): the ACK from there keeps
+            // them direct, or makes them so again, see
+            // edge_rx_register_ack()
             if(scan->last_refresh != ev->now) {
                 scan->last_refresh = ev->now;
                 send_register(eee, &(scan->sock), scan->mac_addr, N2N_REGULAR_REG_COOKIE);

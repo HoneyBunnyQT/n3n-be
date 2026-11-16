@@ -742,6 +742,20 @@ SCENARIOS = [
         conf={"community": {"fec": "auto"},
               "connection": {"udp_gso": False}}),
     Scenario(
+        "peer-refresh",
+        "edges behind easy NATs, direct, with community.fec auto (no probes "
+        "of p2p_max_loss): frames from a to b for 15s, both ways for 15s, "
+        "then none for 30s - a's frames go directly all the while, it asks "
+        "b in time where only it sends, nothing where b's frames tell it "
+        "that b is there, and nothing at all while nothing goes",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", peer_refresh=True,
+        # n3n's default: a quarter of the 5s of the harness is no time
+        # to ask in, the frames would go through the supernode after 2s
+        conf={"community": {"fec": "auto"},
+              "connection": {"register_interval": 20}}),
+    Scenario(
         "fec-lossy-threads",
         "as fec-lossy, the edges with packet threads, which share what FEC "
         "keeps of each peer, and p2p_max_loss 0 given",
