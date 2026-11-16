@@ -411,71 +411,6 @@ jobs:
           name: binaries
           path: binaries
 
-  binaries_macos:
-    name: Binaries for MacOS
-    needs:
-      - test_macos
-    runs-on: macos-latest
-    strategy:
-      fail-fast: true
-      matrix:
-        include:
-          - arch: x86_64-apple-macos
-            cpu: x86_64
-          - arch: arm64-apple-macos
-            cpu: arm64
-
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      - name: Fix Checkout
-        run: |
-          git fetch --force --tags
-
-      - name: Install packages needed for build
-        run: |
-          # again where it fails: the runner's network, now and then
-          scripts/ci_retry.sh 3 30 brew install automake
-
-      - name: Configure and Build
-        shell: bash
-        run: |
-          # the SDK of the toolchain that builds (xcode-select's): the
-          # Command Line Tools' may be newer than its linker can read
-          # (macOS 27's libSystem.tbd, "unknown architecture" for the
-          # Xcode 26 ld), and only some runners have such a one
-          export SDKROOT="$(xcrun --show-sdk-path)"
-          ./autogen.sh
-          # -arch, as for the universal binaries below
-          export CFLAGS="-arch ${{ matrix.cpu }}"
-          export LDFLAGS="-arch ${{ matrix.cpu }}"
-          # what failed goes into the log itself (from the compiler's
-          # first test): the artifact below is not at hand everywhere
-          ./configure --host=${{ matrix.arch }} || {
-            awk '/whether the C compiler works/ { f = 1 } f && n++ < 40' config.log
-            exit 1; }
-          make
-
-      - if: ${{ failure() }}
-        name: Upload config.log output
-        uses: actions/upload-artifact@v6
-        with:
-          name: config-log-${{ matrix.arch }}
-          path: config.log
-
-      - name: Create binary dir
-        shell: bash
-        run: |
-          make install DESTDIR=binaries/${{ matrix.arch }}
-
-      - name: Upload binary artifacts
-        uses: actions/upload-artifact@v6
-        with:
-          name: binaries-${{ matrix.arch }}
-          path: binaries
-
   binaries_macos_universal:
     name: Binaries for MacOS (universal arch)
     needs:
@@ -505,10 +440,23 @@ jobs:
           # Xcode 26 ld), and only some runners have such a one
           export SDKROOT="$(xcrun --show-sdk-path)"
           ./autogen.sh
+          # both CPUs in one build: the macOS runners are few, so no
+          # build of each of its own (nothing took their binaries)
           export CFLAGS="-arch x86_64 -arch arm64"
           export LDFLAGS="-arch x86_64 -arch arm64"
-          ./configure
+          # what failed goes into the log itself (from the compiler's
+          # first test): the artifact below is not at hand everywhere
+          ./configure || {
+            awk '/whether the C compiler works/ { f = 1 } f && n++ < 40' config.log
+            exit 1; }
           make
+
+      - if: ${{ failure() }}
+        name: Upload config.log output
+        uses: actions/upload-artifact@v6
+        with:
+          name: config-log-universal-macos
+          path: config.log
 
       - name: Create binary dir
         shell: bash
