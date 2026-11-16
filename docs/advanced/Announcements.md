@@ -57,7 +57,10 @@ one whose announcement has not come yet - the PACKETs go as ever.  So FEC
 can be switched on in a community where not all edges read it.  A peer
 that is new to the edge (again) is asked anew, unless it announced itself
 in the last 10 seconds: what it said before may be of a program that is no
-more.
+more.  The question goes through the supernode, as the peer is not known
+directly yet; where the peer has roamed and the supernode still has its
+old address, it gets lost - so once the peer is reached directly and has
+not answered yet, it is asked again, directly.
 
 ## Names
 

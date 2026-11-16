@@ -807,7 +807,13 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       at their device, so v3 stays as it is (`src/announce.c`,
       docs/advanced/Announcements.md; `tests-announce`).  To all once
       registered (asking back) and every minute, to a new peer asking back,
-      answered to the asker; kept 150 s, a peer new again asked anew.
+      answered to the asker; kept 150 s, a peer new again asked anew -
+      and again once it is reached directly, if it has not answered: the
+      first question goes through the supernode, which after the peer
+      roamed may still send to the address it left (2026-11-16,
+      `roam-nowatch`, failing every time once the probes stopped going
+      on clean paths: a moved peer was dropped and learnt anew, where
+      the probes had kept it before)
       First TLVs: the FEC schemes read (FEC per peer, above), a name of up
       to 64 bytes (`connection.name`, which the REGISTERs' description
       never overwrites), an exit to the internet - found by a probe

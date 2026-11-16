@@ -1031,6 +1031,16 @@ static void peer_set_p2p_confirmed (struct n3n_runtime_data * eee,
                    HASH_COUNT(eee->client.known_peers));
 
         scan->last_seen = now;
+
+        // what it announced, if it was asked through the supernode when it
+        // became pending (register_with_new_peer()): that may know the
+        // peer at an address it left, as when it roamed and has not
+        // registered there yet.  Asked again, now directly - a frame or two
+        // more where both answers come, once a peer is new
+        struct n3n_announce_info info;
+        if(!n3n_announce_get(eee->client.announce, mac, &info)) {
+            edge_announce(eee, mac, N3N_ANNOUNCE_ASK);
+        }
     } else
         traceEvent(TRACE_DEBUG, "failed to find sender in pending_peers");
 }
