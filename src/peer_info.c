@@ -264,6 +264,50 @@ struct peer_info* find_peer_by_sock (const n3n_sock_t *sock, struct peer_info *p
 
 /* *********************************************** */
 
+void sn_list_merge_learned (struct peer_info **sn_list, struct peer_info **curr) {
+
+    struct peer_info *given, *tmp, *learned, *tmp2;
+
+    HASH_ITER(hh, *sn_list, given, tmp) {
+        if(given->purgeable || !given->hostname || (given->sock.family == AF_INVALID)) {
+            continue;
+        }
+        HASH_ITER(hh, *sn_list, learned, tmp2) {
+            if((learned == given) || !learned->purgeable || !sock_equal(&learned->sock, &given->sock)) {
+                continue;
+            }
+            traceEvent(TRACE_INFO, "supernode %s: the one the federation told of", given->hostname);
+            // the MAC is the key of the list
+            HASH_DEL(*sn_list, learned);
+            HASH_DEL(*sn_list, given);
+            if(is_null_mac(given->mac_addr)) {
+                memcpy(given->mac_addr, learned->mac_addr, sizeof(n2n_mac_t));
+            }
+            given->selection_criterion = learned->selection_criterion;
+            given->last_seen = learned->last_seen;
+            given->last_cookie = learned->last_cookie;
+            given->sn_load = learned->sn_load;
+            given->sn_rtt_us = learned->sn_rtt_us;
+            given->reg_sent_us = learned->reg_sent_us;
+            given->reg_loss = learned->reg_loss;
+            given->ping_loss = learned->ping_loss;
+            given->answered_us = learned->answered_us;
+            given->uptime = learned->uptime;
+            memcpy(given->version, learned->version, sizeof(given->version));
+            given->sn_first = learned->sn_first;
+            if(curr && (*curr == learned)) {
+                *curr = given;
+            }
+            HASH_ADD_PEER(*sn_list, given);
+            peer_info_free(learned);
+            // the list changed under the iteration: one at a time, the
+            // next call does the rest, if any
+            return;
+        }
+    }
+}
+
+
 struct peer_info* add_sn_to_list_by_mac_or_sock (struct peer_info **sn_list, n3n_sock_t *sock, const n2n_mac_t mac, int *skip_add) {
 
     struct peer_info *scan, *tmp, *peer = NULL;

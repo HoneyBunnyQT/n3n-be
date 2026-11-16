@@ -176,7 +176,11 @@ static struct n3n_conf_option section_community[] = {
                 "(eg: sn.example.org:7654 and tcp://sn.example.org:443), it "
                 "is one supernode, reached over TCP at the tcp:// address "
                 "(see connection.tcp_fallback).  With tcp:// on every one, "
-                "the edge uses TCP only, as with connect_tcp.",
+                "the edge uses TCP only, as with connect_tcp.  A name that "
+                "does not resolve - no DNS yet at boot - is tried again, "
+                "every 30 seconds while it fails, and its supernode used "
+                "once it does; the edge starts all the same, and waits for "
+                "one, if none resolves.",
     },
     {
         .name = "user",
@@ -705,7 +709,8 @@ static struct n3n_conf_option section_supernode[] = {
         .offset = RESOLVE_LIST_PEER,
         .desc = "Add a federated supernode",
         .help = "Multiple federated supernodes can be specified, each one as "
-                "a host:port string, which will be resolved if needed.",
+                "a host:port string, which will be resolved if needed - "
+                "again later, where the name does not resolve yet.",
     },
     {
         .name = "rate_burst",

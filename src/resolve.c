@@ -20,6 +20,7 @@
 
 #include "resolve.h"
 #include "sandbox.h"         // for n3n_sandbox_join
+#include "sn_selection.h"    // for sn_selection_criterion_default
 #include "n2n.h"             // for sock_equal, parse_address_spec
 #include "n2n_define.h"
 #include "n2n_typedefs.h"
@@ -616,6 +617,36 @@ static struct peer_info *sn_for_tcp_of (struct peer_info *list, const char *s) {
 }
 
 
+// The entry of a supernode given as s that is not resolved yet, see
+// resolve_hostnames_str_to_peer_info_one()
+static struct peer_info *sn_unresolved_named (struct peer_info *list, const char *s) {
+
+    struct peer_info *peer, *tmp;
+
+    HASH_ITER(hh, list, peer, tmp) {
+        if((peer->sock.family == AF_INVALID) && peer->hostname && !strcmp(peer->hostname, s)) {
+            return peer;
+        }
+    }
+    return NULL;
+}
+
+
+// Whether a supernode is given as s already, resolved or not
+static bool sn_named (struct peer_info *list, const char *s) {
+
+    struct peer_info *peer, *tmp;
+
+    HASH_ITER(hh, list, peer, tmp) {
+        if((peer->hostname && !strcmp(peer->hostname, s))
+           || (peer->tcp_hostname && !strcmp(peer->tcp_hostname, s))) {
+            return true;
+        }
+    }
+    return false;
+}
+
+
 // A supernode that has only a "tcp://" entry of the same host as s, which
 // becomes the TCP address of the supernode s is for UDP
 static struct peer_info *sn_tcp_only_of (struct peer_info *list, const char *s) {
@@ -662,11 +693,17 @@ static int resolve_hostnames_str_to_peer_info_one (
 
     // WARN: this function could block for a name resolution
     int rv = supernode2sock(&sock, s);
+    bool resolved = rv >= 0;
 
-    if(rv < 0) {
-        /* just warn, since it might resolve next time */
-        traceEvent(TRACE_WARNING, "could not resolve %s", s);
-        return 1;
+    if(!resolved) {
+        // It is kept all the same, without an address (AF_INVALID): the
+        // resolver thread tries it again, as it does the others (see
+        // resolve_create_thread()), and nothing is sent to it meanwhile.
+        // Not kept, it was never tried again - and with no supernode at
+        // all, the edge had no current one to register with.
+        traceEvent(TRACE_WARNING, "could not resolve %s, trying again later", s);
+        memset(&sock, 0, sizeof(sock));
+        sock.family = AF_INVALID;
     }
 
     struct peer_info *other;
@@ -679,7 +716,7 @@ static int resolve_hostnames_str_to_peer_info_one (
             other->tcp_sock = sock;
             other->transports = 0;
             traceEvent(TRACE_INFO, "supernode %s over TCP at %s", peer_info_get_hostname(other), s);
-            return 0;
+            return resolved ? 0 : 1;
         }
     } else {
         other = sn_tcp_only_of(*list, s);
@@ -691,8 +728,40 @@ static int resolve_hostnames_str_to_peer_info_one (
             other->sock = sock;
             other->transports = 0;
             traceEvent(TRACE_INFO, "supernode %s over TCP at %s", s, other->tcp_hostname);
-            return 0;
+            return resolved ? 0 : 1;
         }
+    }
+
+    // given before, but not resolved then: its address now
+    other = sn_unresolved_named(*list, s);
+    if(other) {
+        if(!resolved) {
+            return 1;
+        }
+        other->sock = sock;
+        traceEvent(TRACE_INFO, "supernode %s resolved now", s);
+        return 0;
+    }
+
+    if(!resolved) {
+        struct peer_info *peer;
+
+        // once only, also where it is resolved by now (resolve_check())
+        if(sn_named(*list, s)) {
+            return 1;
+        }
+        peer = peer_info_malloc(null_mac);
+        if(!peer) {
+            return 1;
+        }
+        peer->selection_criterion = sn_selection_criterion_default();
+        peer->sock = sock;
+        peer->tcp_sock = sock;
+        peer->hostname = strdup(s);
+        peer->purgeable = false;
+        peer->transports = (transports == N3N_TRANSPORT_BOTH) ? 0 : transports;
+        HASH_ADD_PEER(*list, peer);
+        return 1;
     }
 
     int skip_add = SN_ADD;

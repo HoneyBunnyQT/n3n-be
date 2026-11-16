@@ -125,19 +125,23 @@ static n2n_cookie_t forwarded_reg_cookie (const struct n3n_runtime_data *eee) {
 static size_t encode_query_peer (struct n3n_runtime_data *eee, uint8_t *pktbuf, const n2n_mac_t dst_mac);
 
 
-// Whether a supernode can be reached over that transport: one given with
-// "udp://" or "tcp://" only over that one
-static bool sn_has_transport (const struct peer_info *sn, bool tcp) {
-
-    return !sn->transports || (sn->transports & (tcp ? N3N_TRANSPORT_TCP : N3N_TRANSPORT_UDP));
-}
-
-
 // Where a supernode is reached over TCP: its "tcp://" address, if it has
 // one of its own
 static const n3n_sock_t *sn_tcp_sock (const struct peer_info *sn) {
 
     return sn->tcp_hostname ? &sn->tcp_sock : &sn->sock;
+}
+
+
+// Whether a supernode can be reached over that transport: one given with
+// "udp://" or "tcp://" only over that one - and not while its name is not
+// resolved (AF_INVALID, see resolve.c)
+static bool sn_has_transport (const struct peer_info *sn, bool tcp) {
+
+    if((tcp ? sn_tcp_sock(sn) : &sn->sock)->family == AF_INVALID) {
+        return false;
+    }
+    return !sn->transports || (sn->transports & (tcp ? N3N_TRANSPORT_TCP : N3N_TRANSPORT_UDP));
 }
 
 
@@ -453,6 +457,11 @@ void supernode_connect (struct n3n_runtime_data *eee) {
         // One TCP socket, of the supernode's family - bound to the first
         // address of connection.bind of that family, or with IPv4 to the
         // port of a [::], which stands for IPv4 too
+        if(sn_tcp_sock(eee->client.curr_sn)->family == AF_INVALID) {
+            // its name not resolved yet: no socket, tried again later
+            traceEvent(TRACE_DEBUG, "supernode not resolved yet, not connecting");
+            return;
+        }
         sn_sock_len = fill_sockaddr((struct sockaddr*)&sn_sock_storage, sizeof(sn_sock_storage), sn_tcp_sock(eee->client.curr_sn));
         if(sn_sock_len == 0) {
             traceEvent(

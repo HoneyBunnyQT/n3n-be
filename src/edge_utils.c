@@ -367,9 +367,9 @@ int detect_local_ip_address (n3n_sock_t* out_sock, const struct n3n_runtime_data
     memset(out_sock, 0, sizeof(*out_sock));
     out_sock->family = AF_INVALID;
 
-    if(!eee->client.curr_sn) {
-        // We dont have a current supernode, so we cannot use it to find our
-        // local address
+    if(!eee->client.curr_sn || (eee->client.curr_sn->sock.family == AF_INVALID)) {
+        // We dont have a current supernode (or not its address yet), so we
+        // cannot use it to find our local address
         // TODO: fall back to a different sample dest address?
         return -5;
     }
@@ -804,6 +804,11 @@ void edge_sendto_sock (struct n3n_runtime_data *eee, const void * buf,
     if(!dest->family) {
         traceEvent(TRACE_ERROR, "bad dest->family");
         // invalid socket
+        return;
+    }
+    if(dest->family == AF_INVALID) {
+        // a supernode whose name is not resolved yet, see resolve.c
+        traceEvent(TRACE_DEBUG, "not sending to an address not resolved yet");
         return;
     }
 
@@ -1519,6 +1524,7 @@ static void edge_tick_supernodes (struct n3n_runtime_data *eee, time_t now) {
             eee->client.resolution_request = false;
         }
     }
+    sn_list_merge_learned(&eee->client.supernodes, &eee->client.curr_sn);
 }
 
 

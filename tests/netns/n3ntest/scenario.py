@@ -251,7 +251,7 @@ class Scenario:
                  fec_loss=0, load=0, exit=None, flood=0,
                  metrics_remote=False, loss_counts=False, other_dev=None,
                  pong_lost=False, sn_lossy=False, fec_oneway=0,
-                 peer_refresh=False):
+                 peer_refresh=False, sn_names=False):
         self.name = name
         self.desc = desc
         self.sites = {"a": a, "b": b}
@@ -308,6 +308,11 @@ class Scenario:
         # supernode as b counts for idle at a now and then, and no REGISTERs
         # to b while nothing goes - see peer_refresh_phase()
         self.peer_refresh = peer_refresh
+        # a is given its supernodes by name, which its host cannot resolve
+        # at first: a starts all the same, and registers once the name of
+        # sn1 resolves; the one of sn2 resolves later still, and a is to
+        # take it up - see sn_names_start(), sn_names_phase()
+        self.sn_names = sn_names
         # After the warm-up, a TCP stream from a to b through the tunnel, as
         # fast as it goes, for this many seconds: the edges are to keep the
         # path they are on - not take a busy direct path for a lossy one
@@ -471,6 +476,11 @@ class Scenario:
 # Other versions of n3n, see tests/netns/versions.sh
 VERSIONS = os.path.join(os.path.dirname(os.path.dirname(
     os.path.abspath(__file__))), "versions")
+
+
+def sn_name(sn):
+    """The name a supernode is given by, see Scenario.sn_names"""
+    return "{}.n3ntest.test".format(sn)
 
 
 def version_built(version):
@@ -1024,8 +1034,14 @@ class Run:
         for i, name in enumerate(names, start=1):
             sn = self.supernodes[name]
             peers = []
+            if self.sc.sn_names and name == "sn1":
+                self._hosts(name, [])
             for o in names:
                 if o == name:
+                    continue
+                if self.sc.sn_names and name == "sn1":
+                    peers.append(("peer", "{}:{}".format(sn_name(o),
+                                                         SN_PORT)))
                     continue
                 if "4" in str(self.sc.sn_peer_family):
                     peers.append(("peer", "{}:{}".format(
@@ -1166,6 +1182,10 @@ class Run:
         sections = {s: list(o.items()) for s, o in conf.items()}
         tcp_port = self.sc.sn_tcp_port or SN_PORT
         for sn in site.supernodes:
+            if self.sc.sn_names and sname == "a":
+                sections[community].append(
+                    ("supernode", "{}:{}".format(sn_name(sn), SN_PORT)))
+                continue
             ips = {4: [self.supernodes[sn]["ip"]],
                    6: ["[{}]".format(self.supernodes[sn].get("ip6"))],
                    46: [self.supernodes[sn]["ip"],
@@ -1182,6 +1202,8 @@ class Run:
 
     def start_edges(self):
         self.t_edges = time.monotonic()
+        if self.sc.sn_names:
+            self._hosts("a", [])
         for sname, site in sorted(self.sc.sites.items()):
             e = self.edges[sname]
             if site.on_supernode:
@@ -1231,7 +1253,10 @@ class Run:
                         .get("transport") != "tcp":
                     return False
                 return d.registered()
-            if not wait_for(ready, 20 + (20 if tcp else 0)) \
+            extra = 0
+            if self.sc.sn_names and sname == "a":
+                extra = self.sn_names_start(d)
+            if not wait_for(ready, 20 + (20 if tcp else 0) + extra) \
                     or not d.proc.alive():
                 raise LabError("edge {} did not register at a supernode\n{}"
                                .format(sname, d.proc.log_tail()))
@@ -2773,6 +2798,103 @@ class Run:
                    "{} REGISTERs to b in {}s of nothing".format(
                        idle, self.REFRESH_QUIET))
 
+    # sn_names_start(), sn_names_phase(): how long a is to start without
+    # its supernodes' names, and to wait for one to be resolved
+    SN_NAMES_NONE = 8
+    SN_NAMES_WAIT = 90
+
+    def _netns_etc(self, name):
+        """/etc of the namespace of edge or supernode name"""
+        node = self.edges.get(name) or self.supernodes[name]
+        return os.path.join("/etc/netns", node["ns"])
+
+    def _hosts(self, name, sns):
+        """What the edge or supernode name resolves (ip netns exec puts
+        these files over /etc's): the names of the supernodes sns, and no
+        DNS server - one that does not answer at once, so that a name not
+        listed fails straight away"""
+        etc = self._netns_etc(name)
+        os.makedirs(etc, exist_ok=True)
+        lines = ["127.0.0.1 localhost"] + [
+            "{} {}".format(self.supernodes[sn]["ip"], sn_name(sn))
+            for sn in sns]
+        with open(os.path.join(etc, "hosts"), "w") as f:
+            f.write("\n".join(lines) + "\n")
+        with open(os.path.join(etc, "resolv.conf"), "w") as f:
+            f.write("nameserver 127.0.0.1\noptions timeout:1 attempts:1\n")
+
+    def _sn_rows(self, d, sn):
+        """The edge's entries for supernode sn, by its address"""
+        at = "{}:{}".format(self.supernodes[sn]["ip"], SN_PORT)
+        return [row for row in (d.mgmt.try_call("get_supernodes") or [])
+                if row.get("sockaddr") == at]
+
+    def sn_names_start(self, d):
+        """a, given its supernodes by names it cannot resolve: it is to
+        keep running (it crashed at its first registration, with no
+        supernode to register with); once sn1's name resolves, it is to
+        register there.  Returns how much longer to wait for that"""
+        time.sleep(self.SN_NAMES_NONE)
+        alive = d.proc.alive()
+        self.check("sn names: none resolved", alive and not d.registered(),
+                   "a {} {}s without its supernodes' names".format(
+                       "alive" if alive else "died ({})".format(
+                           describe_exit(d.proc.popen.poll())),
+                       self.SN_NAMES_NONE))
+        if not alive:
+            return 0
+        self._hosts("a", ["sn1"])
+        t = time.monotonic()
+        ok = wait_for(lambda: d.registered() or None, self.SN_NAMES_WAIT,
+                      interval=0.5)
+        took = time.monotonic() - t
+        self.result["sn_names"] = {"registered_after": round(took, 1)}
+        self.check("sn names: one resolved", bool(ok),
+                   "a registered {:.1f}s after sn1's name resolves".format(
+                       took) if ok else "a not registered {}s after sn1's "
+                   "name resolves".format(self.SN_NAMES_WAIT))
+        return 0
+
+    def sn_names_phase(self):
+        """sn2's name resolves too, later: a is to take it up - it never
+        tried a name again that did not resolve at its start.  The
+        federation told a of sn2 meanwhile (an entry it may purge): one
+        entry for it then, the one given by name, which a keeps"""
+        d = self.edges["a"]["daemon"]
+
+        def given():
+            rows = self._sn_rows(d, "sn2")
+            return len(rows) == 1 and rows[0].get("purgeable") == 0 or None
+
+        def federation(sn):
+            return self._metrics(sn).get(
+                "n3n_supernode_federation_supernodes")
+        before = self._sn_rows(d, "sn2")
+        # sn1, given sn2 by name, knows it from sn2's registrations
+        # meanwhile; one entry more, its own unresolved, than sn2 knows
+        fed = (federation("sn1"), federation("sn2"))
+        self._hosts("sn1", ["sn2"])
+        self._hosts("a", ["sn1", "sn2"])
+        t = time.monotonic()
+        ok = wait_for(given, self.SN_NAMES_WAIT, interval=1)
+        took = time.monotonic() - t
+        self.result["sn_names"]["sn2_after"] = round(took, 1)
+        self.result["sn_names"]["sn2_before"] = before
+        ok_fed = wait_for(lambda: federation("sn1") == federation("sn2")
+                          or None, self.SN_NAMES_WAIT, interval=1)
+        self.result["sn_names"]["federation"] = {
+            "before": fed, "after": (federation("sn1"), federation("sn2"))}
+        self.check("sn names: federation",
+                   bool(ok_fed) and fed[0] == fed[1] + 1,
+                   "sn1, given sn2 by a name it could not resolve, knew {} "
+                   "supernodes to sn2's {}, then {} to {}".format(
+                       fed[0], fed[1], federation("sn1"), federation("sn2")))
+        self.check("sn names: the other resolved", bool(ok),
+                   "a has sn2 as given, one entry, {:.1f}s after its name "
+                   "resolves".format(took) if ok else
+                   "a's entries for sn2 {}s after its name resolves: {}"
+                   .format(self.SN_NAMES_WAIT, self._sn_rows(d, "sn2")))
+
     def _sn_entries(self, mac):
         """{supernode: the address its entry for the MAC has}"""
         out = {}
@@ -3565,6 +3687,8 @@ class Run:
                 self.fec_phase()
             if self.sc.fec_oneway and self.check_alive("warm-up"):
                 self.fec_oneway_phase()
+            if self.sc.sn_names and self.check_alive("warm-up"):
+                self.sn_names_phase()
             if self.sc.peer_refresh and self.check_alive("warm-up"):
                 self.peer_refresh_phase()
             if self.sc.load and self.check_alive("warm-up"):
@@ -3681,6 +3805,9 @@ class Run:
         # out shows up
         self.check_alive("the end of the run")
         daemons = self.daemons()
+        if self.sc.sn_names:
+            for name in ("a", "sn1"):
+                shutil.rmtree(self._netns_etc(name), ignore_errors=True)
         for p in self.receivers.values():
             p.stop()
         exits = {}

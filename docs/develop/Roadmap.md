@@ -780,6 +780,21 @@ is written down before any v4 code: [the peer protocol](PeerProtocol.md)
       the frames go through the supernode while a REGISTER asks it at
       its address, whose ACK makes it direct again; dropped only after
       one and a half timeouts (15 of 15)
+- [x] Supernode names that do not resolve at the start (2026-11-16), as
+      without DNS yet at boot: they were left out of the list, so with
+      none resolved the edge had no supernode at all - and crashed at its
+      first registration; and one that did not resolve
+      beside others was never tried again, as the resolver thread works
+      on the list's entries only.  Now such a name is kept as an entry
+      without an address (AF_INVALID, as v3's supernode already skips in
+      what it hands out): the resolver thread tries it again every 30 s
+      while it fails, nothing goes to it meanwhile (`edge_sendto_sock()`,
+      `sn_has_transport()`), and it is not chosen while another one can
+      be.  The federation may tell of the same supernode meanwhile: the
+      two entries become one, the given one, once it has its address
+      (`sn_list_merge_learned()`, at the edge and in the supernode's
+      federation).  netns `sn-names`: registered 10 s after the name
+      resolves, the other supernode taken up 34 s after its name does
 - [x] Supernode outage and path MTU: netns scenarios `sn-outage`,
       `sn-outage-idle`, `sn-outage-restart`, `mtu-1280`, and (tagged
       `limits`, failing on purpose) `sn-outage-roam`,

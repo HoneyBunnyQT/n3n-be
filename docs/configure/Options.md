@@ -101,7 +101,7 @@ Only on a supernode, in a [community NAME] section: the range (eg: 10.1.2.0/24) 
 
 Add a supernode.
 
-Multiple supernodes can be specified, each one as a host:port string, which will be resolved if needed. If no port is provided, a default of 7654 will be used. The supernodes of all community sections form one list. With udp:// or tcp:// in front, a supernode is used over that transport only; given both ways with the same host (eg: sn.example.org:7654 and tcp://sn.example.org:443), it is one supernode, reached over TCP at the tcp:// address (see connection.tcp_fallback). With tcp:// on every one, the edge uses TCP only, as with connect_tcp.
+Multiple supernodes can be specified, each one as a host:port string, which will be resolved if needed. If no port is provided, a default of 7654 will be used. The supernodes of all community sections form one list. With udp:// or tcp:// in front, a supernode is used over that transport only; given both ways with the same host (eg: sn.example.org:7654 and tcp://sn.example.org:443), it is one supernode, reached over TCP at the tcp:// address (see connection.tcp_fallback). With tcp:// on every one, the edge uses TCP only, as with connect_tcp. A name that does not resolve - no DNS yet at boot - is tried again, every 30 seconds while it fails, and its supernode used once it does; the edge starts all the same, and waits for one, if none resolves.
 
 ### community.user
 
@@ -437,7 +437,7 @@ Default: a random one.
 
 Add a federated supernode.
 
-Multiple federated supernodes can be specified, each one as a host:port string, which will be resolved if needed.
+Multiple federated supernodes can be specified, each one as a host:port string, which will be resolved if needed - again later, where the name does not resolve yet.
 
 ### supernode.rate_burst
 

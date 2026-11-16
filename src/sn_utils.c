@@ -1253,6 +1253,7 @@ static void sn_tick (struct n3n_runtime_data *sss, time_t now) {
         false /* presumably, no special resolution requirement */,
         now
     );
+    sn_list_merge_learned(&sss->relay.federation->edges, NULL);
 }
 
 

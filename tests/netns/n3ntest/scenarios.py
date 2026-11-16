@@ -700,6 +700,16 @@ SCENARIOS = [
         Site(["easy-changed"]),
         "direct", pong_lost=True),
     Scenario(
+        "sn-names",
+        "edges behind easy NATs; a is given its supernodes by name, which "
+        "its host cannot resolve at first: it keeps running (it crashed at "
+        "its first registration), registers once sn1's name resolves, and "
+        "takes up sn2 once its name resolves later still (a name that did "
+        "not resolve at the start was never tried again)",
+        Site(["easy-kept"]),
+        Site(["easy-changed"]),
+        "direct", sn_names=True),
+    Scenario(
         "sn-lossy",
         "edges behind easy NATs, direct, registering every 40s; then the "
         "answers to a's pings from its supernode are lost, its "
